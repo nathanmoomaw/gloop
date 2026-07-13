@@ -1,0 +1,43 @@
+.gloop-app {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.grain-field {
+  position: absolute;
+  inset: 0;
+}
+
+.controls {
+  position: absolute;
+  bottom: 1.5rem;
+  left: 1.5rem;
+  display: flex;
+  gap: 1.25rem;
+  align-items: center;
+  background: rgba(6, 6, 14, 0.6);
+  backdrop-filter: blur(8px);
+  padding: 0.75rem 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.controls button {
+  background: #eee;
+  color: #06060e;
+  border: none;
+  border-radius: 999px;
+  padding: 0.5rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.controls label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.7rem;
+  opacity: 0.8;
+  gap: 0.2rem;
+}
