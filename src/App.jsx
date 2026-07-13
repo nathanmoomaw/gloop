@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import * as engine from './audio/engine'
 import GrainField from './components/GrainField'
 import './App.css'
@@ -6,16 +6,17 @@ import './App.css'
 export default function App() {
   const [running, setRunning] = useState(false)
   const [params, setParams] = useState(engine.getParams())
-  const analyserRef = useRef(null)
+  const [analyser, setAnalyser] = useState(null)
 
   const toggle = async () => {
     if (running) {
       engine.stop()
       setRunning(false)
+      setAnalyser(null)
       return
     }
     await engine.start()
-    analyserRef.current = engine.getAnalyser()
+    setAnalyser(engine.getAnalyser())
     setRunning(true)
   }
 
@@ -27,7 +28,7 @@ export default function App() {
   return (
     <div className="gloop-app">
       <div className="grain-field">
-        <GrainField analyser={analyserRef.current} running={running} />
+        <GrainField analyser={analyser} running={running} />
       </div>
 
       <div className="controls">
