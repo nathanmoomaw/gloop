@@ -1,5 +1,40 @@
 # DEVLOG
 
+## 2026-07-23 - AWS infra provisioned: gloop.obfusco.us + gloop-dev.obfusco.us live
+
+Provisioned by inspecting `now.obfusco.us`'s *live* AWS config directly (more
+reliable than sibling DEVLOG prose, which turned out stale — several claimed
+"S3 static website hosting + public bucket policy" but the actual running
+setup is private buckets behind CloudFront Origin Access Control):
+
+- S3 buckets `gloop.obfusco.us` / `gloop-dev.obfusco.us` — private, all
+  public-access-block flags on, bucket policy scopes `s3:GetObject` to
+  `cloudfront.amazonaws.com` conditioned on each distribution's own ARN.
+- CloudFront distributions: prod `E1OR0VU2T3D7I5`
+  (d1eixcc7pe2gns.cloudfront.net), dev `E1EW5T5VWLL28W`
+  (d3qtibdrec7700.cloudfront.net). Each has its own OAC (prod
+  `E3GA4G20VS4SMF`, dev `E230UICKWZMB8Q`), the shared `*.obfusco.us`
+  wildcard ACM cert (us-east-1), AWS's managed CachingOptimized cache
+  policy, and a 404→`/index.html` (200) custom error response for SPA
+  routing.
+- Route53 A-alias records added in the `obfusco.us` hosted zone
+  (`Z2YGI1EJ2R4PG0`) for both subdomains, pointing at their distributions
+  via the fixed CloudFront alias hosted-zone-id `Z2FDTNDATAQYW2`.
+- **Credentials — deviated from convention on purpose**: every other
+  lineage project shares one IAM user (`github-actions-moomaw`) via an
+  inline `moomaw-deploy` policy, but that user already had AWS's max of 2
+  active access keys and I couldn't retrieve either existing secret value
+  (write-only once set) or safely tell which live site depends on which
+  key. Rather than rotate a key some other repo might still need, created
+  a new dedicated IAM user `github-actions-gloop` with its own minimal
+  inline policy (scoped only to gloop's 2 buckets + 2 distributions) and
+  set its key as this repo's `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`
+  secrets. Zero risk to now/tuner/ribbon/vibe/moveloose/puddle's deploys.
+- `.github/workflows/deploy.yml` added, mirroring `now`'s workflow
+  structure (lint → build → verify `dist/index.html` → configure AWS creds
+  → `aws s3 sync --delete` → CloudFront invalidation → smoke-test curl),
+  `main` → prod job, `dev/**` → dev job.
+
 ## 2026-07-23 - Workspace theme, DIGEST confirmation, DNS check
 
 - Added `.vscode/settings.json` — GLOOP now has its own editor color theme
