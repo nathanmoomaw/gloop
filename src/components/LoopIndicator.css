@@ -1,0 +1,73 @@
+.loop-indicator {
+  position: absolute;
+  inset: 0;
+  width: var(--loop-size, 168px);
+  height: var(--loop-size, 168px);
+  margin: auto;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.loop-indicator--active {
+  opacity: 1;
+}
+
+.loop-indicator__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  animation: loop-indicator-spin var(--loop-duration, 1200ms) linear infinite;
+}
+
+/* Rotation speed/pulse of this ring is a live readout of the current
+   rate/delay-time — it is not a knob, purely visual feedback. */
+@keyframes loop-indicator-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.loop-indicator__sparkle {
+  position: absolute;
+  top: -3px;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  margin-left: -3.5px;
+  border-radius: 50%;
+  background: var(--rainbow-4);
+  box-shadow:
+    0 0 8px 2px var(--rainbow-4),
+    0 0 18px 4px color-mix(in srgb, var(--rainbow-3) 60%, transparent);
+}
+
+/* Flash pulse — briefly brightens the ring each time a grain fires */
+.loop-indicator__flash {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  opacity: 0;
+}
+
+.loop-indicator__flash--pulse {
+  animation: loop-indicator-flash 0.35s ease-out;
+}
+
+@keyframes loop-indicator-flash {
+  0% {
+    opacity: 0.85;
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--rainbow-5) 55%, transparent);
+  }
+  100% {
+    opacity: 0;
+    box-shadow: 0 0 26px 10px transparent;
+  }
+}
+
+@media (max-width: 767px) {
+  .loop-indicator {
+    width: calc(var(--loop-size, 168px) * 0.8);
+    height: calc(var(--loop-size, 168px) * 0.8);
+  }
+}

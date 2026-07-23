@@ -1,6 +1,27 @@
 :root {
   color-scheme: dark;
   font-family: system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Courier New', monospace;
+
+  /* GLOOP rainbow palette — shared by controls, listen button, loop ring */
+  --rainbow-1: #ff4d6d;
+  --rainbow-2: #ff9f4d;
+  --rainbow-3: #ffe14d;
+  --rainbow-4: #4dff88;
+  --rainbow-5: #4dc9ff;
+  --rainbow-6: #b04dff;
+
+  /* Per-control accent colors */
+  --color-rate: var(--rainbow-1);
+  --color-dynamics: var(--rainbow-2);
+  --color-feedback: var(--rainbow-3);
+  --color-repeat: var(--rainbow-4);
+  --color-size: var(--rainbow-5);
+  --color-density: var(--rainbow-6);
+  --color-wow: #c86dff;
+  --color-flutter: #ff6dd6;
+  --color-wobble: #ff6d94;
+  --color-volume: #d8dbe6;
 }
 
 * {

@@ -1,7 +1,7 @@
 .gloop-app {
   position: relative;
   width: 100vw;
-  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -10,34 +10,80 @@
   inset: 0;
 }
 
-.controls {
+/* Console-less control layer: individual dials float directly over the
+   canvas, pinned to the screen edges. No panel/toolbar background anywhere
+   in this layer — only the knobs/button/ring themselves are visible. */
+.controls-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  padding: max(0.75rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right))
+    max(0.75rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
+}
+
+.control-cluster {
   position: absolute;
-  bottom: 1.5rem;
-  left: 1.5rem;
   display: flex;
-  gap: 1.25rem;
-  align-items: center;
-  background: rgba(6, 6, 14, 0.6);
-  backdrop-filter: blur(8px);
-  padding: 0.75rem 1rem;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 0.5rem;
+  pointer-events: auto;
 }
 
-.controls button {
-  background: #eee;
-  color: #06060e;
-  border: none;
-  border-radius: 999px;
-  padding: 0.5rem 1rem;
-  font-weight: 600;
-  cursor: pointer;
+.control-cluster--top-left {
+  top: max(0.75rem, env(safe-area-inset-top));
+  left: max(0.75rem, env(safe-area-inset-left));
 }
 
-.controls label {
-  display: flex;
+.control-cluster--top-right {
+  top: max(0.75rem, env(safe-area-inset-top));
+  right: max(0.75rem, env(safe-area-inset-right));
+}
+
+.control-cluster--bottom-left {
+  bottom: max(0.75rem, env(safe-area-inset-bottom));
+  left: max(0.75rem, env(safe-area-inset-left));
+}
+
+/* Tape-style trio (wow/flutter/wobble) stacks vertically so it stays narrow
+   and doesn't crowd the centered listen button on phones. */
+.control-cluster--bottom-right {
+  bottom: max(0.75rem, env(safe-area-inset-bottom));
+  right: max(0.75rem, env(safe-area-inset-right));
   flex-direction: column;
-  font-size: 0.7rem;
-  opacity: 0.8;
-  gap: 0.2rem;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.control-cluster--center {
+  bottom: max(0.5rem, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.listen-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 480px) {
+  .control-cluster--top-left,
+  .control-cluster--top-right {
+    gap: 0.35rem;
+  }
+}
+
+/* Short/landscape phones: pull corner clusters in tighter and shrink the
+   listen button's footprint so nothing crowds off-screen. */
+@media (max-height: 500px) and (orientation: landscape) {
+  .control-cluster--center {
+    bottom: 0.35rem;
+  }
+  .control-cluster {
+    gap: 0.3rem;
+  }
 }

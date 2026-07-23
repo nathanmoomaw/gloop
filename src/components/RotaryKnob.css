@@ -1,0 +1,136 @@
+.rotary-knob {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: calc(var(--knob-size, 48px) + 16px);
+}
+
+.rotary-knob__label {
+  font-size: 0.6rem;
+  font-family: var(--font-mono);
+  color: rgba(255, 255, 255, 0.65);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  min-width: calc(var(--knob-size, 48px) + 8px);
+  width: calc(var(--knob-size, 48px) + 8px);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.9), 0 1px 3px rgba(0, 0, 0, 0.85);
+}
+
+.rotary-knob__value {
+  font-size: 0.55rem;
+  font-family: var(--font-mono);
+  color: var(--knob-color, var(--rainbow-1));
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.9);
+}
+
+.rotary-knob__body {
+  position: relative;
+  width: var(--knob-size, 48px);
+  height: var(--knob-size, 48px);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 40% 35%,
+    rgba(60, 60, 90, 0.9),
+    rgba(30, 30, 50, 0.95) 60%,
+    rgba(15, 15, 25, 1)
+  );
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -2px 6px rgba(0, 0, 0, 0.3);
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.rotary-knob__body:hover {
+  border-color: var(--knob-color, var(--rainbow-1));
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.5),
+    0 0 8px color-mix(in srgb, var(--knob-color, var(--rainbow-1)) 30%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.rotary-knob__body:active {
+  cursor: grabbing;
+}
+
+/* Rotating notch ring — fills the knob, rotates to show value */
+.rotary-knob__notch-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  transition: none; /* direct DOM updates during drag */
+}
+
+.rotary-knob__notch {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  width: 3px;
+  height: 30%;
+  margin-left: -1.5px;
+  border-radius: 2px;
+  background: var(--knob-color, var(--rainbow-1));
+  box-shadow: 0 0 6px var(--knob-color, var(--rainbow-1)),
+              0 0 12px color-mix(in srgb, var(--knob-color, var(--rainbow-1)) 40%, transparent);
+}
+
+/* Ghost slider — fades in during interaction */
+.rotary-knob__ghost {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.rotary-knob__ghost--visible {
+  opacity: 0.6;
+}
+
+.rotary-knob__ghost-track {
+  position: absolute;
+  width: 3px;
+  top: 10%;
+  bottom: 10%;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+}
+
+.rotary-knob__ghost-thumb {
+  position: absolute;
+  width: 60%;
+  height: 4px;
+  left: 20%;
+  background: var(--knob-color, var(--rainbow-1));
+  border-radius: 2px;
+  box-shadow: 0 0 6px var(--knob-color, var(--rainbow-1));
+  transform: translateY(-50%);
+  transition: none; /* direct DOM updates */
+}
+
+/* ── Responsive sizing ── */
+@media (max-width: 767px) {
+  .rotary-knob__body {
+    width: calc(var(--knob-size, 48px) * 0.85);
+    height: calc(var(--knob-size, 48px) * 0.85);
+  }
+}

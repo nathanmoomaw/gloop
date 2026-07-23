@@ -1,0 +1,106 @@
+.listen-button {
+  position: relative;
+  width: var(--listen-size, 128px);
+  height: var(--listen-size, 128px);
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  background: transparent;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.listen-button__core {
+  position: absolute;
+  inset: 6%;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(
+    circle at 38% 32%,
+    rgba(90, 80, 130, 0.95),
+    rgba(35, 32, 58, 0.98) 55%,
+    rgba(10, 9, 20, 1)
+  );
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 6px 24px rgba(0, 0, 0, 0.55),
+    inset 0 2px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -6px 16px rgba(0, 0, 0, 0.4);
+  transition: box-shadow 0.3s, border-color 0.3s, transform 0.15s;
+}
+
+.listen-button:active .listen-button__core {
+  transform: scale(0.96);
+}
+
+.listen-button__label {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.8);
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.6);
+}
+
+/* Idle invite pulse — gentle breathing glow ring, off state */
+.listen-button__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  animation: listen-idle-pulse 3.2s ease-in-out infinite;
+}
+
+@keyframes listen-idle-pulse {
+  0%, 100% { transform: scale(0.94); opacity: 0.55; box-shadow: 0 0 0 rgba(255,255,255,0); }
+  50% { transform: scale(1.04); opacity: 0.9; box-shadow: 0 0 24px rgba(255, 255, 255, 0.12); }
+}
+
+/* Listening state — rainbow glow + faster breathing */
+.listen-button--on .listen-button__core {
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow:
+    0 6px 28px rgba(0, 0, 0, 0.6),
+    0 0 26px 2px color-mix(in srgb, var(--rainbow-3) 55%, transparent),
+    0 0 48px 8px color-mix(in srgb, var(--rainbow-5) 30%, transparent),
+    inset 0 2px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -6px 16px rgba(0, 0, 0, 0.35);
+}
+
+.listen-button--on .listen-button__label {
+  color: rgba(255, 255, 255, 0.95);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--rainbow-3) 70%, transparent);
+}
+
+.listen-button--on .listen-button__ring {
+  border-color: transparent;
+  background: conic-gradient(
+    from 0deg,
+    var(--rainbow-1),
+    var(--rainbow-2),
+    var(--rainbow-3),
+    var(--rainbow-4),
+    var(--rainbow-5),
+    var(--rainbow-6),
+    var(--rainbow-1)
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+  animation: listen-on-spin 6s linear infinite;
+  opacity: 0.8;
+}
+
+@keyframes listen-on-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 767px) {
+  .listen-button {
+    width: calc(var(--listen-size, 128px) * 0.78);
+    height: calc(var(--listen-size, 128px) * 0.78);
+  }
+}
