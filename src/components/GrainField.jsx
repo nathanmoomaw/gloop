@@ -21,7 +21,7 @@ import * as THREE from 'three'
 const GRAIN_AREA_SIZE = 2
 const PLATE_MESH_SIZE = 10
 const GRAIN_SPAN = PLATE_MESH_SIZE / GRAIN_AREA_SIZE
-const GRAIN_COUNT = 800 * GRAIN_SPAN
+const GRAIN_COUNT = 800 * GRAIN_SPAN * 4
 const PLANE_SEGMENTS = 80
 const HOVER_HEIGHT = 0.002
 const NODAL_HEIGHT_SCALE = 0.018
@@ -41,7 +41,7 @@ function surfaceHeight(n, m, u, v, amplitude, t) {
   const nodal = nodalValue(n, m, u, v)
   // Ambient liquid motion — present even with no audio, so the plate never
   // looks static, scaled up when the resonance amplitude is higher.
-  const ripple = Math.sin(u * 8 + t * 0.6) * Math.cos(v * 8 - t * 0.5)
+  const ripple = Math.sin(u * 8 + t * 0.25) * Math.cos(v * 8 - t * 0.2)
   return (
     nodal * amplitude * NODAL_HEIGHT_SCALE + ripple * (0.3 + amplitude * 0.7) * RIPPLE_HEIGHT_SCALE
   )
@@ -118,14 +118,25 @@ export default function GrainField({ analyser, running, onInteract }) {
     const tmpColor = new THREE.Color()
     const startTime = performance.now()
     let raf
+    // Smoothed mode numbers/amplitude — the raw dominant FFT bin is noisy
+    // frame to frame, so using it directly snapped the entire height field
+    // between very different standing-wave shapes every frame, which read
+    // as flicker (especially with real 3D shading, much more than it did on
+    // the old flat 2D canvas). n/m are eased as continuous floats rather
+    // than integers — sin(nπu) is perfectly well-defined for non-integer n,
+    // so this gives a smooth morph between resonance patterns instead of a
+    // discrete jump.
+    let smoothN = 3
+    let smoothM = 4
+    let smoothAmplitude = 0.3
 
     const draw = () => {
       raf = requestAnimationFrame(draw)
       const t = (performance.now() - startTime) / 1000
 
-      let n = 3
-      let m = 4
-      let amplitude = 0.3
+      let targetN = 3
+      let targetM = 4
+      let targetAmplitude = 0.3
 
       if (running && freqData) {
         analyser.getByteFrequencyData(freqData)
@@ -137,10 +148,17 @@ export default function GrainField({ analyser, running, onInteract }) {
             maxBin = i
           }
         }
-        n = 2 + (maxBin % 7)
-        m = 3 + ((maxBin * 3) % 9)
-        amplitude = Math.min(1, maxVal / 255)
+        targetN = 2 + (maxBin % 7)
+        targetM = 3 + ((maxBin * 3) % 9)
+        targetAmplitude = Math.min(1, maxVal / 255)
       }
+
+      smoothN += (targetN - smoothN) * 0.03
+      smoothM += (targetM - smoothM) * 0.03
+      smoothAmplitude += (targetAmplitude - smoothAmplitude) * 0.06
+      const n = smoothN
+      const m = smoothM
+      const amplitude = smoothAmplitude
 
       // Pointer push: decays on its own each frame, independent of audio state.
       const pointer = pointerRef.current
@@ -159,7 +177,7 @@ export default function GrainField({ analyser, running, onInteract }) {
         // surface itself reads as a genuine rainbow gradient rather than a
         // single flat tint — dark near the background color in the calm
         // nodal valleys, saturated and bright on the ripple peaks.
-        const hue = ((u + v) * 0.5 + t * 0.05) % 1
+        const hue = ((u + v) * 0.5 + t * 0.02) % 1
         const brightness = 0.04 + Math.min(1, Math.abs(h) / NODAL_HEIGHT_SCALE) * 0.42
         tmpColor.setHSL(hue, 0.8, brightness)
         colAttr.setXYZ(i, tmpColor.r, tmpColor.g, tmpColor.b)
@@ -219,7 +237,7 @@ export default function GrainField({ analyser, running, onInteract }) {
 
       // Camera: fixed tilted view over the plate, with a slow, subtle sway
       // so the 3D depth/parallax of the ripple reads clearly at a glance.
-      camera.position.set(Math.sin(t * 0.08) * 0.15, 1.5, 1.55 + Math.cos(t * 0.05) * 0.08)
+      camera.position.set(Math.sin(t * 0.03) * 0.15, 1.5, 1.55 + Math.cos(t * 0.02) * 0.08)
       camera.lookAt(0, 0, 0)
 
       renderer.render(scene, camera)

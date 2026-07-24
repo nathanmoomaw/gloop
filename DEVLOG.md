@@ -1,5 +1,29 @@
 # DEVLOG
 
+## 2026-07-24 - Root-caused the flicker, slowed motion, 4x grain count
+
+Found the actual cause of "the 3D stuff is super flickery": `n`, `m` (the
+Chladni mode numbers) and `amplitude` were read directly off the raw
+per-frame dominant FFT bin with zero smoothing. Real (and even synthetic
+test) mic input is noisy frame to frame, so the whole height field could
+snap between very different standing-wave shapes on consecutive frames —
+invisible-ish on the old flat 2D canvas, but very obvious as discontinuous
+jumps once the same data drives real 3D shading. Fixed by easing `n`/`m` as
+continuous floats (not integers — `sin(nπu)` is perfectly well-defined for
+non-integer `n`, so this morphs smoothly between resonance patterns instead
+of jumping) and `amplitude` toward their per-frame targets each frame,
+rather than snapping straight to them.
+
+Also slowed the ambient animation itself per feedback ("needs to move much
+slower"): the ripple's temporal terms, the plate's hue-drift rate, and the
+camera's idle sway were all roughly halved to a third of their previous
+speed.
+
+**Grain count 4x'd** (4000 → 16000) per "want to see many many more sand
+grains." Verified via Playwright that this still holds a steady 60fps even
+under headless *software* GL rendering (SwiftShader, no real GPU) — real
+hardware should have plenty of margin.
+
 ## 2026-07-24 - Grains span the full screen + tap-to-play while idle
 
 Two more follow-ups on the same day's plate work:

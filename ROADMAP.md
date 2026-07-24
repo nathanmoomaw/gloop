@@ -35,3 +35,6 @@
 - [x] Spacebar stops listening
 - [x] Grains now roam the full plate (GRAIN_SPAN), not just the original central tile
 - [x] Tapping the grain field while not listening plays a synthesized tap sound (`engine.playTapSound`)
+- [x] Root-caused 3D flicker: smoothed n/m mode numbers and amplitude instead of snapping to the raw noisy per-frame FFT bin
+- [x] Slowed ambient ripple/hue-drift/camera-sway animation speed
+- [x] Grain count 4x'd (4000 → 16000), verified steady 60fps under headless software GL
