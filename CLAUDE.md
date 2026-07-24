@@ -6,10 +6,13 @@ GLOOP is a granular synthesis echo loopback device — part of the ribbon/puddle
 ## Tech Stack
 - Vite + React 19, no backend
 - Web Audio API: `ScriptProcessor` grain capture → grain pool → randomized playback through per-grain delay/feedback/pan (see `src/audio/engine.js`)
-- Canvas 2D for the grain-field visualization (see `src/components/GrainField.jsx`)
+- three.js (WebGL) for the grain-field visualization (see `src/components/GrainField.jsx`) — a rippling plate mesh driven by the same Chladni nodal math as the grains, with grains rendered as glowing 3D points hovering just above the live surface height. Not audness-powered — see Audness note below.
 
 ## Status
 Scaffold stage (2026-07-12). Core mic → grain → feedback loop and Chladni-driven visualization are implemented as a first pass. Deploy infra provisioned 2026-07-23.
+
+## Audness
+GLOOP does **not** use `@audness/core` and shouldn't — audness is a synth-voice engine (oscillators, VCF, delay/reverb, bitcrush) for the puddle v2+/ribbon v4+ lineage, with no mic-capture or granular-synthesis support at all. GLOOP's actual needs (live mic ingestion, grain-pool capture, per-grain delay/feedback/pan network) are a different problem than what audness solves; `src/audio/engine.js` is intentionally bespoke. `LIFE/LINEAGE.md` places GLOOP directly under ribbon, not under audness, consistent with this.
 
 ## Conventions
 - DUMP.md is a symlink to `~/Sites/LIFE/dumps/gloop.md` — gitignored here, lives privately in LIFE.

@@ -1,5 +1,48 @@
 # DEVLOG
 
+## 2026-07-24 - 3D liquid plate (three.js) + audness confirmation
+
+**Grain field is now a real 3D scene (three.js/WebGL), not a flat 2D canvas.**
+The plate is a rippling mesh whose height comes from the *same* Chladni
+nodal function that already drove grain drift (`nodalValue(n, m, u, v)`,
+now shared between plate and grains), plus a small ambient traveling ripple
+so the plate stays alive even at rest. Grains are rendered as additive-blend
+`THREE.Points`, hovering `HOVER_HEIGHT` above the plate's live surface
+height at their own (x, y) — the "gliding above the plate due to acoustic
+resonance" effect the dump asked for. Grain drift/pointer-push physics are
+otherwise unchanged from the 2D version (same math, just also driving a 3D
+Y position now).
+
+- Plate vertex colors: hue swept by position (`(u+v)/2`) plus a slow time
+  drift, brightness driven by ripple height — first pass used hue-by-time-only
+  and rendered as a flat muddy brown; fixed by making hue vary spatially so
+  the surface reads as an actual moving rainbow gradient (verified via
+  Playwright screenshot before/after).
+- Fixed camera with a small continuous positional sway (not user-orbitable)
+  — keeps the "console-less," no-extra-chrome feel while still making the
+  3D depth/parallax legible at a glance.
+- Kept "lightly" in scope per the ask: `antialias: false`, pixel ratio
+  capped at 2, same grain count (800) as the 2D version, moderate plate
+  subdivision (56×56 segments), no lights/shadows (unlit `MeshBasicMaterial`
+  with vertex colors) — computeVertexNormals() was dropped since nothing
+  reads normals without lighting.
+- New dependency: `three` (~0.185). Bundle grew from ~205KB to ~715KB
+  (~65KB→~194KB gzip) — a real, known tradeoff of moving off Canvas 2D,
+  worth watching on slow mobile connections but not addressed further here.
+- Verified with Playwright: no console/page errors, screenshots confirm
+  correct rendering both idle and while listening (nodal lines visible as
+  grains trace bright paths across the rippling surface).
+
+**Audness question answered**: confirmed GLOOP does not use `@audness/core`
+and shouldn't — audness is a synth-voice engine (oscillators/VCF/bitcrush),
+has zero mic-capture or granular-synthesis capability, and was never a fit
+for what GLOOP needs. See CLAUDE.md's new Audness section.
+
+**Dev branch**: cut `dev/v0` from `main`, pushed — confirmed it auto-deploys
+to gloop-dev.obfusco.us (previously 403/empty) via the existing
+`dev/**`-triggered workflow job. It's identical to `main`'s tip as of this
+push, so there was nothing to "merge forward" yet.
+
 ## 2026-07-24 - Sustain-on-silence + sensitivity dial
 
 Feedback previously always decayed over a fixed `repeat`-controlled window

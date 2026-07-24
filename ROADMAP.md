@@ -5,6 +5,7 @@
 - [ ] Migrate `ScriptProcessor` grain capture to an `AudioWorklet` (ScriptProcessor is deprecated)
 - [ ] Tune default grain size / feedback / spread for a good out-of-the-box first impression
 - [ ] Mobile mic permission UX pass
+- [ ] three.js pulled the JS bundle from ~205KB to ~715KB (gzip ~65KB→~194KB) — consider code-splitting GrainField behind a dynamic import if initial load time becomes an issue on mobile
 
 ## Completed
 
@@ -25,3 +26,5 @@
 - [x] Fixed total-silence bug (ScriptProcessor capture node was never connected through to destination)
 - [x] Sustain-on-silence: repeat ceiling stretches way out when live input goes quiet, plus new `sensitivity` dial for the quiet threshold
 - [x] `dev/v0` branch cut, autodeploying to gloop-dev.obfusco.us
+- [x] Confirmed GLOOP does not use (and shouldn't use) the audness shared engine — see CLAUDE.md
+- [x] 3D liquid plate: grain field rebuilt in three.js, rippling surface driven by the same Chladni nodal math as the grains, grains hover above it
