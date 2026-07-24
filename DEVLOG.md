@@ -1,5 +1,38 @@
 # DEVLOG
 
+## 2026-07-23 - Fix: total silence bug (ScriptProcessor never fired)
+
+User reported no sound at all. Root cause was in `src/audio/engine.js`,
+present since the original scaffold (2026-07-12): the mic-capture
+`ScriptProcessorNode` was connected to a freshly created `GainNode` that
+was never itself connected onward to `ctx.destination` —
+
+```js
+recorderNode.connect(ctx.createGain()) // silent sink
+```
+
+Chrome/Firefox only reliably fire `onaudioprocess` once the node graph
+reaches the destination; this dangling node meant `onaudioprocess` never
+ran, so the grain buffer pool stayed all-zero forever. Grain scheduling,
+the loop indicator, and the Chladni visualization all worked fine (none
+of them depend on real mic data), which is why this went unnoticed —
+every grain was faithfully playing back silence.
+
+Fix: route the sink through an explicit zero-gain node connected to
+`ctx.destination`, satisfying the browser's graph requirement without
+audibly passing raw mic input through:
+
+```js
+const silentSink = ctx.createGain()
+silentSink.gain.value = 0
+recorderNode.connect(silentSink)
+silentSink.connect(ctx.destination)
+```
+
+Verified with Playwright + Chrome's fake-mic-device flags: analyser
+time-domain data was exactly `0` (true digital silence) before the fix
+and nonzero after, on the same build.
+
 ## 2026-07-23 - AWS infra provisioned: gloop.obfusco.us + gloop-dev.obfusco.us live
 
 Provisioned by inspecting `now.obfusco.us`'s *live* AWS config directly (more

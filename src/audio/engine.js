@@ -188,8 +188,13 @@ export async function start() {
   }
 
   micSource.connect(recorderNode)
-  // ScriptProcessor must be connected to a destination-reachable node to run in all browsers.
-  recorderNode.connect(ctx.createGain()) // silent sink
+  // ScriptProcessor only fires onaudioprocess reliably once it's connected
+  // through to the destination — route it there via a zero-gain sink so the
+  // graph requirement is satisfied without audibly passing raw mic input.
+  const silentSink = ctx.createGain()
+  silentSink.gain.value = 0
+  recorderNode.connect(silentSink)
+  silentSink.connect(ctx.destination)
 
   // Perturbation decays on a real-time clock, independent of grain rate.
   perturbDecayInterval = setInterval(() => {
