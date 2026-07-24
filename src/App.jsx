@@ -65,8 +65,14 @@ export default function App() {
   }
 
   const handleInteract = useCallback((nx, ny, intensity) => {
-    engine.perturb(intensity)
-  }, [])
+    if (running) {
+      engine.perturb(intensity)
+    } else {
+      // Not listening — there's no live grain stream to nudge, so play a
+      // synthesized stand-in for "what this push would sound like" instead.
+      engine.playTapSound(nx, ny, intensity)
+    }
+  }, [running])
 
   const pct = (v) => `${Math.round(v * 100)}%`
 

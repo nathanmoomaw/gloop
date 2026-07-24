@@ -33,3 +33,5 @@
 - [x] Default rate/sensitivity tuned for more audible activity out of the box
 - [x] Real fix for echo dying out in silence: grain pool freezes (stops recording) while input is quiet, instead of only extending the decay ceiling
 - [x] Spacebar stops listening
+- [x] Grains now roam the full plate (GRAIN_SPAN), not just the original central tile
+- [x] Tapping the grain field while not listening plays a synthesized tap sound (`engine.playTapSound`)

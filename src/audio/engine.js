@@ -148,6 +148,60 @@ export function onGrainFire(callback) {
   onGrainFireCallback = callback
 }
 
+// Standalone context for one-off tap sounds, used when the user pushes the
+// grain field while not actively listening — there's no live mic capture to
+// draw a real grain from in that state, so this synthesizes a stand-in
+// "what would this rearrangement sound like" blip instead. Lazily created
+// on first tap and kept alive across taps; independent of start()/stop().
+let tapCtx = null
+let tapNoiseBuffer = null
+
+function ensureTapContext() {
+  if (!tapCtx) {
+    tapCtx = new (window.AudioContext || window.webkitAudioContext)()
+  }
+  if (!tapNoiseBuffer) {
+    const len = Math.ceil(tapCtx.sampleRate * 0.3)
+    tapNoiseBuffer = tapCtx.createBuffer(1, len, tapCtx.sampleRate)
+    const data = tapNoiseBuffer.getChannelData(0)
+    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1
+  }
+  return tapCtx
+}
+
+// (nx, ny) normalized screen position, intensity 0-1 — mirrors the same
+// gesture that would otherwise feed engine.perturb() while listening.
+export function playTapSound(nx, ny, intensity) {
+  const c = ensureTapContext()
+
+  const src = c.createBufferSource()
+  src.buffer = tapNoiseBuffer
+  src.playbackRate.value = 0.7 + Math.random() * 0.6
+
+  const filter = c.createBiquadFilter()
+  filter.type = 'bandpass'
+  filter.frequency.value = 300 + (1 - ny) * 3200 // higher on screen = higher pitch
+  filter.Q.value = 3 + Math.random() * 4
+
+  const gain = c.createGain()
+  const peak = Math.min(0.5, 0.15 + intensity * 0.35)
+  const dur = 0.08 + intensity * 0.12
+  gain.gain.setValueAtTime(0, c.currentTime)
+  gain.gain.linearRampToValueAtTime(peak, c.currentTime + 0.008)
+  gain.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + dur)
+
+  const panner = c.createStereoPanner()
+  panner.pan.value = (nx - 0.5) * 1.6
+
+  src.connect(filter)
+  filter.connect(gain)
+  gain.connect(panner)
+  panner.connect(c.destination)
+
+  src.start()
+  src.stop(c.currentTime + dur + 0.05)
+}
+
 // Sensitivity dial (0-1) maps to this amplitude threshold: higher sensitivity
 // = lower threshold = quieter input still counts as "active".
 function currentThreshold() {

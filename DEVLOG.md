@@ -1,5 +1,38 @@
 # DEVLOG
 
+## 2026-07-24 - Grains span the full screen + tap-to-play while idle
+
+Two more follow-ups on the same day's plate work:
+
+- **Grains now roam the full plate, not just the original central tile.**
+  They were still confined to the `GRAIN_AREA_SIZE` (2-unit) square even
+  after the plate mesh itself was enlarged to fill the screen. Introduced
+  `GRAIN_SPAN` (`PLATE_MESH_SIZE / GRAIN_AREA_SIZE` = 5) as how many
+  Chladni-pattern tile-widths grains can now wander across; the nodal drift
+  math reads the fractional part of each grain's position (`x - floor(x)`)
+  to sample the periodic pattern, same trick the plate mesh already used.
+  Grain count scaled from 800 to `800 * GRAIN_SPAN` (4000) — scaled with the
+  *linear* span rather than the full 25x area increase, to keep the
+  per-frame grain loop's cost reasonable while still giving decent coverage
+  edge to edge. Pointer-push physics were re-derived in normalized [0,1]
+  terms so the push still feels identical regardless of the larger roaming
+  domain.
+- **Tapping the grains while not listening now makes a sound.** Previously
+  `onInteract` always called `engine.perturb()`, which only nudges
+  parameters of an already-running grain stream — with no live mic capture
+  active, a tap did nothing audible at all. Added `engine.playTapSound(nx,
+  ny, intensity)`: a short bandpass-filtered noise burst (pitch from
+  vertical tap position, pan from horizontal, level/duration from
+  intensity) through a lazily-created, independent `AudioContext` — a
+  synthesized stand-in for "what this grain rearrangement would sound
+  like," since there's no real captured audio to draw an actual grain from
+  in that state. `App.jsx`'s `handleInteract` now branches on `running`:
+  perturb the live stream if listening, play the tap synth otherwise.
+
+Verified with Playwright: grains render across the full frame (screenshot),
+and tapping while stopped exercises the new code path with no console/page
+errors.
+
 ## 2026-07-24 - Plate tuning pass + real fix for echo dying out in silence
 
 Follow-up feedback on the same day's 3D plate + sustain work:

@@ -11,15 +11,17 @@ import * as THREE from 'three'
 // cheap — read via a mutable ref inside the rAF loop so it never triggers a
 // React re-render) and calls `onInteract` so the caller can feed the same
 // gesture into the audio engine as a temporary perturbation.
-const GRAIN_COUNT = 800
-// Grains live in a GRAIN_AREA_SIZE x GRAIN_AREA_SIZE physical square (their
-// (x, y) state is always 0-1, same as before) — but the visible plate mesh
-// is drawn much larger (PLATE_MESH_SIZE) so its edges sit off-screen at any
-// aspect ratio and the rippling surface spans the whole viewport. The nodal
-// pattern is still computed on the GRAIN_AREA_SIZE unit (sin() is periodic,
-// so it tiles seamlessly outward across the bigger mesh with no seam).
+// The Chladni nodal pattern's natural "tile" is GRAIN_AREA_SIZE wide (sin()
+// is periodic, so it repeats seamlessly beyond that) — but the visible
+// plate mesh is drawn much larger (PLATE_MESH_SIZE) so its edges sit
+// off-screen at any aspect ratio. Grains now roam that same full extent
+// (GRAIN_SPAN tile-widths) instead of being confined to one central tile;
+// count scales with the linear span, not the full area, to keep the extra
+// per-frame grain-loop cost reasonable.
 const GRAIN_AREA_SIZE = 2
 const PLATE_MESH_SIZE = 10
+const GRAIN_SPAN = PLATE_MESH_SIZE / GRAIN_AREA_SIZE
+const GRAIN_COUNT = 800 * GRAIN_SPAN
 const PLANE_SEGMENTS = 80
 const HOVER_HEIGHT = 0.002
 const NODAL_HEIGHT_SCALE = 0.018
@@ -87,8 +89,8 @@ export default function GrainField({ analyser, running, onInteract }) {
     // 3D points hovering just above the plate's local surface height.
     if (grainsRef.current.length === 0) {
       grainsRef.current = Array.from({ length: GRAIN_COUNT }, () => ({
-        x: Math.random(),
-        y: Math.random(),
+        x: Math.random() * GRAIN_SPAN,
+        y: Math.random() * GRAIN_SPAN,
         hue: Math.random() * 360,
       }))
     }
@@ -172,31 +174,41 @@ export default function GrainField({ analyser, running, onInteract }) {
       const grains = grainsRef.current
       for (let i = 0; i < grains.length; i++) {
         const g = grains[i]
-        const nodal = nodalValue(n, m, g.x, g.y)
+        // Fractional part tiles the nodal pattern across the grain's full
+        // GRAIN_SPAN-wide roaming area, same trick as the plate mesh.
+        const u = g.x - Math.floor(g.x)
+        const v = g.y - Math.floor(g.y)
+        const nodal = nodalValue(n, m, u, v)
 
         const pull = 0.002 * (1 - Math.min(1, Math.abs(nodal) * 2))
         g.x += (Math.random() - 0.5) * 0.004 * (0.3 + amplitude) - Math.sign(nodal) * pull
         g.y += (Math.random() - 0.5) * 0.004 * (0.3 + amplitude) - Math.sign(nodal) * pull
 
         if (pushActive) {
-          const dx = g.x - pointer.x
-          const dy = g.y - pointer.y
-          const distSq = dx * dx + dy * dy
+          // pointer.x/y are normalized [0,1] screen-space; grains roam a
+          // GRAIN_SPAN-wide domain, so compare in normalized terms and scale
+          // the resulting displacement back up — keeps the same push feel
+          // as before regardless of the larger roaming area.
+          const dxNorm = g.x / GRAIN_SPAN - pointer.x
+          const dyNorm = g.y / GRAIN_SPAN - pointer.y
+          const distSq = dxNorm * dxNorm + dyNorm * dyNorm
           if (distSq < 0.035) {
             const dist = Math.sqrt(distSq) || 0.001
             const force = pointer.strength * (1 - dist / 0.19)
-            g.x += (dx / dist) * force * 0.03
-            g.y += (dy / dist) * force * 0.03
+            g.x += (dxNorm / dist) * force * 0.03 * GRAIN_SPAN
+            g.y += (dyNorm / dist) * force * 0.03 * GRAIN_SPAN
           }
         }
 
-        g.x = Math.min(1, Math.max(0, g.x))
-        g.y = Math.min(1, Math.max(0, g.y))
+        g.x = Math.min(GRAIN_SPAN, Math.max(0, g.x))
+        g.y = Math.min(GRAIN_SPAN, Math.max(0, g.y))
         g.hue = (g.hue + 0.05) % 360
 
-        const worldX = (g.x - 0.5) * GRAIN_AREA_SIZE
-        const worldZ = (g.y - 0.5) * GRAIN_AREA_SIZE
-        const worldY = surfaceHeight(n, m, g.x, g.y, amplitude, t) + HOVER_HEIGHT
+        const localU = g.x - Math.floor(g.x)
+        const localV = g.y - Math.floor(g.y)
+        const worldX = (g.x / GRAIN_SPAN - 0.5) * PLATE_MESH_SIZE
+        const worldZ = (g.y / GRAIN_SPAN - 0.5) * PLATE_MESH_SIZE
+        const worldY = surfaceHeight(n, m, localU, localV, amplitude, t) + HOVER_HEIGHT
         gPos.setXYZ(i, worldX, worldY, worldZ)
 
         tmpColor.setHSL(g.hue / 360, 0.85, 0.55 + amplitude * 0.2)
