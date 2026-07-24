@@ -103,6 +103,17 @@ export default function App() {
             onChange={(v) => updateParam('repeat', v)}
             color="var(--color-repeat)"
           />
+          <RotaryKnob
+            label="sensitivity"
+            valueLabel={pct(params.sensitivity)}
+            value={params.sensitivity}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={(v) => updateParam('sensitivity', v)}
+            color="var(--color-sensitivity)"
+            size={40}
+          />
         </div>
 
         <div className="control-cluster control-cluster--bottom-left">

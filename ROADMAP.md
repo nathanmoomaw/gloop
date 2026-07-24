@@ -22,3 +22,6 @@
 - [x] `.vscode/settings.json` — distinct editor workspace theme (teal/coral) from all other lineage projects
 - [x] Provision AWS infra: S3 (private + OAC) + CloudFront + Route53 for gloop.obfusco.us and gloop-dev.obfusco.us
 - [x] GitHub Actions deploy workflow (`main`→prod, `dev/**`→dev), mirroring now.obfusco.us's live config
+- [x] Fixed total-silence bug (ScriptProcessor capture node was never connected through to destination)
+- [x] Sustain-on-silence: repeat ceiling stretches way out when live input goes quiet, plus new `sensitivity` dial for the quiet threshold
+- [x] `dev/v0` branch cut, autodeploying to gloop-dev.obfusco.us

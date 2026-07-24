@@ -26,6 +26,11 @@
 //   dynamics     — depth of per-grain random delay-time variation ("dynamic
 //                  delay") — how much the delay time itself wobbles grain to
 //                  grain, as opposed to wobble's continuous sweep.
+//   sensitivity  — how quiet the live mic input has to get before the engine
+//                  treats it as "not presently hearing new sound" and leans
+//                  into long sustain (see SUSTAIN_MAX_MS below). Higher value
+//                  = more sensitive = counts quieter input as still "active",
+//                  so sustain kicks in less readily.
 //   mix          — per-grain envelope peak level (internal balance, not
 //                  exposed as its own dial).
 //   volume       — master output gain.
@@ -53,7 +58,17 @@ const WOBBLE_HZ = 0.3
 const DYNAMICS_MAX_SEC = 0.3 // per-grain random delay jitter, up to +/-300ms
 const REPEAT_MIN_MS = 250
 const REPEAT_MAX_MS = 6000
+// When the mic hasn't picked up new sound in a while, the repeat ceiling
+// stretches from REPEAT_MAX_MS up toward this — a much longer, more
+// persistent wash of echoes instead of the loop dying out quickly.
+const SUSTAIN_MAX_MS = 30000
 const MAX_DELAY_SEC = 2 // matches ctx.createDelay(2)
+// Sensitivity dial maps to an input-level threshold in this range: higher
+// sensitivity = lower threshold = quieter input still counts as "active".
+const SENSITIVITY_THRESH_MAX = 0.05
+const SENSITIVITY_THRESH_MIN = 0.002
+// Smoothing factor for the rolling input-level estimate (per audio block).
+const INPUT_LEVEL_SMOOTHING = 0.85
 
 const state = {
   grainSizeMs: GRAIN_MS_DEFAULT,
@@ -63,6 +78,7 @@ const state = {
   spread: 0.3,
   density: 0.35,
   dynamics: 0.15,
+  sensitivity: 0.5,
   wow: 0,
   flutter: 0,
   wobble: 0,
@@ -77,6 +93,9 @@ const perturbation = { spread: 0, feedback: 0, dynamics: 0 }
 let pool = []
 let poolWriteIndex = 0
 let recorderNode = null
+// Rolling estimate of live input level, updated per audio block — drives the
+// "no new sound coming in" sustain behavior via the sensitivity threshold.
+let inputLevel = 0
 
 // Persistent modulation sources, created once in start().
 let wowLFO = null
@@ -178,13 +197,17 @@ export async function start() {
   recorderNode.onaudioprocess = (e) => {
     const input = e.inputBuffer.getChannelData(0)
     const buf = pool[poolWriteIndex % POOL_SIZE]
+    let sumSq = 0
     for (let i = 0; i < input.length; i++) {
+      sumSq += input[i] * input[i]
       if (writeOffset >= buf.length) {
         writeOffset = 0
         poolWriteIndex++
       }
       pool[poolWriteIndex % POOL_SIZE][writeOffset++] = input[i]
     }
+    const blockRms = Math.sqrt(sumSq / input.length)
+    inputLevel = inputLevel * INPUT_LEVEL_SMOOTHING + blockRms * (1 - INPUT_LEVEL_SMOOTHING)
   }
 
   micSource.connect(recorderNode)
@@ -267,7 +290,14 @@ function playGrain() {
   // Repeat controls tail length: the loop gain starts at the feedback amount
   // and decays to near-silence over a duration set by `repeat`, independent
   // of the feedback value itself (which sets how "hot" the early repeats are).
-  const repeatMs = REPEAT_MIN_MS + state.repeat * (REPEAT_MAX_MS - REPEAT_MIN_MS)
+  // The ceiling itself stretches toward SUSTAIN_MAX_MS as live input goes
+  // quiet (per `sensitivity`), so echoes linger much longer when nothing new
+  // is coming in, and behave normally while actively fed.
+  const threshold =
+    SENSITIVITY_THRESH_MAX - state.sensitivity * (SENSITIVITY_THRESH_MAX - SENSITIVITY_THRESH_MIN)
+  const quietFactor = Math.max(0, Math.min(1, 1 - inputLevel / threshold))
+  const repeatCeilingMs = REPEAT_MAX_MS + quietFactor * (SUSTAIN_MAX_MS - REPEAT_MAX_MS)
+  const repeatMs = REPEAT_MIN_MS + state.repeat * (repeatCeilingMs - REPEAT_MIN_MS)
   feedbackGain.gain.setValueAtTime(Math.max(0.0001, effFeedback), ctx.currentTime)
   if (effFeedback > 0.0005) {
     feedbackGain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + repeatMs / 1000)
@@ -312,6 +342,7 @@ export function stop() {
   ctx = null
   analyser = null
   pool = []
+  inputLevel = 0
   wowLFO = null
   wowDepth = null
   flutterLFO = null

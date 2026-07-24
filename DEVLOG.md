@@ -1,5 +1,30 @@
 # DEVLOG
 
+## 2026-07-24 - Sustain-on-silence + sensitivity dial
+
+Feedback previously always decayed over a fixed `repeat`-controlled window
+(250ms-6s) regardless of whether the mic was still hearing anything, so the
+echo died out quickly even with nothing new competing for attention.
+
+- `engine.js` now tracks a rolling input-level estimate (per-block RMS,
+  smoothed 85/15 across blocks) in the `ScriptProcessor` capture callback.
+- New `sensitivity` param (0-1, default 0.5) maps to an amplitude threshold
+  (0.05 down to 0.002 as sensitivity rises) — the level below which live
+  input counts as "not presently hearing new sound."
+- The repeat-time ceiling (`REPEAT_MAX_MS`, 6s) now stretches toward a new
+  `SUSTAIN_MAX_MS` (30s) in proportion to how far below that threshold the
+  current input level sits (`quietFactor`), so the loop becomes a much
+  longer, more persistent wash of echoes while quiet, and behaves exactly
+  as before while actively fed. Bounded and self-decaying either way — no
+  true infinite freeze/looper, which would need buffer-pool freezing and
+  was out of scope for this ask.
+- New `sensitivity` RotaryKnob added next to feedback/repeat in the
+  top-right cluster (`App.jsx`, `--color-sensitivity` teal in `index.css`).
+
+Verified with Playwright (fake mic device): param round-trips correctly via
+setParam/getParams, and audio output stays nonzero (sampled over ~1s to
+avoid catching an inter-grain gap) after the change.
+
 ## 2026-07-23 - Fix: total silence bug (ScriptProcessor never fired)
 
 User reported no sound at all. Root cause was in `src/audio/engine.js`,
