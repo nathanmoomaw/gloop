@@ -29,17 +29,35 @@ export default function App() {
     })
   }, [])
 
+  const stopListening = () => {
+    engine.stop()
+    setRunning(false)
+    setAnalyser(null)
+  }
+
   const toggle = async () => {
     if (running) {
-      engine.stop()
-      setRunning(false)
-      setAnalyser(null)
+      stopListening()
       return
     }
     await engine.start()
     setAnalyser(engine.getAnalyser())
     setRunning(true)
   }
+
+  // Spacebar stops listening — a quick "kill it" key that doesn't require
+  // aiming for the listen button. Only acts (and only preventDefault's the
+  // page-scroll) while actually running.
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.code === 'Space' && running) {
+        e.preventDefault()
+        stopListening()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [running])
 
   const updateParam = (name, value) => {
     engine.setParam(name, value)

@@ -28,3 +28,8 @@
 - [x] `dev/v0` branch cut, autodeploying to gloop-dev.obfusco.us
 - [x] Confirmed GLOOP does not use (and shouldn't use) the audness shared engine — see CLAUDE.md
 - [x] 3D liquid plate: grain field rebuilt in three.js, rippling surface driven by the same Chladni nodal math as the grains, grains hover above it
+- [x] Plate mesh now spans the full screen regardless of aspect ratio (decoupled mesh size from grain-area size)
+- [x] Ripple amplitude cut 10x (was reading as jerky)
+- [x] Default rate/sensitivity tuned for more audible activity out of the box
+- [x] Real fix for echo dying out in silence: grain pool freezes (stops recording) while input is quiet, instead of only extending the decay ceiling
+- [x] Spacebar stops listening

@@ -27,10 +27,13 @@
 //                  delay") — how much the delay time itself wobbles grain to
 //                  grain, as opposed to wobble's continuous sweep.
 //   sensitivity  — how quiet the live mic input has to get before the engine
-//                  treats it as "not presently hearing new sound" and leans
-//                  into long sustain (see SUSTAIN_MAX_MS below). Higher value
-//                  = more sensitive = counts quieter input as still "active",
-//                  so sustain kicks in less readily.
+//                  treats it as "not presently hearing new sound": the grain
+//                  pool stops recording over itself (so grains keep echoing
+//                  the last real captured audio instead of degrading into
+//                  recorded silence) and the repeat/decay ceiling stretches
+//                  out toward SUSTAIN_MAX_MS. Higher value = more sensitive
+//                  = counts quieter input as still "active", so both of the
+//                  above kick in less readily.
 //   mix          — per-grain envelope peak level (internal balance, not
 //                  exposed as its own dial).
 //   volume       — master output gain.
@@ -44,7 +47,7 @@ let perturbDecayInterval = null
 let onGrainFireCallback = null
 
 const GRAIN_MS_DEFAULT = 120
-const RATE_MS_DEFAULT = 130
+const RATE_MS_DEFAULT = 26
 const POOL_SIZE = 24
 
 // Modulation ranges — the raw 0-1 dial values are scaled into these before
@@ -78,7 +81,7 @@ const state = {
   spread: 0.3,
   density: 0.35,
   dynamics: 0.15,
-  sensitivity: 0.5,
+  sensitivity: 0.1,
   wow: 0,
   flutter: 0,
   wobble: 0,
@@ -145,6 +148,12 @@ export function onGrainFire(callback) {
   onGrainFireCallback = callback
 }
 
+// Sensitivity dial (0-1) maps to this amplitude threshold: higher sensitivity
+// = lower threshold = quieter input still counts as "active".
+function currentThreshold() {
+  return SENSITIVITY_THRESH_MAX - state.sensitivity * (SENSITIVITY_THRESH_MAX - SENSITIVITY_THRESH_MIN)
+}
+
 export async function start() {
   if (ctx) return
   ctx = new (window.AudioContext || window.webkitAudioContext)()
@@ -196,18 +205,26 @@ export async function start() {
 
   recorderNode.onaudioprocess = (e) => {
     const input = e.inputBuffer.getChannelData(0)
-    const buf = pool[poolWriteIndex % POOL_SIZE]
     let sumSq = 0
+    for (let i = 0; i < input.length; i++) sumSq += input[i] * input[i]
+    const blockRms = Math.sqrt(sumSq / input.length)
+    inputLevel = inputLevel * INPUT_LEVEL_SMOOTHING + blockRms * (1 - INPUT_LEVEL_SMOOTHING)
+
+    // While quiet, freeze the pool instead of overwriting it with near-
+    // silence — this is what actually makes the echo "just continue" when
+    // nothing new is coming in: grains keep pulling from the last real
+    // captured sound indefinitely, rather than gradually recording over it
+    // with silence while only the feedback *decay time* gets extended.
+    if (inputLevel < currentThreshold()) return
+
+    const buf = pool[poolWriteIndex % POOL_SIZE]
     for (let i = 0; i < input.length; i++) {
-      sumSq += input[i] * input[i]
       if (writeOffset >= buf.length) {
         writeOffset = 0
         poolWriteIndex++
       }
       pool[poolWriteIndex % POOL_SIZE][writeOffset++] = input[i]
     }
-    const blockRms = Math.sqrt(sumSq / input.length)
-    inputLevel = inputLevel * INPUT_LEVEL_SMOOTHING + blockRms * (1 - INPUT_LEVEL_SMOOTHING)
   }
 
   micSource.connect(recorderNode)
@@ -293,9 +310,7 @@ function playGrain() {
   // The ceiling itself stretches toward SUSTAIN_MAX_MS as live input goes
   // quiet (per `sensitivity`), so echoes linger much longer when nothing new
   // is coming in, and behave normally while actively fed.
-  const threshold =
-    SENSITIVITY_THRESH_MAX - state.sensitivity * (SENSITIVITY_THRESH_MAX - SENSITIVITY_THRESH_MIN)
-  const quietFactor = Math.max(0, Math.min(1, 1 - inputLevel / threshold))
+  const quietFactor = Math.max(0, Math.min(1, 1 - inputLevel / currentThreshold()))
   const repeatCeilingMs = REPEAT_MAX_MS + quietFactor * (SUSTAIN_MAX_MS - REPEAT_MAX_MS)
   const repeatMs = REPEAT_MIN_MS + state.repeat * (repeatCeilingMs - REPEAT_MIN_MS)
   feedbackGain.gain.setValueAtTime(Math.max(0.0001, effFeedback), ctx.currentTime)

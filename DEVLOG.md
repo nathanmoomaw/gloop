@@ -1,5 +1,46 @@
 # DEVLOG
 
+## 2026-07-24 - Plate tuning pass + real fix for echo dying out in silence
+
+Follow-up feedback on the same day's 3D plate + sustain work:
+
+- **Plate now spans the full screen.** Previously the plate mesh was sized
+  to exactly match the grains' own 2×2 physical area, so at most camera
+  angles/aspect ratios its edges fell inside the viewport, leaving visible
+  black margins. Decoupled the two: grains still live in a `GRAIN_AREA_SIZE`
+  (2-unit) square as before, but the visible mesh is now a much larger
+  `PLATE_MESH_SIZE` (10 units) whose u/v (for the nodal height function) is
+  still computed on the original 2-unit basis — `sin()` is periodic, so the
+  Chladni pattern tiles seamlessly outward across the bigger mesh with no
+  seam, and its edges now sit off-screen at any reasonable aspect ratio.
+- **Ripple amplitude cut 10x** (`NODAL_HEIGHT_SCALE` 0.18→0.018,
+  `RIPPLE_HEIGHT_SCALE` 0.05→0.005, `HOVER_HEIGHT` scaled down to match)
+  per feedback that the motion read as jerky/chaotic.
+- **Defaults tuned for "not enough sound happening"**: `RATE_MS_DEFAULT`
+  130→26ms (grains fire ~5x more often out of the box) and default
+  `sensitivity` 0.5→0.1 (pushes the effective quiet-threshold up, so the
+  sustain/freeze behavior below engages far more readily at the stock
+  setting instead of sitting in a middle ground).
+- **The actual bug behind "echo doesn't really continue in silence"**:
+  last session's sustain fix only stretched how long the feedback *decay*
+  took, but the grain pool kept recording live audio the entire time — so
+  after ~`POOL_SIZE × 400ms` (~9.6s) of true quiet, every buffer slot had
+  already been overwritten with near-silence, and grains had nothing real
+  left to echo no matter how long the decay ceiling was. Real fix: while
+  `inputLevel` is below the sensitivity threshold, `onaudioprocess` now
+  skips writing into the pool entirely (see `currentThreshold()` in
+  `engine.js`) — the last real captured audio just keeps getting re-drawn
+  from indefinitely until fresh sound pushes the level back above
+  threshold. Combined with the existing decay-ceiling stretch, this is what
+  actually makes the loop feel like it "just continues."
+- **Spacebar stops listening** — a fast kill-switch that doesn't require
+  aiming for the listen button (`App.jsx`, gated on `running` so it doesn't
+  eat the page-scroll spacebar when idle).
+
+Verified with Playwright: new `rate`/`sensitivity` defaults round-trip
+correctly, spacebar toggles `running` off, screenshots confirm the plate
+fills the frame edge-to-edge with visibly calmer motion.
+
 ## 2026-07-24 - 3D liquid plate (three.js) + audness confirmation
 
 **Grain field is now a real 3D scene (three.js/WebGL), not a flat 2D canvas.**

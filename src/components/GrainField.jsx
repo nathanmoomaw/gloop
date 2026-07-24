@@ -12,11 +12,18 @@ import * as THREE from 'three'
 // React re-render) and calls `onInteract` so the caller can feed the same
 // gesture into the audio engine as a temporary perturbation.
 const GRAIN_COUNT = 800
-const PLANE_SIZE = 2
-const PLANE_SEGMENTS = 56
-const HOVER_HEIGHT = 0.02
-const NODAL_HEIGHT_SCALE = 0.18
-const RIPPLE_HEIGHT_SCALE = 0.05
+// Grains live in a GRAIN_AREA_SIZE x GRAIN_AREA_SIZE physical square (their
+// (x, y) state is always 0-1, same as before) — but the visible plate mesh
+// is drawn much larger (PLATE_MESH_SIZE) so its edges sit off-screen at any
+// aspect ratio and the rippling surface spans the whole viewport. The nodal
+// pattern is still computed on the GRAIN_AREA_SIZE unit (sin() is periodic,
+// so it tiles seamlessly outward across the bigger mesh with no seam).
+const GRAIN_AREA_SIZE = 2
+const PLATE_MESH_SIZE = 10
+const PLANE_SEGMENTS = 80
+const HOVER_HEIGHT = 0.002
+const NODAL_HEIGHT_SCALE = 0.018
+const RIPPLE_HEIGHT_SCALE = 0.005
 
 // Same Chladni nodal function used to drift grains toward nodal lines and,
 // now, to shape the plate surface itself — the plate's topology and the
@@ -68,7 +75,7 @@ export default function GrainField({ analyser, running, onInteract }) {
 
     // Plate surface — a rippling "liquid" whose topology is the same Chladni
     // standing wave driving the grains, plus a gentle ambient ripple.
-    const planeGeo = new THREE.PlaneGeometry(PLANE_SIZE, PLANE_SIZE, PLANE_SEGMENTS, PLANE_SEGMENTS)
+    const planeGeo = new THREE.PlaneGeometry(PLATE_MESH_SIZE, PLATE_MESH_SIZE, PLANE_SEGMENTS, PLANE_SEGMENTS)
     planeGeo.rotateX(-Math.PI / 2)
     const planeColors = new Float32Array(planeGeo.attributes.position.count * 3)
     planeGeo.setAttribute('color', new THREE.BufferAttribute(planeColors, 3))
@@ -142,8 +149,8 @@ export default function GrainField({ analyser, running, onInteract }) {
       const posAttr = planeGeo.attributes.position
       const colAttr = planeGeo.attributes.color
       for (let i = 0; i < posAttr.count; i++) {
-        const u = posAttr.getX(i) / PLANE_SIZE + 0.5
-        const v = posAttr.getZ(i) / PLANE_SIZE + 0.5
+        const u = posAttr.getX(i) / GRAIN_AREA_SIZE + 0.5
+        const v = posAttr.getZ(i) / GRAIN_AREA_SIZE + 0.5
         const h = surfaceHeight(n, m, u, v, amplitude, t)
         posAttr.setY(i, h)
         // Hue sweeps across the plate by position (not just time), so the
@@ -187,8 +194,8 @@ export default function GrainField({ analyser, running, onInteract }) {
         g.y = Math.min(1, Math.max(0, g.y))
         g.hue = (g.hue + 0.05) % 360
 
-        const worldX = (g.x - 0.5) * PLANE_SIZE
-        const worldZ = (g.y - 0.5) * PLANE_SIZE
+        const worldX = (g.x - 0.5) * GRAIN_AREA_SIZE
+        const worldZ = (g.y - 0.5) * GRAIN_AREA_SIZE
         const worldY = surfaceHeight(n, m, g.x, g.y, amplitude, t) + HOVER_HEIGHT
         gPos.setXYZ(i, worldX, worldY, worldZ)
 
