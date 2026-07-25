@@ -116,6 +116,8 @@ export default function App() {
         </Suspense>
       </div>
 
+      <LoopIndicator ref={loopRef} active={running} periodMs={loopPeriodFromRate(params.rate)} />
+
       <div className="controls-overlay">
         <div className="control-cluster control-cluster--top-left">
           <RotaryKnob
@@ -247,12 +249,6 @@ export default function App() {
             className="control-cluster__volume"
           />
           <div className="listen-wrap">
-            <LoopIndicator
-              ref={loopRef}
-              active={running}
-              periodMs={loopPeriodFromRate(params.rate)}
-              size={172}
-            />
             <ListenButton running={running} onToggle={toggle} size={128} />
             {micError && (
               <button type="button" className="mic-error-toast" onClick={() => setMicError(null)}>

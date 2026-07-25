@@ -229,7 +229,23 @@ export async function start() {
   ctx = new (window.AudioContext || window.webkitAudioContext)()
 
   try {
-    micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+    // Explicitly disable the browser's default call-quality audio
+    // processing. GLOOP's entire premise is capturing the room/speaker
+    // feedback loop as a musical signal — echo cancellation in particular
+    // is designed to detect and *cancel out* exactly that (speaker output
+    // re-entering the mic), which would suppress the granular echo
+    // regardless of any dial setting here. Noise suppression and auto-gain
+    // are similarly hostile to intentionally-fed-back, dynamics-varying
+    // input. `audio: true` (the previous constraint) left all three on by
+    // browser default.
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+      },
+      video: false,
+    })
   } catch (err) {
     // Nothing was hooked up to this context yet — close it and reset to
     // null so a retry (e.g. tapping listen again after granting permission)

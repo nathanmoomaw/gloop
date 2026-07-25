@@ -2,34 +2,36 @@ import { forwardRef, useImperativeHandle, useRef } from 'react'
 import './LoopIndicator.css'
 
 /**
- * Circulating glow ring — a visual readout, not a control. Rotation speed
- * tracks the current grain rate/delay time live; a sparkle pulses on the
- * ring each time a grain actually fires (driven imperatively via `pulse()`
- * so it doesn't force a React re-render on every grain).
+ * Glowing dot that laps the screen's edges — a visual readout, not a
+ * control. Lap time tracks the current grain rate/delay time live; it
+ * briefly flares each time a grain actually fires (driven imperatively via
+ * `pulse()` on a nested element so restarting the flash animation never
+ * disturbs the dot's own continuous travel animation — those live on two
+ * separate elements precisely so toggling one doesn't restart the other).
  */
-export const LoopIndicator = forwardRef(function LoopIndicator({ active, periodMs = 1200, size = 168 }, ref) {
-  const flashRef = useRef(null)
+export const LoopIndicator = forwardRef(function LoopIndicator({ active, periodMs = 1200 }, ref) {
+  const glowRef = useRef(null)
 
   useImperativeHandle(ref, () => ({
     pulse() {
-      const el = flashRef.current
+      const el = glowRef.current
       if (!el) return
-      el.classList.remove('loop-indicator__flash--pulse')
+      el.classList.remove('loop-indicator__glow--pulse')
       // Force reflow so the animation can restart even if it's still running.
       void el.offsetWidth
-      el.classList.add('loop-indicator__flash--pulse')
+      el.classList.add('loop-indicator__glow--pulse')
     },
   }), [])
 
   return (
     <div
       className={`loop-indicator ${active ? 'loop-indicator--active' : ''}`}
-      style={{ '--loop-size': `${size}px`, '--loop-duration': `${periodMs}ms` }}
+      style={{ '--loop-duration': `${periodMs}ms` }}
     >
-      <div className="loop-indicator__ring">
-        <span className="loop-indicator__sparkle" />
-      </div>
-      <span ref={flashRef} className="loop-indicator__flash" />
+      <div className="loop-indicator__track" />
+      <span className="loop-indicator__dot">
+        <span ref={glowRef} className="loop-indicator__glow" />
+      </span>
     </div>
   )
 })

@@ -2,7 +2,7 @@
 
 ## Active
 
-- [ ] Tune default grain size / feedback / spread for a good out-of-the-box first impression — needs an actual listening pass (headless/automated testing can't judge this), unlike the other items below
+- [ ] Tune default grain size / feedback / spread for a good out-of-the-box first impression — needs an actual listening pass (headless/automated testing can't judge this), unlike the other items below. Retest after the echoCancellation/noiseSuppression/autoGainControl fix below — defaults may already read very differently once the browser isn't fighting the feedback loop.
 - [ ] Verify 80000-grain field on real (esp. mobile) hardware — measured 31fps under headless software GL, dial back GRAIN_COUNT if it feels janky on an actual device (needs physical-device testing, can't be verified in this environment)
 
 ## Completed
@@ -43,3 +43,6 @@
 - [x] Migrated `ScriptProcessor` grain capture to an `AudioWorklet` (`src/audio/recorder-processor.js`) — capture now runs on the audio render thread instead of main, clearing the biggest remaining glitch-risk lever now that WebGL rendering also shares main-thread time
 - [x] Mobile mic permission UX pass — `getUserMedia` failures (denied, no device, in-use, insecure-context) now surface a dismissible toast instead of failing silently; also fixed a latent bug where a failed `start()` left `AudioContext` non-null, silently no-op'ing every retry via the `if (ctx) return` guard
 - [x] Code-split `GrainField` (and its three.js dependency) behind a dynamic `import()` — separate ~509KB chunk (was bundled into the ~715KB main bundle), so the initial shell loads and paints before that chunk is fetched
+- [x] Disabled the browser's default echoCancellation/noiseSuppression/autoGainControl on the mic stream — AEC in particular is designed to detect and cancel out exactly the speaker-into-mic loop GLOOP intentionally captures, which was likely suppressing the granular echo regardless of any dial setting
+- [x] Forced `recorder-processor.js` to always emit as a real asset file (`vite.config.js` `assetsInlineLimit: 0`) instead of being base64-inlined as a `data:` URI, which has inconsistent cross-browser support specifically for `audioWorklet.addModule()`
+- [x] Loop indicator now laps the full screen edges (`LoopIndicator.jsx`/`.css`) instead of circling just the listen button

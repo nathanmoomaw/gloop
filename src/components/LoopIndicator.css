@@ -1,9 +1,12 @@
+/* Spans the same safe-area-aware inset the floating control clusters use
+   (App.css .controls-overlay), so the lap path hugs the actual screen
+   edges the dials are pinned to. Sits above the grain-field canvas but
+   below the controls themselves. */
 .loop-indicator {
-  position: absolute;
-  inset: 0;
-  width: var(--loop-size, 168px);
-  height: var(--loop-size, 168px);
-  margin: auto;
+  position: fixed;
+  inset: max(0.75rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right))
+    max(0.75rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
+  z-index: 1;
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.4s ease;
@@ -13,28 +16,37 @@
   opacity: 1;
 }
 
-.loop-indicator__ring {
+.loop-indicator__track {
   position: absolute;
   inset: 0;
-  border-radius: 50%;
-  border: 1px dashed rgba(255, 255, 255, 0.16);
-  animation: loop-indicator-spin var(--loop-duration, 1200ms) linear infinite;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
 }
 
-/* Rotation speed/pulse of this ring is a live readout of the current
-   rate/delay-time — it is not a knob, purely visual feedback. */
-@keyframes loop-indicator-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-.loop-indicator__sparkle {
+.loop-indicator__dot {
   position: absolute;
-  top: -3px;
-  left: 50%;
-  width: 7px;
-  height: 7px;
-  margin-left: -3.5px;
+  width: 8px;
+  height: 8px;
+  margin: -4px;
+  animation: loop-indicator-travel var(--loop-duration, 1200ms) linear infinite;
+}
+
+/* Traces the four edges in even time quarters — not a constant-speed lap
+   (shorter edges get covered faster than longer ones on non-square
+   viewports), but that reads fine for ambient visual feedback and keeps
+   this to plain left/top keyframes rather than depending on `offset-path:
+   border-box` browser support. */
+@keyframes loop-indicator-travel {
+  0% { left: 0%; top: 0%; }
+  25% { left: 100%; top: 0%; }
+  50% { left: 100%; top: 100%; }
+  75% { left: 0%; top: 100%; }
+  100% { left: 0%; top: 0%; }
+}
+
+.loop-indicator__glow {
+  position: absolute;
+  inset: 0;
   border-radius: 50%;
   background: var(--rainbow-4);
   box-shadow:
@@ -42,32 +54,28 @@
     0 0 18px 4px color-mix(in srgb, var(--rainbow-3) 60%, transparent);
 }
 
-/* Flash pulse — briefly brightens the ring each time a grain fires */
-.loop-indicator__flash {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  opacity: 0;
-}
-
-.loop-indicator__flash--pulse {
+/* Flash pulse — briefly flares the dot each time a grain fires */
+.loop-indicator__glow--pulse {
   animation: loop-indicator-flash 0.35s ease-out;
 }
 
 @keyframes loop-indicator-flash {
   0% {
-    opacity: 0.85;
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--rainbow-5) 55%, transparent);
+    box-shadow:
+      0 0 10px 3px var(--rainbow-4),
+      0 0 34px 14px color-mix(in srgb, var(--rainbow-5) 65%, transparent);
   }
   100% {
-    opacity: 0;
-    box-shadow: 0 0 26px 10px transparent;
+    box-shadow:
+      0 0 8px 2px var(--rainbow-4),
+      0 0 18px 4px color-mix(in srgb, var(--rainbow-3) 60%, transparent);
   }
 }
 
 @media (max-width: 767px) {
-  .loop-indicator {
-    width: calc(var(--loop-size, 168px) * 0.8);
-    height: calc(var(--loop-size, 168px) * 0.8);
+  .loop-indicator__dot {
+    width: 6px;
+    height: 6px;
+    margin: -3px;
   }
 }

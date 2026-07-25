@@ -1,5 +1,61 @@
 # DEVLOG
 
+## 2026-07-25 - Echo-cancellation fix, worklet data:URI hardening, edge-lap loop indicator
+
+Follow-up `/dump` after switching active work to `dev/v0` (see below): two new reports —
+"loop indicator should cycle the whole screen, not just the listen button" (with a screenshot),
+and "gloop isn't providing much feedback no matter how I adjust the controls, think we lost
+something in the last changes."
+
+**Investigated the "lost feedback" report first**, since it read as a possible regression from
+today's earlier AudioWorklet migration. Built worktrees at the pre-AudioWorklet commit (`f39353c`)
+and one further back before the limiter/highpass pass (`a8a721c`), and measured the actual
+post-`masterGain` analyser signal (RMS/peak) via Playwright with Chromium's fake mic device across
+all three. Levels were low and comparable across all of them — no clear amplitude regression
+traceable to any specific recent commit via this synthetic signal (the fake device's synthesized
+tone is a limited proxy for real mic input either way, so this doesn't fully exonerate anything,
+but it ruled out an obvious "recent code change broke it" bug).
+
+**Found something more likely to be the actual cause, and unrelated to any of today's or
+yesterday's changes**: `engine.js`'s `getUserMedia` call has always used the bare `{ audio: true }`
+constraint (since the original scaffold), which leaves the browser's default call-quality audio
+processing on — echo cancellation, noise suppression, auto-gain. Echo cancellation in particular
+exists specifically to detect and cancel out a speaker's output re-entering the mic, which is
+*exactly* the room/speaker feedback loop GLOOP is built to capture and re-loop as a granular echo.
+This would suppress the effect regardless of any dial setting, matching "no matter how I adjust
+the controls" precisely — and would have been true since 2026-07-12, just not necessarily this
+noticeable until now (depends heavily on room/hardware/browser AEC aggressiveness). Fixed by
+requesting `{ echoCancellation: false, noiseSuppression: false, autoGainControl: false }`
+explicitly. Genuinely uncertain this is the *whole* story — flagged the still-open
+"tune defaults" roadmap item to be revisited after this, since defaults tuned against an
+AEC-fighting signal may read completely differently now.
+
+**Also hardened the AudioWorklet loading path** while investigating: the production build was
+base64-inlining `recorder-processor.js` as a `data:` URI (it's tiny, under Vite's default 4KB
+inline threshold), which `audioWorklet.addModule()` has had inconsistent cross-browser support
+for historically (unlike a normal `<script src>` or `<img src>`). Set `assetsInlineLimit: 0` in
+`vite.config.js` so it — and any future small asset — always emits as a real fetchable file
+instead. Confirmed via `npm run build`: `recorder-processor.js` now ships as its own
+`dist/assets/recorder-processor-*.js`.
+
+**Loop indicator redesigned** (`LoopIndicator.jsx`/`.css`) to lap the full screen edges instead of
+circling the listen button — a small dot travels around the four edges of the same safe-area inset
+the floating control clusters use, in even time-quarters per edge (plain `left`/`top` keyframes
+rather than `offset-path: border-box`, to avoid depending on newer/less consistent browser
+support). The persistent dashed "track" outline and the per-grain flash pulse both carried over
+from the old design, but the flash now lives on a separate nested element from the one running the
+continuous travel animation — toggling the flash class (which happens up to ~40x/sec at fast rates)
+would otherwise restart the travel animation too and make the dot stutter back to the corner on
+every grain fire instead of lapping smoothly. Verified with Playwright: sampled the dot's bounding
+box 8 times across a lap and confirmed it visits the full x/y range of the viewport, not a small
+region near center.
+
+Verified overall with `npm run lint`, `npm run build`, and Playwright (fake mic device): no
+console/page errors across mic-start, grain playback, and the new loop-indicator path.
+
+**Branch note**: this and all further work lands on `dev/v0`, not `main` — see prior session's
+`main` push, which the user asked to stop.
+
 ## 2026-07-25 - AudioWorklet migration, mobile mic-permission UX, code-split GrainField
 
 Worked through the roadmap's remaining items (`/dump` — "complete all active tasks in the roadmap"):
