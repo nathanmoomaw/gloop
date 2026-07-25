@@ -2,10 +2,11 @@
 
 ## Active
 
-- [ ] Migrate `ScriptProcessor` grain capture to an `AudioWorklet` (ScriptProcessor is deprecated)
+- [ ] Migrate `ScriptProcessor` grain capture to an `AudioWorklet` (ScriptProcessor is deprecated, and now also the biggest remaining audio-quality/glitch-risk lever now that WebGL rendering shares the main thread with it)
 - [ ] Tune default grain size / feedback / spread for a good out-of-the-box first impression
 - [ ] Mobile mic permission UX pass
 - [ ] three.js pulled the JS bundle from ~205KB to ~715KB (gzip ~65KB→~194KB) — consider code-splitting GrainField behind a dynamic import if initial load time becomes an issue on mobile
+- [ ] Verify 80000-grain field on real (esp. mobile) hardware — measured 31fps under headless software GL, dial back GRAIN_COUNT if it feels janky on an actual device
 
 ## Completed
 
@@ -38,3 +39,7 @@
 - [x] Root-caused 3D flicker: smoothed n/m mode numbers and amplitude instead of snapping to the raw noisy per-frame FFT bin
 - [x] Slowed ambient ripple/hue-drift/camera-sway animation speed
 - [x] Grain count 4x'd (4000 → 16000), verified steady 60fps under headless software GL
+- [x] Sound quality: safety limiter, 70Hz highpass on mic input, exponential grain envelope (was linear)
+- [x] Fixed push-force scaling bug (was 5x too strong after grains spanned the full plate) and cut it 5x further per feedback
+- [x] Ambient animation slowed again + mode-smoothing eased more; spacebar now toggles listening both ways
+- [x] Grain count 5x'd again (16000 → 80000)

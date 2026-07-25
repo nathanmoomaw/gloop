@@ -221,8 +221,20 @@ export async function start() {
 
   masterGain = ctx.createGain()
   masterGain.gain.value = state.volume
-  masterGain.connect(ctx.destination)
   masterGain.connect(analyser)
+
+  // Safety limiter on the final output — with feedback up to 0.95 and long
+  // silence-sustain tails (up to 30s), overlapping grain feedback loops can
+  // sum into harsh digital clipping at higher feedback/volume settings.
+  // A gentle compressor catches that instead of letting it distort.
+  const limiter = ctx.createDynamicsCompressor()
+  limiter.threshold.value = -6
+  limiter.knee.value = 12
+  limiter.ratio.value = 12
+  limiter.attack.value = 0.003
+  limiter.release.value = 0.25
+  masterGain.connect(limiter)
+  limiter.connect(ctx.destination)
 
   // Tape-style modulation sources — persistent for the life of the session,
   // fanned out to each grain's playbackRate/delayTime as they're created.
@@ -281,7 +293,15 @@ export async function start() {
     }
   }
 
-  micSource.connect(recorderNode)
+  // Highpass removes rumble/DC bias from the captured audio itself (mic
+  // handling rooms/wind noise, or DC offset from cheap hardware) before it
+  // ever enters the grain pool — cleans up every grain pulled from it,
+  // rather than filtering the mix after the fact.
+  const inputHighpass = ctx.createBiquadFilter()
+  inputHighpass.type = 'highpass'
+  inputHighpass.frequency.value = 70
+  micSource.connect(inputHighpass)
+  inputHighpass.connect(recorderNode)
   // ScriptProcessor only fires onaudioprocess reliably once it's connected
   // through to the destination — route it there via a zero-gain sink so the
   // graph requirement is satisfied without audibly passing raw mic input.
@@ -344,9 +364,14 @@ function playGrain() {
 
   const grainGain = ctx.createGain()
   const attack = state.grainSizeMs * 0.15
-  grainGain.gain.setValueAtTime(0, ctx.currentTime)
-  grainGain.gain.linearRampToValueAtTime(state.mix, ctx.currentTime + attack / 1000)
-  grainGain.gain.linearRampToValueAtTime(0, ctx.currentTime + state.grainSizeMs / 1000)
+  // Exponential attack/release instead of linear — a linear ramp has an
+  // audible "zipper" edge at each grain boundary, especially with several
+  // grains overlapping at once (default rate/grainSize overlap ~4-5x). The
+  // exponential curve is the standard smoother window shape for granular
+  // synthesis envelopes.
+  grainGain.gain.setValueAtTime(0.0001, ctx.currentTime)
+  grainGain.gain.exponentialRampToValueAtTime(state.mix, ctx.currentTime + attack / 1000)
+  grainGain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + state.grainSizeMs / 1000)
 
   // Dynamic delay: per-grain random jitter on top of the grain-size-derived
   // base delay time. Distinct from wobble, which is a continuous LFO below.

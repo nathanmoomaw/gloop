@@ -1,5 +1,47 @@
 # DEVLOG
 
+## 2026-07-24 - Sound quality pass + more polish on the 3D plate
+
+**Sound quality** (answering "how can I improve the quality of the sound
+produced?" — see chat for the full answer, this is the part actioned now):
+
+- Safety limiter (`DynamicsCompressorNode`, threshold -6dB, ratio 12:1) now
+  sits between `masterGain` and `ctx.destination`. Feedback goes up to 0.95
+  and silence-sustain tails can run 30s, so overlapping grain feedback
+  loops could genuinely sum into harsh digital clipping at higher
+  feedback/volume settings — this catches it instead of letting it distort.
+- Highpass filter (70Hz) on the mic input, before it ever reaches the grain
+  pool — removes rumble/handling noise and DC bias from the source
+  material itself, so every grain pulled from it is already clean, rather
+  than filtering the mix after the fact.
+- Grain envelope switched from linear to exponential attack/release. Linear
+  ramps have an audible "zipper" edge at each grain boundary, especially
+  with several grains overlapping at once (default rate/grainSize overlap
+  ~4-5x) — exponential is the standard smoother envelope shape for
+  granular synthesis.
+- Biggest remaining lever, not done here: migrating capture off
+  `ScriptProcessorNode` (main-thread, deprecated) to an `AudioWorklet`
+  (already tracked in ROADMAP) — main-thread contention between audio
+  capture and the WebGL grain-field render is a real glitch risk now that
+  both are doing meaningfully more work than the original scaffold.
+
+**3D plate polish**, third round of feedback on the same day's work:
+
+- Pointer-push force cut 5x (0.03 → 0.006) — a real scaling bug from
+  extending grains across the full plate: the displacement was scaled by
+  `GRAIN_SPAN` to preserve the *radius* correctly, but that also scaled how
+  *far* pushed grains flew, which is why a tap was flinging sand across
+  half the screen.
+- Ambient animation speed cut again (ripple/hue-drift/camera-sway
+  multipliers roughly halved once more) and the n/m/amplitude smoothing
+  eased more slowly too, per repeated "still too fast" feedback.
+- Grain count 5x'd again (16000 → 80000) per "want to see many many more."
+  Measured 31fps under headless *software* GL at this count (down from
+  60fps at 16000) — SwiftShader is a pessimistic proxy without a real GPU,
+  but this is a real cost worth watching on lower-end/mobile hardware; flag
+  if it feels janky on an actual device and it can be dialed back.
+- Spacebar now toggles listening both ways (previously stop-only).
+
 ## 2026-07-24 - Root-caused the flicker, slowed motion, 4x grain count
 
 Found the actual cause of "the 3D stuff is super flickery": `n`, `m` (the

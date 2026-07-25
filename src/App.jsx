@@ -35,7 +35,7 @@ export default function App() {
     setAnalyser(null)
   }
 
-  const toggle = async () => {
+  const toggle = useCallback(async () => {
     if (running) {
       stopListening()
       return
@@ -43,21 +43,20 @@ export default function App() {
     await engine.start()
     setAnalyser(engine.getAnalyser())
     setRunning(true)
-  }
+  }, [running])
 
-  // Spacebar stops listening — a quick "kill it" key that doesn't require
-  // aiming for the listen button. Only acts (and only preventDefault's the
-  // page-scroll) while actually running.
+  // Spacebar toggles listening either way — a quick key that doesn't
+  // require aiming for the listen button.
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.code === 'Space' && running) {
+      if (e.code === 'Space') {
         e.preventDefault()
-        stopListening()
+        toggle()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [running])
+  }, [toggle])
 
   const updateParam = (name, value) => {
     engine.setParam(name, value)
