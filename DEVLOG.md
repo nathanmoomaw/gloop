@@ -1,5 +1,44 @@
 # DEVLOG
 
+## 2026-07-25 - AudioWorklet migration, mobile mic-permission UX, code-split GrainField
+
+Worked through the roadmap's remaining items (`/dump` — "complete all active tasks in the roadmap"):
+
+- **`ScriptProcessor` → `AudioWorklet`** (`src/audio/recorder-processor.js`, new file). Grain-pool
+  capture now runs on the dedicated audio render thread instead of main, which was the biggest
+  remaining glitch-risk lever now that WebGL rendering also does meaningfully more main-thread work
+  than the original scaffold (see 2026-07-24 sound-quality entry). The processor accumulates
+  128-sample render quantums into 2048-sample blocks (matching the old `ScriptProcessor`
+  `bufferSize`) before posting to the main thread via a transferred buffer, keeping message-passing
+  overhead comparable (~21 msg/sec) rather than firing every quantum. Loaded via
+  `new URL('./recorder-processor.js', import.meta.url)` + `ctx.audioWorklet.addModule()` — Vite
+  base64-inlines the small file as a `data:` URI in the production bundle, which `addModule()`
+  accepts natively. Verified with Playwright (fake mic device): grain capture, playback, and the
+  listen-button start/stop cycle all work with zero console/page errors.
+- **Mobile mic-permission UX pass.** `engine.start()` previously let `getUserMedia` rejections
+  propagate uncaught — on mobile this is the case that actually gets hit (permission denied,
+  no mic hardware, testing over insecure `http://` on a LAN IP, mic already claimed by another
+  app), and it failed completely silently. `App.jsx`'s `toggle()` now catches the error and shows
+  a small dismissible toast (`.mic-error-toast`, styled as a floating pill above the listen button
+  to match the console-less UI, not a modal) with a message mapped from the DOMException's `name`.
+  Also added an explicit `navigator.mediaDevices?.getUserMedia` check up front for the insecure-
+  context case, which otherwise throws a confusing "Cannot read properties of undefined."
+  **Found and fixed a real latent bug in the process**: on a failed `getUserMedia` call, `ctx` had
+  already been assigned before the throw and was never reset — every subsequent listen-button tap
+  would silently no-op via the `if (ctx) return` guard at the top of `start()`, with no error and
+  no way to recover short of a page reload. Fixed by wrapping the `getUserMedia` call in try/catch,
+  closing and nulling `ctx` on failure. Verified with Playwright: patched `getUserMedia` to count
+  real invocations while denying every call — confirmed 2 listen-button clicks now produce 2 real
+  attempts and 2 toasts (the pre-fix behavior would have shown the toast only once).
+- **Code-split `GrainField`** behind `React.lazy()` + `Suspense` (`App.jsx`). three.js is the
+  reason the bundle grew from ~205KB to ~715KB (2026-07-24 entry); it now ships as its own
+  ~509KB chunk fetched after the initial shell renders, rather than blocking on it. Verified via
+  `npm run build`.
+- **Left open, need a human**: tuning default grain size/feedback/spread for "a good first
+  impression" needs an actual listening pass, and verifying the 80000-grain field's framerate
+  needs real (ideally mobile) hardware — both are judgment calls a headless environment can't make.
+  Left on `ROADMAP.md` rather than guessed at.
+
 ## 2026-07-24 - Sound quality pass + more polish on the 3D plate
 
 **Sound quality** (answering "how can I improve the quality of the sound

@@ -1,10 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import * as engine from './audio/engine'
-import GrainField from './components/GrainField'
 import { RotaryKnob } from './components/RotaryKnob'
 import ListenButton from './components/ListenButton'
 import { LoopIndicator } from './components/LoopIndicator'
 import './App.css'
+
+// three.js pulls the JS bundle from ~205KB to ~715KB (gzip ~65KB→~194KB —
+// see ROADMAP), so GrainField loads as its own chunk behind a dynamic
+// import instead of shipping in the initial bundle every visitor downloads
+// before they've even tapped "listen".
+const GrainField = lazy(() => import('./components/GrainField'))
 
 // Loop ring rotation period is derived from the current grain rate, but
 // scaled up so it stays visually legible across the whole rate range —
@@ -15,10 +20,33 @@ function loopPeriodFromRate(rateMs) {
   return Math.min(4000, Math.max(400, rateMs * 6))
 }
 
+// Maps getUserMedia/AudioContext failures to a message a non-technical user
+// can act on — mobile in particular surfaces these often (permission
+// prompts dismissed without reading, no mic hardware, insecure http:// LAN
+// testing, another app already holding the mic).
+function micErrorMessage(err) {
+  switch (err?.name) {
+    case 'NotAllowedError':
+    case 'PermissionDeniedError':
+      return "Microphone access was denied. Enable it for this site in your browser's settings, then try again."
+    case 'NotFoundError':
+    case 'DevicesNotFoundError':
+      return 'No microphone was found on this device.'
+    case 'NotReadableError':
+    case 'TrackStartError':
+      return 'The microphone is already in use by another app.'
+    case 'NotSupportedError':
+      return err.message || 'Microphone access is not supported in this browser.'
+    default:
+      return 'Could not access the microphone. Please try again.'
+  }
+}
+
 export default function App() {
   const [running, setRunning] = useState(false)
   const [params, setParams] = useState(engine.getParams())
   const [analyser, setAnalyser] = useState(null)
+  const [micError, setMicError] = useState(null)
   const loopRef = useRef(null)
 
   // Register the grain-fire pulse once — imperative, so it never re-renders
@@ -40,9 +68,14 @@ export default function App() {
       stopListening()
       return
     }
-    await engine.start()
-    setAnalyser(engine.getAnalyser())
-    setRunning(true)
+    setMicError(null)
+    try {
+      await engine.start()
+      setAnalyser(engine.getAnalyser())
+      setRunning(true)
+    } catch (err) {
+      setMicError(micErrorMessage(err))
+    }
   }, [running])
 
   // Spacebar toggles listening either way — a quick key that doesn't
@@ -78,7 +111,9 @@ export default function App() {
   return (
     <div className="gloop-app">
       <div className="grain-field">
-        <GrainField analyser={analyser} running={running} onInteract={handleInteract} />
+        <Suspense fallback={null}>
+          <GrainField analyser={analyser} running={running} onInteract={handleInteract} />
+        </Suspense>
       </div>
 
       <div className="controls-overlay">
@@ -219,6 +254,11 @@ export default function App() {
               size={172}
             />
             <ListenButton running={running} onToggle={toggle} size={128} />
+            {micError && (
+              <button type="button" className="mic-error-toast" onClick={() => setMicError(null)}>
+                {micError}
+              </button>
+            )}
           </div>
         </div>
       </div>

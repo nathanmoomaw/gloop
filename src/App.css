@@ -70,6 +70,29 @@
   justify-content: center;
 }
 
+/* Console-less error surface: a small floating pill above the listen
+   button rather than a modal/panel, in keeping with the no-chrome UI.
+   Tap to dismiss — mobile mic-permission failures are the main case this
+   covers, and those often need a second attempt after the user fixes
+   settings, so it shouldn't block the button itself. */
+.mic-error-toast {
+  position: absolute;
+  bottom: calc(100% + 0.75rem);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(80vw, 320px);
+  padding: 0.6rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--color-volume, #f0a) 50%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, #06060e 85%, transparent);
+  color: #fff;
+  font-size: 0.8rem;
+  line-height: 1.3;
+  text-align: center;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+
 @media (max-width: 480px) {
   .control-cluster--top-left,
   .control-cluster--top-right {

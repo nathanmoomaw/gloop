@@ -38,6 +38,10 @@
 //                  exposed as its own dial).
 //   volume       — master output gain.
 
+// Resolved via Vite's `new URL(..., import.meta.url)` asset pattern so it
+// works identically in dev and build — audioWorklet.addModule() needs a URL.
+const recorderProcessorUrl = new URL('./recorder-processor.js', import.meta.url)
+
 let ctx = null
 let micStream = null
 let analyser = null
@@ -210,9 +214,30 @@ function currentThreshold() {
 
 export async function start() {
   if (ctx) return
+
+  // getUserMedia is only exposed in secure contexts (HTTPS, or localhost) —
+  // on mobile this is the most common way to end up here, e.g. testing over
+  // a plain-http LAN address. Fail with a clear message up front rather than
+  // a raw "Cannot read properties of undefined" from calling it directly.
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new DOMException(
+      'Microphone access needs a secure connection (HTTPS) — this page was loaded over an insecure one.',
+      'NotSupportedError',
+    )
+  }
+
   ctx = new (window.AudioContext || window.webkitAudioContext)()
 
-  micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+  } catch (err) {
+    // Nothing was hooked up to this context yet — close it and reset to
+    // null so a retry (e.g. tapping listen again after granting permission)
+    // doesn't just early-return on the `if (ctx) return` guard above.
+    ctx.close()
+    ctx = null
+    throw err
+  }
   const micSource = ctx.createMediaStreamSource(micStream)
 
   analyser = ctx.createAnalyser()
@@ -262,15 +287,23 @@ export async function start() {
   wobbleLFO.connect(wobbleDepth)
   wobbleLFO.start()
 
-  // Capture mic into rotating grain buffers via ScriptProcessor (simple, portable).
-  const bufferSize = 2048
-  recorderNode = ctx.createScriptProcessor(bufferSize, 1, 1)
+  // Capture mic into rotating grain buffers via an AudioWorklet — runs on
+  // the audio render thread, not main, so it no longer contends with the
+  // WebGL grain-field render for main-thread time (replaces the previous
+  // ScriptProcessorNode, which was both deprecated and main-thread-bound).
   pool = Array.from({ length: POOL_SIZE }, () => new Float32Array(Math.ceil((ctx.sampleRate * 400) / 1000)))
   poolWriteIndex = 0
   let writeOffset = 0
 
-  recorderNode.onaudioprocess = (e) => {
-    const input = e.inputBuffer.getChannelData(0)
+  await ctx.audioWorklet.addModule(recorderProcessorUrl)
+  recorderNode = new AudioWorkletNode(ctx, 'recorder-processor', {
+    numberOfInputs: 1,
+    numberOfOutputs: 1,
+    channelCount: 1,
+  })
+
+  recorderNode.port.onmessage = (e) => {
+    const input = e.data
     let sumSq = 0
     for (let i = 0; i < input.length; i++) sumSq += input[i] * input[i]
     const blockRms = Math.sqrt(sumSq / input.length)
@@ -302,9 +335,10 @@ export async function start() {
   inputHighpass.frequency.value = 70
   micSource.connect(inputHighpass)
   inputHighpass.connect(recorderNode)
-  // ScriptProcessor only fires onaudioprocess reliably once it's connected
-  // through to the destination — route it there via a zero-gain sink so the
-  // graph requirement is satisfied without audibly passing raw mic input.
+  // The audio graph is pulled from the destination backward, so this node
+  // only gets processed each render quantum if it has a path through to the
+  // destination — route it there via a zero-gain sink so that requirement is
+  // satisfied without audibly passing raw mic input.
   const silentSink = ctx.createGain()
   silentSink.gain.value = 0
   recorderNode.connect(silentSink)
