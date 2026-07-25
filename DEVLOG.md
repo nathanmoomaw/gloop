@@ -1,5 +1,57 @@
 # DEVLOG
 
+## 2026-07-25 - Reverted echo-cancellation fix (broke capture), volume placement, shake/randomize bolt
+
+Third `/dump` of the day. Priority item: **"now I don't hear any sound no matter what on dev — main
+still has the choppy sound I was hearing before, so something is up with the dev branch."** A real
+regression report, investigated and fixed first before touching the other two queued items.
+
+**Root-caused to the previous entry's echoCancellation/noiseSuppression/autoGainControl fix.**
+Built a `vite preview` of the actual production bundle (dev-server testing earlier today never
+exercised this — `gloop-dev.obfusco.us` serves the built bundle, not the dev server) and measured
+the post-`masterGain` signal via Playwright with Chromium's fake mic device: exactly `0` RMS in one
+run, and no meaningful signal in repeated runs. Isolated further by requesting each of the three
+constraints individually via `getUserMedia` directly (bypassing the app): `echoCancellation: false`
+alone drops Chromium's fake-device signal to literal digital silence, and `noiseSuppression`/
+`autoGainControl: false` each drop it to near-zero too. This is a known rough edge — disabling AEC
+routes capture through an unprocessed path that some platforms/audio backends handle poorly — and
+it's a much worse failure mode than the suppression problem that fix was meant to solve. **Reverted
+back to plain `audio: true`.** The theory that AEC fights GLOOP's speaker-into-mic feedback loop
+may still be right, but it can't be a silent default again — if revisited, it needs to be an
+explicit opt-in the user can compare against, not something landed sight-unseen. Left a comment in
+`engine.js` at the revert site explaining what was tried and why it came back out, so this doesn't
+get re-attempted blind.
+
+(Note for the record: the earlier hardening of the AudioWorklet loading path — forcing
+`recorder-processor.js` to always emit as a real file instead of a `data:` URI — was *not* the
+cause. Confirmed the file serves correctly via direct `curl`, and the missing network-request log
+for it in every Playwright run turned out to be a consistent CDP/Playwright visibility gap for
+AudioWorklet module fetches specifically, present on both the dev server and the production
+preview, unrelated to whether the file is data-URI-inlined or a real asset.)
+
+**Volume moved to the right of the listen button** (`App.jsx`/`App.css`) — was stacked above it in
+the center cluster; `.control-cluster--center` switched from column to row and the DOM order
+swapped so volume renders after (to the right of) `.listen-wrap`.
+
+**Added a shake/randomize bolt** (`ShakeButton.jsx`/`.css`, new files), placed above the size knob
+in the bottom-left cluster per the ask — `.control-cluster--bottom-left` is now a column with the
+bolt on top and a new `.control-cluster__row` wrapping the existing size/density pair beneath it.
+Adapted from ribbon's `MiniShakeBolt`/`⚡` pattern (see `~/Sites/ribbon/src/components/Controls.jsx`)
+rather than reinvented: clicking it randomizes rate/dynamics/feedback/repeat/sensitivity/
+grainSizeMs/density/wow/flutter/wobble within each dial's own range, and nudges the live grain
+stream via the existing `engine.perturb(1)` if listening — mirrors ribbon's convention of
+deliberately excluding master volume from the randomization set. Unlike ribbon (which shakes the
+whole containing panel), only the bolt icon itself plays the shake wiggle animation — GLOOP's
+established direction has been consistently toward *calmer* motion (multiple past sessions'
+feedback: "still too fast," "calmer ripple"), so a full-panel or full-screen shake would cut against
+that.
+
+Verified with Playwright: screenshot confirms bolt sits above size/density, volume sits right of
+listen; measured bounding boxes to confirm both positioning asks numerically, not just visually;
+clicking shake produces no console/page errors. Re-verified the signal-restoration fix on both
+`npm run dev` and `npm run preview` (production bundle) — nonzero RMS on both after the revert,
+where the broken version measured zero specifically on the production-bundle path.
+
 ## 2026-07-25 - Echo-cancellation fix, worklet data:URI hardening, edge-lap loop indicator
 
 Follow-up `/dump` after switching active work to `dev/v0` (see below): two new reports —

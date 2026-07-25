@@ -1,0 +1,51 @@
+.shake-button {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: radial-gradient(
+    circle at 40% 35%,
+    rgba(60, 60, 90, 0.9),
+    rgba(30, 30, 50, 0.95) 60%,
+    rgba(15, 15, 25, 1)
+  );
+  color: var(--rainbow-3);
+  font-size: 0.95rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+}
+
+.shake-button:hover {
+  border-color: var(--rainbow-3);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--rainbow-3) 45%, transparent);
+  transform: scale(1.08);
+}
+
+.shake-button:active {
+  transform: scale(0.92);
+}
+
+.shake-button--shaking {
+  animation: shake-button-wiggle 0.35s ease-out;
+}
+
+@keyframes shake-button-wiggle {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  20% { transform: translate(-2px, 1px) rotate(-6deg); }
+  40% { transform: translate(2px, -1px) rotate(6deg); }
+  60% { transform: translate(-2px, 1px) rotate(-4deg); }
+  80% { transform: translate(1px, -1px) rotate(3deg); }
+}
+
+@media (max-width: 767px) {
+  .shake-button {
+    width: 30px;
+    height: 30px;
+    font-size: 0.85rem;
+  }
+}

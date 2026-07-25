@@ -3,7 +3,25 @@ import * as engine from './audio/engine'
 import { RotaryKnob } from './components/RotaryKnob'
 import ListenButton from './components/ListenButton'
 import { LoopIndicator } from './components/LoopIndicator'
+import ShakeButton from './components/ShakeButton'
 import './App.css'
+
+// Randomization ranges for the shake button — mirrors each dial's own
+// min/max below. Master `volume` is deliberately excluded (mirrors
+// ribbon's shake convention of never randomizing master level — a shake
+// should reshuffle texture, not suddenly blast or mute the output).
+const SHAKE_RANGES = {
+  rate: [20, 600],
+  dynamics: [0, 1],
+  feedback: [0, 0.9],
+  repeat: [0, 1],
+  sensitivity: [0, 1],
+  grainSizeMs: [30, 400],
+  density: [0, 1],
+  wow: [0, 1],
+  flutter: [0, 1],
+  wobble: [0, 1],
+}
 
 // three.js pulls the JS bundle from ~205KB to ~715KB (gzip ~65KB→~194KB —
 // see ROADMAP), so GrainField loads as its own chunk behind a dynamic
@@ -106,6 +124,16 @@ export default function App() {
     }
   }, [running])
 
+  const handleShake = useCallback(() => {
+    for (const [name, [min, max]] of Object.entries(SHAKE_RANGES)) {
+      engine.setParam(name, min + Math.random() * (max - min))
+    }
+    setParams(engine.getParams())
+    // Also gives the live grain stream (and the plate/grains that react to
+    // it) an audible/visual nudge, same as dragging across the grain field.
+    if (running) engine.perturb(1)
+  }, [running])
+
   const pct = (v) => `${Math.round(v * 100)}%`
 
   return (
@@ -177,26 +205,29 @@ export default function App() {
         </div>
 
         <div className="control-cluster control-cluster--bottom-left">
-          <RotaryKnob
-            label="size"
-            valueLabel={`${Math.round(params.grainSizeMs)}ms`}
-            value={params.grainSizeMs}
-            min={30}
-            max={400}
-            step={5}
-            onChange={(v) => updateParam('grainSizeMs', v)}
-            color="var(--color-size)"
-          />
-          <RotaryKnob
-            label="density"
-            valueLabel={pct(params.density)}
-            value={params.density}
-            min={0}
-            max={1}
-            step={0.01}
-            onChange={(v) => updateParam('density', v)}
-            color="var(--color-density)"
-          />
+          <ShakeButton onShake={handleShake} />
+          <div className="control-cluster__row">
+            <RotaryKnob
+              label="size"
+              valueLabel={`${Math.round(params.grainSizeMs)}ms`}
+              value={params.grainSizeMs}
+              min={30}
+              max={400}
+              step={5}
+              onChange={(v) => updateParam('grainSizeMs', v)}
+              color="var(--color-size)"
+            />
+            <RotaryKnob
+              label="density"
+              valueLabel={pct(params.density)}
+              value={params.density}
+              min={0}
+              max={1}
+              step={0.01}
+              onChange={(v) => updateParam('density', v)}
+              color="var(--color-density)"
+            />
+          </div>
         </div>
 
         <div className="control-cluster control-cluster--bottom-right">
@@ -236,6 +267,14 @@ export default function App() {
         </div>
 
         <div className="control-cluster control-cluster--center">
+          <div className="listen-wrap">
+            <ListenButton running={running} onToggle={toggle} size={128} />
+            {micError && (
+              <button type="button" className="mic-error-toast" onClick={() => setMicError(null)}>
+                {micError}
+              </button>
+            )}
+          </div>
           <RotaryKnob
             label="volume"
             valueLabel={pct(params.volume)}
@@ -248,14 +287,6 @@ export default function App() {
             size={40}
             className="control-cluster__volume"
           />
-          <div className="listen-wrap">
-            <ListenButton running={running} onToggle={toggle} size={128} />
-            {micError && (
-              <button type="button" className="mic-error-toast" onClick={() => setMicError(null)}>
-                {micError}
-              </button>
-            )}
-          </div>
         </div>
       </div>
     </div>

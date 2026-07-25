@@ -229,23 +229,19 @@ export async function start() {
   ctx = new (window.AudioContext || window.webkitAudioContext)()
 
   try {
-    // Explicitly disable the browser's default call-quality audio
-    // processing. GLOOP's entire premise is capturing the room/speaker
-    // feedback loop as a musical signal — echo cancellation in particular
-    // is designed to detect and *cancel out* exactly that (speaker output
-    // re-entering the mic), which would suppress the granular echo
-    // regardless of any dial setting here. Noise suppression and auto-gain
-    // are similarly hostile to intentionally-fed-back, dynamics-varying
-    // input. `audio: true` (the previous constraint) left all three on by
-    // browser default.
-    micStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false,
-      },
-      video: false,
-    })
+    // Reverted (2026-07-25): tried disabling echoCancellation/
+    // noiseSuppression/autoGainControl here on the theory that AEC in
+    // particular fights the speaker-into-mic feedback loop GLOOP wants to
+    // capture. In practice this was worse than the problem it targeted —
+    // measured via Chromium's fake-device harness that `echoCancellation:
+    // false` alone drops the captured signal to literal digital silence,
+    // and noiseSuppression/autoGainControl:false each drastically attenuate
+    // it too (a known rough edge: disabling AEC routes capture through an
+    // unprocessed path some platforms/backends don't handle well). This
+    // directly matches a real "no sound at all on dev" report, so back to
+    // plain `audio: true`. If AEC-vs-feedback ever gets revisited, it needs
+    // to be an opt-in, not a default.
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
   } catch (err) {
     // Nothing was hooked up to this context yet — close it and reset to
     // null so a retry (e.g. tapping listen again after granting permission)
