@@ -4,6 +4,7 @@
 
 - [ ] Tune default grain size / feedback / spread for a good out-of-the-box first impression — needs an actual listening pass (headless/automated testing can't judge this), unlike the other items below
 - [ ] Verify 80000-grain field on real (esp. mobile) hardware — measured 31fps under headless software GL, dial back GRAIN_COUNT if it feels janky on an actual device (needs physical-device testing, can't be verified in this environment)
+- [ ] Confirm the new opt-in "raw" mic toggle (no echoCancellation/noiseSuppression/autoGainControl) actually fixes the "choppy, cuts off" recordings on real hardware — Playwright's fake mic device can only confirm the toggle is wired up, not judge real capture quality (this is the same class of item as the two above)
 
 ## Completed
 
@@ -48,4 +49,6 @@
 - [x] Tried disabling echoCancellation/noiseSuppression/autoGainControl on the mic stream, then reverted it — measured that `echoCancellation: false` alone drops captured signal to literal digital silence (and the other two badly attenuate it), a worse regression than the suppression problem it targeted. Back to `audio: true`; see DEVLOG for the investigation. Any future attempt at this needs to be opt-in, not a default.
 - [x] Volume knob moved to the right of the listen button (was stacked above it)
 - [x] Added a lightning-bolt "shake" button (`ShakeButton.jsx`/`.css`) above the size knob — randomizes the granular/modulation dials (excludes master volume) and nudges the live grain stream, adapted from ribbon's shake/randomize pattern
-- [x] Split the granular voice and the delay/feedback echo onto independent mix gains (`granularMix`/`delayMix`), with their own big top-center knobs, so the two can be balanced separately instead of only sharing the combined `mix`/`feedback` dials
+- [x] Split the granular voice and the delay/feedback echo onto independent mix gains (`granularMix`/`delayMix`), with their own big knobs, so the two can be balanced separately instead of only sharing the combined `mix`/`feedback` dials
+- [x] Moved the granular/delay mix knobs to sit left of the listen button (was a standalone top-center row); on mobile widths they float in their own row above listen/volume instead, to stay clear of the bottom-left corner cluster
+- [x] Added an opt-in "raw" mic-capture toggle (`MicModeToggle.jsx`/`.css`) next to sensitivity — lets echoCancellation/noiseSuppression/autoGainControl be disabled by user choice instead of by default, per the guardrail from the earlier reverted attempt at this

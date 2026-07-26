@@ -4,6 +4,7 @@ import { RotaryKnob } from './components/RotaryKnob'
 import ListenButton from './components/ListenButton'
 import { LoopIndicator } from './components/LoopIndicator'
 import ShakeButton from './components/ShakeButton'
+import MicModeToggle from './components/MicModeToggle'
 import './App.css'
 
 // Randomization ranges for the shake button — mirrors each dial's own
@@ -65,6 +66,7 @@ export default function App() {
   const [params, setParams] = useState(engine.getParams())
   const [analyser, setAnalyser] = useState(null)
   const [micError, setMicError] = useState(null)
+  const [rawMic, setRawMic] = useState(engine.getRawCapture())
   const loopRef = useRef(null)
 
   // Register the grain-fire pulse once — imperative, so it never re-renders
@@ -134,6 +136,11 @@ export default function App() {
     if (running) engine.perturb(1)
   }, [running])
 
+  const handleRawMicToggle = useCallback((next) => {
+    engine.setRawCapture(next)
+    setRawMic(next)
+  }, [])
+
   const pct = (v) => `${Math.round(v * 100)}%`
 
   return (
@@ -147,31 +154,6 @@ export default function App() {
       <LoopIndicator ref={loopRef} active={running} periodMs={loopPeriodFromRate(params.rate)} />
 
       <div className="controls-overlay">
-        <div className="control-cluster control-cluster--top-center">
-          <RotaryKnob
-            label="granular"
-            valueLabel={pct(params.granularMix)}
-            value={params.granularMix}
-            min={0}
-            max={1}
-            step={0.01}
-            onChange={(v) => updateParam('granularMix', v)}
-            color="var(--color-granular-mix)"
-            size={60}
-          />
-          <RotaryKnob
-            label="delay"
-            valueLabel={pct(params.delayMix)}
-            value={params.delayMix}
-            min={0}
-            max={1}
-            step={0.01}
-            onChange={(v) => updateParam('delayMix', v)}
-            color="var(--color-delay-mix)"
-            size={60}
-          />
-        </div>
-
         <div className="control-cluster control-cluster--top-left">
           <RotaryKnob
             label="rate"
@@ -227,6 +209,7 @@ export default function App() {
             color="var(--color-sensitivity)"
             size={40}
           />
+          <MicModeToggle active={rawMic} onToggle={handleRawMicToggle} />
         </div>
 
         <div className="control-cluster control-cluster--bottom-left">
@@ -292,6 +275,30 @@ export default function App() {
         </div>
 
         <div className="control-cluster control-cluster--center">
+          <div className="control-cluster__mix-pair">
+            <RotaryKnob
+              label="granular"
+              valueLabel={pct(params.granularMix)}
+              value={params.granularMix}
+              min={0}
+              max={1}
+              step={0.01}
+              onChange={(v) => updateParam('granularMix', v)}
+              color="var(--color-granular-mix)"
+              size={60}
+            />
+            <RotaryKnob
+              label="delay"
+              valueLabel={pct(params.delayMix)}
+              value={params.delayMix}
+              min={0}
+              max={1}
+              step={0.01}
+              onChange={(v) => updateParam('delayMix', v)}
+              color="var(--color-delay-mix)"
+              size={60}
+            />
+          </div>
           <div className="listen-wrap">
             <ListenButton running={running} onToggle={toggle} size={128} />
             {micError && (

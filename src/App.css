@@ -39,18 +39,6 @@
   right: max(0.75rem, env(safe-area-inset-right));
 }
 
-/* Master balance between the direct granular voice and the dynamic-delay
-   echo — kept bigger and separate from the corner dials since these two
-   set the overall mix, not a texture detail. Sits in its own row below the
-   top-left/top-right dials rather than sharing their row, so it doesn't
-   collide with them at narrow (mobile) widths. */
-.control-cluster--top-center {
-  top: calc(max(0.75rem, env(safe-area-inset-top)) + 84px);
-  left: 50%;
-  transform: translateX(-50%);
-  gap: 0.85rem;
-}
-
 /* Shake bolt sits above the size/density row, stacked on the same edge. */
 .control-cluster--bottom-left {
   bottom: max(0.75rem, env(safe-area-inset-bottom));
@@ -75,6 +63,9 @@
   gap: 0.35rem;
 }
 
+/* granular/delay mix knobs sit to the left of listen, volume to its right —
+   the master-balance controls (mix + volume) grouped around the centerpiece
+   toggle rather than split off into a corner cluster. */
 .control-cluster--center {
   bottom: max(0.5rem, env(safe-area-inset-bottom));
   left: 50%;
@@ -89,6 +80,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.control-cluster__mix-pair {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 /* Console-less error surface: a small floating pill above the listen
@@ -114,13 +111,30 @@
   backdrop-filter: blur(6px);
 }
 
+/* Narrow (mobile) widths: the centered listen/volume row has no room to
+   spare for two more knobs beside it without colliding with the bottom-left
+   corner cluster, so pull the mix pair out of flow and float it in its own
+   centered row directly above listen/volume instead of beside them. */
 @media (max-width: 480px) {
   .control-cluster--top-left,
   .control-cluster--top-right {
     gap: 0.35rem;
   }
-  .control-cluster--top-center {
-    top: calc(max(0.75rem, env(safe-area-inset-top)) + 74px);
+  /* Raw-mic toggle doesn't fit in the top-right row alongside
+     feedback/repeat/sensitivity at narrow widths (collides with top-left) —
+     drop it just below that row instead, still right-aligned. */
+  .control-cluster--top-right .mic-mode-toggle {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 0.35rem;
+  }
+  .control-cluster__mix-pair {
+    position: absolute;
+    left: 50%;
+    bottom: 100%;
+    transform: translateX(-50%);
+    margin-bottom: 0.6rem;
     gap: 0.5rem;
   }
 }

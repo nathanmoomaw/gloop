@@ -1,0 +1,45 @@
+.mic-mode-toggle {
+  min-width: 40px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: radial-gradient(
+    circle at 40% 35%,
+    rgba(60, 60, 90, 0.9),
+    rgba(30, 30, 50, 0.95) 60%,
+    rgba(15, 15, 25, 1)
+  );
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s, color 0.2s, transform 0.15s;
+}
+
+.mic-mode-toggle:hover {
+  transform: scale(1.06);
+}
+
+.mic-mode-toggle:active {
+  transform: scale(0.94);
+}
+
+.mic-mode-toggle--active {
+  border-color: var(--color-sensitivity);
+  color: var(--color-sensitivity);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--color-sensitivity) 45%, transparent);
+}
+
+@media (max-width: 767px) {
+  .mic-mode-toggle {
+    height: 24px;
+    font-size: 0.58rem;
+  }
+}

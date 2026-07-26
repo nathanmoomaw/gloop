@@ -56,6 +56,24 @@ let masterGain = null
 let perturbDecayInterval = null
 let onGrainFireCallback = null
 
+// Opt-in only (see start()) — browsers' default echoCancellation/
+// noiseSuppression/autoGainControl processing is a real suspect for the
+// "choppy, cuts off" complaints (NS in particular gates/ducks audio that
+// doesn't look like voice, which is a bad fit for continuous granular
+// capture), but disabling it isn't safe as a default: prior testing found
+// each of the three individually could drop Chromium's fake-device signal
+// to near-silence. Exposed as a user-toggleable A/B switch instead so real
+// hardware can be compared live rather than guessed at blind.
+let rawCapture = false
+
+export function setRawCapture(value) {
+  rawCapture = value
+}
+
+export function getRawCapture() {
+  return rawCapture
+}
+
 const GRAIN_MS_DEFAULT = 120
 const RATE_MS_DEFAULT = 26
 const POOL_SIZE = 24
@@ -237,19 +255,18 @@ export async function start() {
   ctx = new (window.AudioContext || window.webkitAudioContext)()
 
   try {
-    // Reverted (2026-07-25): tried disabling echoCancellation/
-    // noiseSuppression/autoGainControl here on the theory that AEC in
-    // particular fights the speaker-into-mic feedback loop GLOOP wants to
-    // capture. In practice this was worse than the problem it targeted —
-    // measured via Chromium's fake-device harness that `echoCancellation:
-    // false` alone drops the captured signal to literal digital silence,
-    // and noiseSuppression/autoGainControl:false each drastically attenuate
-    // it too (a known rough edge: disabling AEC routes capture through an
-    // unprocessed path some platforms/backends don't handle well). This
-    // directly matches a real "no sound at all on dev" report, so back to
-    // plain `audio: true`. If AEC-vs-feedback ever gets revisited, it needs
-    // to be an opt-in, not a default.
-    micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+    // Reverted on 2026-07-25 as a *default* (see `rawCapture` above for why
+    // it's still available as an opt-in): disabling echoCancellation/
+    // noiseSuppression/autoGainControl measured, via Chromium's fake-device
+    // harness, as dropping the captured signal to near-silence — each of the
+    // three individually, not just AEC. That was a worse failure than the
+    // gating/choppiness this toggle is meant to address, so plain
+    // `audio: true` stays the default; `rawCapture` only applies when a user
+    // explicitly opts in to compare against real hardware.
+    const constraints = rawCapture
+      ? { audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }, video: false }
+      : { audio: true, video: false }
+    micStream = await navigator.mediaDevices.getUserMedia(constraints)
   } catch (err) {
     // Nothing was hooked up to this context yet — close it and reset to
     // null so a retry (e.g. tapping listen again after granting permission)

@@ -1,5 +1,34 @@
 # DEVLOG
 
+## 2026-07-26 (later) - Moved mix knobs left of listen, opt-in raw-mic toggle
+
+Second `/dump` of the day, two items.
+
+**Moved granular/delay off the top-center row to the left of the listen button**, per request.
+Wrapped them in a new `.control-cluster__mix-pair` div inside `.control-cluster--center`, rendered
+before `.listen-wrap` (so they sit to its left) with `volume` staying to the right. At narrow
+(≤480px) widths this collided with the bottom-left corner cluster (shake bolt/size/density) —
+measured via Playwright `getBoundingClientRect()` rather than eyeballing it, since the previous
+top-center placement had already shown eyeballing alone isn't reliable at this screen size — so the
+mobile media query now pulls `.control-cluster__mix-pair` out of flow (`position: absolute; bottom:
+100%`) and floats it in its own centered row directly above listen/volume instead of beside them.
+Removed the now-unused `control-cluster--top-center` rule.
+
+**Added an opt-in raw-mic toggle** (`MicModeToggle.jsx`/`.css`, new files) — a small pill button next
+to `sensitivity` labeled "raw". User suspected the "choppy, cuts off" recordings are the browser's
+default echoCancellation/noiseSuppression/autoGainControl processing again (noise suppression's
+gating is the classic cause of exactly this symptom). This is the same theory as the 2026-07-25
+entry below, which tried disabling all three as the *default* and had to be reverted — measured via
+Chromium's fake-device harness that doing so drops the signal to near-silence. That revert's own
+comment said any future attempt "needs to be an opt-in, not a default," so that's what this is:
+`engine.js` now exposes `setRawCapture`/`getRawCapture`, and `start()`'s `getUserMedia` call branches
+on it (plain `audio: true` by default, all three constraints forced `false` when opted in). Verified
+the toggle wires up and mic capture still starts cleanly under both settings via Playwright with the
+fake mic device — but that harness is exactly what previously masked a real regression, so it can
+only confirm the toggle *works*, not that raw capture actually sounds better on real hardware. That
+part needs an actual listening pass on a real mic, which matches the existing ROADMAP note that some
+audio-quality items can't be judged from this environment.
+
 ## 2026-07-26 - Split granular/delay mix knobs
 
 `/dump` item: user felt some of the audio balance trouble traced back to not having independent
