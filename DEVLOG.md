@@ -1,5 +1,28 @@
 # DEVLOG
 
+## 2026-07-26 - Split granular/delay mix knobs
+
+`/dump` item: user felt some of the audio balance trouble traced back to not having independent
+control over the direct granular voice vs. the dynamic-delay/feedback echo — both were only
+reachable through the combined `mix`/`feedback` dials, with no way to push one down relative to the
+other.
+
+**Split the output path in `engine.js`'s `playGrain()`** into two separately-gained stages:
+`granularMixGain` (wraps the direct `panner -> masterGain` path — the dry grain hits) and
+`delayMixGain` (wraps `feedbackGain -> masterGain` — the delay-network echo return), each reading a
+new `state.granularMix`/`state.delayMix` (0-1, default 1 so existing sessions sound unchanged until
+the user pulls a knob down). Both are read fresh per grain like `feedback`/`dynamics`/`density`
+already are — no persistent `AudioParam` plumbing needed since these nodes are recreated every grain
+fire. Added disconnect calls for both alongside the existing `delay`/`feedbackGain` teardown.
+
+**New `granular`/`delay` knobs** (`App.jsx`) in their own `control-cluster--top-center`, sized 60px
+— bigger than the standard 48px dial per the "big mix knobs" ask — sitting in its own row below the
+top-left/top-right corner clusters (not sharing their row) so it doesn't collide with them at
+mobile widths; verified at both a 1280px desktop viewport and a 375px mobile viewport via Playwright
+with Chromium's fake mic device. New `--color-granular-mix`/`--color-delay-mix` CSS vars
+(`index.css`). Excluded from the shake-randomize set, same rationale as `volume` — a shake should
+reshuffle texture, not suddenly mute one half of the signal path.
+
 ## 2026-07-25 - Reverted echo-cancellation fix (broke capture), volume placement, shake/randomize bolt
 
 Third `/dump` of the day. Priority item: **"now I don't hear any sound no matter what on dev — main

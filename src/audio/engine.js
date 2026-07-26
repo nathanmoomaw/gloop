@@ -36,6 +36,12 @@
 //                  above kick in less readily.
 //   mix          — per-grain envelope peak level (internal balance, not
 //                  exposed as its own dial).
+//   granularMix  — overall level of the direct granular voice (the dry grain
+//                  hits, before the delay network) reaching the output.
+//   delayMix     — overall level of the dynamic-delay/feedback echo path
+//                  reaching the output. Split from granularMix so the two
+//                  can be balanced independently instead of only sharing one
+//                  combined `mix` level.
 //   volume       — master output gain.
 
 // Resolved via Vite's `new URL(..., import.meta.url)` asset pattern so it
@@ -90,6 +96,8 @@ const state = {
   flutter: 0,
   wobble: 0,
   mix: 0.7,
+  granularMix: 1,
+  delayMix: 1,
   volume: 0.9,
 }
 
@@ -446,13 +454,23 @@ function playGrain() {
   const panner = ctx.createStereoPanner()
   panner.pan.value = (Math.random() - 0.5) * effSpread * 2
 
+  // Split the direct granular voice and the delay/feedback echo onto their
+  // own mix gains so the two can be balanced independently (granularMix,
+  // delayMix), rather than always summing at a fixed relative level.
+  const granularMixGain = ctx.createGain()
+  granularMixGain.gain.value = state.granularMix
+  const delayMixGain = ctx.createGain()
+  delayMixGain.gain.value = state.delayMix
+
   bufSource.connect(grainGain)
   grainGain.connect(panner)
-  panner.connect(masterGain)
+  panner.connect(granularMixGain)
+  granularMixGain.connect(masterGain)
   panner.connect(delay)
   delay.connect(feedbackGain)
   feedbackGain.connect(delay)
-  feedbackGain.connect(masterGain)
+  feedbackGain.connect(delayMixGain)
+  delayMixGain.connect(masterGain)
 
   bufSource.start()
   const stopAt = ctx.currentTime + state.grainSizeMs / 1000 + 0.05
@@ -469,6 +487,8 @@ function playGrain() {
     try { wobbleDepth.disconnect(delay.delayTime) } catch { /* already disconnected */ }
     try { delay.disconnect() } catch { /* already disconnected */ }
     try { feedbackGain.disconnect() } catch { /* already disconnected */ }
+    try { delayMixGain.disconnect() } catch { /* already disconnected */ }
+    try { granularMixGain.disconnect() } catch { /* already disconnected */ }
   }, repeatMs + 80)
 }
 

@@ -23,6 +23,8 @@
   --color-wobble: #ff6d94;
   --color-volume: #d8dbe6;
   --color-sensitivity: #4dffe0;
+  --color-granular-mix: #ffd24d;
+  --color-delay-mix: #4d8aff;
 }
 
 * {

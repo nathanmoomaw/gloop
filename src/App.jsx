@@ -147,6 +147,31 @@ export default function App() {
       <LoopIndicator ref={loopRef} active={running} periodMs={loopPeriodFromRate(params.rate)} />
 
       <div className="controls-overlay">
+        <div className="control-cluster control-cluster--top-center">
+          <RotaryKnob
+            label="granular"
+            valueLabel={pct(params.granularMix)}
+            value={params.granularMix}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={(v) => updateParam('granularMix', v)}
+            color="var(--color-granular-mix)"
+            size={60}
+          />
+          <RotaryKnob
+            label="delay"
+            valueLabel={pct(params.delayMix)}
+            value={params.delayMix}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={(v) => updateParam('delayMix', v)}
+            color="var(--color-delay-mix)"
+            size={60}
+          />
+        </div>
+
         <div className="control-cluster control-cluster--top-left">
           <RotaryKnob
             label="rate"
