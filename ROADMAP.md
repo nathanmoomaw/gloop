@@ -2,7 +2,7 @@
 
 ## Active
 
-- [ ] Tune default grain size / feedback / spread for a good out-of-the-box first impression — needs an actual listening pass (headless/automated testing can't judge this), unlike the other items below
+- [ ] Tune default grain size / feedback / spread for a good out-of-the-box first impression — grain size, rate, feedback, and repeat defaults were bumped up 2026-08-12 per explicit request, but still needs an actual listening pass to confirm the new values land well (headless/automated testing can't judge this), unlike the other items below
 - [ ] Verify 80000-grain field on real (esp. mobile) hardware — measured 31fps under headless software GL, dial back GRAIN_COUNT if it feels janky on an actual device (needs physical-device testing, can't be verified in this environment)
 - [ ] Confirm the new opt-in "raw" mic toggle (no echoCancellation/noiseSuppression/autoGainControl) actually fixes the "choppy, cuts off" recordings on real hardware — Playwright's fake mic device can only confirm the toggle is wired up, not judge real capture quality (this is the same class of item as the two above)
 
@@ -52,3 +52,7 @@
 - [x] Split the granular voice and the delay/feedback echo onto independent mix gains (`granularMix`/`delayMix`), with their own big knobs, so the two can be balanced separately instead of only sharing the combined `mix`/`feedback` dials
 - [x] Moved the granular/delay mix knobs to sit left of the listen button (was a standalone top-center row); on mobile widths they float in their own row above listen/volume instead, to stay clear of the bottom-left corner cluster
 - [x] Added an opt-in "raw" mic-capture toggle (`MicModeToggle.jsx`/`.css`) next to sensitivity — lets echoCancellation/noiseSuppression/autoGainControl be disabled by user choice instead of by default, per the guardrail from the earlier reverted attempt at this
+- [x] Default grain size (120ms→400ms) and rate (26ms→200ms) bumped up per request
+- [x] Default feedback (0.45→0.65) and repeat (0.4→0.65) raised so a fresh session loops back more sound out of the box
+- [x] Added `WaveformOverlay.jsx`/`.css` — a live time-domain waveform trace of the actual output, layered over the plate at 50vh tall, vertically centered
+- [x] Fixed mobile control-overlap bugs: top-left/top-right clusters now cap at `max-width: 46vw` and wrap instead of colliding at mid-narrow widths (~600-650px); mix-pair's "float above listen" breakpoint widened 480px→700px; bottom-left size/density stacks into a column below 430px to clear the centered listen button

@@ -1,5 +1,39 @@
 # DEVLOG
 
+## 2026-08-12 - Waveform overlay, louder loopback defaults, mobile overlap fix
+
+`/dump` with five inbox items.
+
+**Fixed a real mobile control-overlap bug**, verified with Playwright screenshots at several
+viewport widths rather than guessing from the CSS alone. Two distinct overlaps existed:
+`.control-cluster--top-left`/`--top-right` had no width cap, so on narrow-but-not-tiny widths
+(~600-650px — common landscape-phone/small-tablet range, outside the existing ≤480px mobile query)
+their intrinsic content width could exceed half the viewport and collide; fixed with `max-width: 46vw`
++ `flex-wrap: wrap` on both, so knobs that don't fit wrap onto a second line instead. Separately, the
+granular/delay mix-pair's "float above listen" mobile treatment only kicked in at ≤480px, but at
+~600-650px it was still sitting in-row next to the listen button, where its left edge landed under
+`.control-cluster--bottom-left`'s size/density row — widened that breakpoint to 700px. Screenshotting
+at 375×667 (iPhone SE class) surfaced a third, unrelated overlap even after those two fixes: the
+bottom-left size+density row's right edge extends under the centered listen button at that width, and
+since the button paints later in DOM order it visibly covers the density knob. Fixed by stacking
+size/density into a single column instead of a row below 430px width.
+
+**Bigger default grain size and rate** — `GRAIN_MS_DEFAULT` 120ms→400ms, `RATE_MS_DEFAULT` 26ms→200ms
+in `engine.js`, per request ("size much larger like 400ms", "rate more like 200ms").
+
+**Louder default loopback** — `feedback` default 0.45→0.65 and `repeat` default 0.4→0.65, so a fresh
+session echoes more readily out of the box without needing to reach for those dials first.
+
+**New waveform overlay layer** (`WaveformOverlay.jsx`/`.css`) — a second visual layer over the plate,
+per request: a live time-domain trace of the actual output (reads the same `analyser` node already
+tapped from `masterGain`, so it's showing the looped-back grain/delay mix, not raw mic input), drawn
+on a `<canvas>` fixed at 50vh tall and vertically centered in the viewport, `pointer-events: none` and
+faded out via opacity transition when not listening. Positioned `z-index: 1` — above the GrainField
+three.js canvas, below the `controls-overlay` (`z-index: 2`) — with a rainbow-gradient stroke matching
+the existing `--rainbow-*` palette. Verified rendering (not just wiring) via Playwright with
+Chromium's fake-mic-device flags, confirming a visible trace appears mid-screen once "listen" is
+active.
+
 ## 2026-07-26 (later) - Moved mix knobs left of listen, opt-in raw-mic toggle
 
 Second `/dump` of the day, two items.

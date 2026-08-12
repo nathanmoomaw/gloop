@@ -74,8 +74,8 @@ export function getRawCapture() {
   return rawCapture
 }
 
-const GRAIN_MS_DEFAULT = 120
-const RATE_MS_DEFAULT = 26
+const GRAIN_MS_DEFAULT = 400
+const RATE_MS_DEFAULT = 200
 const POOL_SIZE = 24
 
 // Modulation ranges — the raw 0-1 dial values are scaled into these before
@@ -104,8 +104,8 @@ const INPUT_LEVEL_SMOOTHING = 0.85
 const state = {
   grainSizeMs: GRAIN_MS_DEFAULT,
   rate: RATE_MS_DEFAULT,
-  feedback: 0.45,
-  repeat: 0.4,
+  feedback: 0.65,
+  repeat: 0.65,
   spread: 0.3,
   density: 0.35,
   dynamics: 0.15,

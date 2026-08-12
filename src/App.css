@@ -29,14 +29,23 @@
   pointer-events: auto;
 }
 
+/* max-width caps each corner cluster below half the viewport so the two
+   top corners can never physically overlap regardless of screen width —
+   knobs that don't fit on one line wrap onto a second instead of colliding
+   with the opposite cluster. */
 .control-cluster--top-left {
   top: max(0.75rem, env(safe-area-inset-top));
   left: max(0.75rem, env(safe-area-inset-left));
+  max-width: 46vw;
+  flex-wrap: wrap;
 }
 
 .control-cluster--top-right {
   top: max(0.75rem, env(safe-area-inset-top));
   right: max(0.75rem, env(safe-area-inset-right));
+  max-width: 46vw;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 /* Shake bolt sits above the size/density row, stacked on the same edge. */
@@ -46,6 +55,7 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 0.5rem;
+  max-width: 46vw;
 }
 
 .control-cluster__row {
@@ -111,11 +121,25 @@
   backdrop-filter: blur(6px);
 }
 
-/* Narrow (mobile) widths: the centered listen/volume row has no room to
+/* Narrow-to-medium widths: the centered listen/volume row has no room to
    spare for two more knobs beside it without colliding with the bottom-left
    corner cluster, so pull the mix pair out of flow and float it in its own
-   centered row directly above listen/volume instead of beside them. */
-@media (max-width: 480px) {
+   centered row directly above listen/volume instead of beside them. Widened
+   from 480px to 700px — the in-row layout was still colliding with the
+   bottom-left cluster on mid-width phones/small tablets (e.g. ~600px) that
+   fall between the old breakpoint and desktop widths. */
+/* Very narrow widths (e.g. iPhone SE-class phones, ~375px): the bottom-left
+   cluster's size+density row is wide enough that its right edge lands under
+   the centered listen button, which sits on top of it in DOM/paint order —
+   a real overlap, not just a close call. Stack size/density into a single
+   narrow column instead so the cluster's footprint stays clear of center. */
+@media (max-width: 430px) {
+  .control-cluster--bottom-left .control-cluster__row {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 700px) {
   .control-cluster--top-left,
   .control-cluster--top-right {
     gap: 0.35rem;

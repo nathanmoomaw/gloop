@@ -5,6 +5,7 @@ import ListenButton from './components/ListenButton'
 import { LoopIndicator } from './components/LoopIndicator'
 import ShakeButton from './components/ShakeButton'
 import MicModeToggle from './components/MicModeToggle'
+import WaveformOverlay from './components/WaveformOverlay'
 import './App.css'
 
 // Randomization ranges for the shake button — mirrors each dial's own
@@ -150,6 +151,8 @@ export default function App() {
           <GrainField analyser={analyser} running={running} onInteract={handleInteract} />
         </Suspense>
       </div>
+
+      <WaveformOverlay analyser={analyser} running={running} />
 
       <LoopIndicator ref={loopRef} active={running} periodMs={loopPeriodFromRate(params.rate)} />
 
