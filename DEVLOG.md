@@ -1,5 +1,66 @@
 # DEVLOG
 
+## 2026-08-13 (later) - Real fix for loudness, quiet-time echo boost, background spin/pan, size range to 3s
+
+Second `/dump` of the day, eight items across two rounds (three items landed, then five more
+appeared in the Inbox mid-run — handled in the same pass per the usual re-flush-before-commit step).
+
+**The earlier same-day 2x volume boost wasn't actually landing** ("still needs to be louder by
+default"). Root cause: the safety limiter — `ctx.createDynamicsCompressor()` at -6dB threshold,
+12:1 ratio, no makeup gain — was squashing almost all of that extra gain back down before it ever
+reached the speakers; a hard compression ratio like that barely lets anything above threshold
+through regardless of how much gain feeds it. Loosened the limiter (threshold -6→-3dB, ratio 12→8,
+knee 12→6) and added a fixed `LIMITER_MAKEUP_GAIN=1.4` gain stage after it to recover the loudness
+compression takes back out, plus bumped `OUTPUT_BOOST` 2→3. This is the kind of thing that's easy to
+get wrong by eye — the gain-staging math (`engine.js` code comments) is there so the next tuning pass
+doesn't repeat the same mistake.
+
+**Quiet-time echo boost** — "when it's not picking up sound it should be reflecting back the other
+sounds louder... let me know better controls if that would help." The existing sustain-on-silence
+behavior only stretched the echo's *decay time*, not its *level*, so a quiet room's echo lingered
+longer without actually sounding more present. Reused the existing `quietFactor` (already driving the
+repeat/sustain ceiling) to also scale `delayMixGain` up to 80% louder (`QUIET_DELAY_BOOST_MAX=0.8`) at
+full quiet, fading back to normal the moment live input resumes. Deliberately didn't add a new dial —
+this rides the existing `sensitivity` control's quiet-detection threshold, which already governs
+when this kicks in.
+
+**Background spin/pan tied to touch physics** — GrainField's nodal/color pattern now has a slow
+ambient spin + horizontal/vertical pan, plus decaying momentum nudged by drag direction/distance so a
+swipe leaves it turning/drifting for about a second before settling. Applied as a rotation of the
+(u,v) sampling coordinates rather than an actual Three.js object rotation, specifically so grains'
+real world positions stay untouched — the pointer-push interaction math compares screen coordinates
+directly against grain positions, and rotating the *mesh* instead of the *pattern* would have thrown
+that off more and more as the rotation accumulated. First implementation had a real tuning bug: a 0.99
+per-frame velocity decay meant a single drag's many `pointermove` events integrated (geometric-series
+sum ≈ gain/(1-decay)) into a wildly oversized jump instead of a gentle nudge — caught by comparing
+before/after Playwright screenshots of a simulated drag, not just by reading the code. Retuned decay
+and gain together (0.95 decay, 0.01 gain) so a firm swipe now produces a moderate, temporary shift.
+
+**Size dial range widened to 3s** ("increase the values available via size so 400ms is the default
+and so size goes up to 3s") — this had a real hidden dependency: the grain pool's buffers were
+hardcoded to hold only 400ms of captured audio (`Math.ceil((ctx.sampleRate * 400) / 1000)`), so any
+grain size above that would have silently failed to play (`playGrain`'s own `grainSamples >
+src.length` guard just returns early, no error, no sound). Added `SIZE_MAX_MS=3000` and resized the
+pool buffers off it, and grew `MAX_DELAY_SEC` (was hardcoded to 2, matching the old grain-size
+ceiling) so the per-grain delay time can actually track grain size up to the new max instead of
+silently clamping. Verified by dragging the size knob to max in a live Playwright session and
+confirming grains still render/animate (no silent failure).
+
+**Sand particle size now follows the size dial** — `GrainField` takes a new `grainSizeMs` prop,
+read via a ref inside the render loop (not an effect dependency, so dragging the knob doesn't tear
+down and rebuild the whole three.js scene) and mapped through a sqrt curve to the rendered
+`THREE.PointsMaterial.size` — sqrt so 3s grains don't render literally 100x bigger than 30ms ones.
+
+**Density default raised to 60%** (was 35%).
+
+**Raw-mic toggle's "float below the row, right-aligned" placement is now permanent**, not just a
+sub-700px override — it was fighting for space in the feedback/repeat/sensitivity row at desktop
+widths too.
+
+**Waveform visualizer got a playful wobble** — a slow traveling sine (0.5Hz, ~2.5 humps across the
+width, 2% of canvas height amplitude) added on top of the real time-domain trace, distinct from the
+audio engine's own wow/flutter (purely cosmetic, doesn't touch playback).
+
 ## 2026-08-13 - Output volume 2x
 
 `/dump` with one inbox item: "increase output volume by 2x." The `volume` dial already ranges 0-1

@@ -48,6 +48,17 @@
   justify-content: flex-end;
 }
 
+/* Raw-mic toggle always sits below feedback/repeat/sensitivity, right-
+   aligned with the screen edge — previously this only kicked in below the
+   700px breakpoint (it was fighting for row space at desktop widths too),
+   now it's the permanent layout rather than a narrow-width-only override. */
+.control-cluster--top-right .mic-mode-toggle {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.35rem;
+}
+
 /* Shake bolt sits above the size/density row, stacked on the same edge. */
 .control-cluster--bottom-left {
   bottom: max(0.75rem, env(safe-area-inset-bottom));
@@ -143,15 +154,6 @@
   .control-cluster--top-left,
   .control-cluster--top-right {
     gap: 0.35rem;
-  }
-  /* Raw-mic toggle doesn't fit in the top-right row alongside
-     feedback/repeat/sensitivity at narrow widths (collides with top-left) —
-     drop it just below that row instead, still right-aligned. */
-  .control-cluster--top-right .mic-mode-toggle {
-    position: absolute;
-    top: 100%;
-    right: 0;
-    margin-top: 0.35rem;
   }
   .control-cluster__mix-pair {
     position: absolute;

@@ -1,6 +1,16 @@
 import { useEffect, useRef } from 'react'
 import './WaveformOverlay.css'
 
+// Playful wobble riding on top of the real waveform trace — a slow
+// traveling sine added to each sample's y position, distinct from the
+// audio-engine's own wow/flutter (those modulate playback, this is purely
+// cosmetic). WOBBLE_CYCLES is how many wobble humps fit across the width at
+// any instant; the phase also advances with time so the humps visibly
+// travel sideways rather than just bobbing in place.
+const WOBBLE_HZ = 0.5
+const WOBBLE_CYCLES = 2.5
+const WOBBLE_AMPLITUDE_RATIO = 0.02 // fraction of canvas height
+
 // A second visual layer over the plate: the live time-domain waveform of
 // what's actually reaching the output (analyser is tapped from masterGain,
 // so this is the looped-back grain/delay mix, not just the raw mic input).
@@ -13,6 +23,7 @@ export default function WaveformOverlay({ analyser, running }) {
     const canvas = canvasRef.current
     const ctx2d = canvas.getContext('2d')
     const dataArray = analyser ? new Uint8Array(analyser.fftSize) : null
+    const startTime = performance.now()
 
     const resize = () => {
       const dpr = Math.min(devicePixelRatio || 1, 2)
@@ -33,6 +44,8 @@ export default function WaveformOverlay({ analyser, running }) {
       if (!running || !analyser) return
 
       analyser.getByteTimeDomainData(dataArray)
+      const t = (performance.now() - startTime) / 1000
+      const wobbleAmplitude = h * WOBBLE_AMPLITUDE_RATIO
 
       const gradient = ctx2d.createLinearGradient(0, 0, w, 0)
       gradient.addColorStop(0, '#ff4d6d')
@@ -53,7 +66,8 @@ export default function WaveformOverlay({ analyser, running }) {
       let x = 0
       for (let i = 0; i < dataArray.length; i++) {
         const v = dataArray[i] / 128 - 1 // -1..1
-        const y = h / 2 + v * (h / 2) * 0.92
+        const wobble = Math.sin((x / w) * WOBBLE_CYCLES * Math.PI * 2 + t * WOBBLE_HZ * Math.PI * 2) * wobbleAmplitude
+        const y = h / 2 + v * (h / 2) * 0.92 + wobble
         if (i === 0) ctx2d.moveTo(x, y)
         else ctx2d.lineTo(x, y)
         x += sliceWidth

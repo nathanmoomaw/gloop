@@ -27,6 +27,36 @@ const HOVER_HEIGHT = 0.002
 const NODAL_HEIGHT_SCALE = 0.018
 const RIPPLE_HEIGHT_SCALE = 0.005
 
+// Ambient background motion (rad/sec, tile-units/sec) — always active, slow
+// enough that a full cycle takes minutes rather than reading as spinning.
+const AMBIENT_SPIN_SPEED = 0.006
+const AMBIENT_PAN_SPEED_U = 0.008
+const AMBIENT_PAN_SPEED_V = 0.005
+// Per-frame multiplicative decay on touch-imparted spin/pan velocity — a
+// drag leaves the pattern drifting/turning for roughly a second afterward
+// instead of snapping back, the "physics from the last touches" part.
+// Total displacement from a drag is roughly GAIN * decay/(1-decay), so
+// these two are tuned together — a fast decay alone isn't enough to keep a
+// long drag (many pointermove events) from integrating into a huge jump.
+const DRIFT_VELOCITY_DECAY = 0.95
+const DRIFT_PAN_TOUCH_GAIN = 0.01
+const DRIFT_SPIN_TOUCH_GAIN = 0.01
+
+// Rendered sand-particle size scales with the `size` (grainSizeMs) dial —
+// mirrors its min/max in App.jsx. sqrt curve gives more visible change at
+// the low end and tapers off at the high end, instead of 3s grains
+// rendering literally 100x bigger than 30ms ones.
+const SIZE_KNOB_MIN_MS = 30
+const SIZE_KNOB_MAX_MS = 3000
+const GRAIN_POINT_SIZE_MIN = 0.01
+const GRAIN_POINT_SIZE_MAX = 0.045
+function pointSizeForGrainMs(ms) {
+  const t = Math.sqrt(
+    Math.max(0, Math.min(1, (ms - SIZE_KNOB_MIN_MS) / (SIZE_KNOB_MAX_MS - SIZE_KNOB_MIN_MS))),
+  )
+  return GRAIN_POINT_SIZE_MIN + t * (GRAIN_POINT_SIZE_MAX - GRAIN_POINT_SIZE_MIN)
+}
+
 // Same Chladni nodal function used to drift grains toward nodal lines and,
 // now, to shape the plate surface itself — the plate's topology and the
 // grains' resting pattern are the same physics, not two separate effects.
@@ -47,10 +77,21 @@ function surfaceHeight(n, m, u, v, amplitude, t) {
   )
 }
 
-export default function GrainField({ analyser, running, onInteract }) {
+export default function GrainField({ analyser, running, onInteract, grainSizeMs = 400 }) {
   const containerRef = useRef(null)
   const grainsRef = useRef([])
   const pointerRef = useRef({ x: 0.5, y: 0.5, strength: 0, lastX: 0.5, lastY: 0.5 })
+  // Slow background spin/pan, partly ambient and partly nudged by touch
+  // velocity (see DRIFT_* constants) — panU/panV/spin are the accumulated
+  // position, velU/velV/spinVel the decaying momentum from recent drags.
+  const driftRef = useRef({ panU: 0, panV: 0, velU: 0, velV: 0, spin: 0, spinVel: 0 })
+  // Read live in the draw loop rather than an effect dependency — the size
+  // dial changes on every drag tick, and rebuilding the whole three.js scene
+  // that often would be both wasteful and visibly jarring.
+  const grainSizeRef = useRef(grainSizeMs)
+  useEffect(() => {
+    grainSizeRef.current = grainSizeMs
+  }, [grainSizeMs])
 
   useEffect(() => {
     const container = containerRef.current
@@ -100,7 +141,7 @@ export default function GrainField({ analyser, running, onInteract }) {
     grainGeo.setAttribute('position', new THREE.BufferAttribute(grainPositions, 3))
     grainGeo.setAttribute('color', new THREE.BufferAttribute(grainColors, 3))
     const grainMat = new THREE.PointsMaterial({
-      size: 0.016,
+      size: pointSizeForGrainMs(grainSizeRef.current),
       vertexColors: true,
       sizeAttenuation: true,
       transparent: true,
@@ -160,17 +201,46 @@ export default function GrainField({ analyser, running, onInteract }) {
       const m = smoothM
       const amplitude = smoothAmplitude
 
+      grainMat.size = pointSizeForGrainMs(grainSizeRef.current)
+
       // Pointer push: decays on its own each frame, independent of audio state.
       const pointer = pointerRef.current
       const pushActive = pointer.strength > 0.002
       if (pointer.strength > 0) pointer.strength *= 0.92
 
+      // Background spin/pan: ambient drift (always on) plus decaying
+      // momentum imparted by recent drags (see driftRef init comment).
+      const drift = driftRef.current
+      drift.panU += drift.velU
+      drift.panV += drift.velV
+      drift.velU *= DRIFT_VELOCITY_DECAY
+      drift.velV *= DRIFT_VELOCITY_DECAY
+      drift.spin += drift.spinVel
+      drift.spinVel *= DRIFT_VELOCITY_DECAY
+      const panU = drift.panU + t * AMBIENT_PAN_SPEED_U
+      const panV = drift.panV + t * AMBIENT_PAN_SPEED_V
+      // Spin is applied as a rotation of the (u, v) sampling coordinates
+      // around the tile center, not as an Object3D rotation on the meshes
+      // themselves — grains' actual world positions (g.x/g.y) have to stay
+      // put for the pointer-push math below (which compares them directly
+      // against screen-space pointer coords) to keep lining up with what's
+      // rendered; only the nodal/color pattern underneath visibly turns,
+      // and grains drifting toward nodal minima follow it, which reads as
+      // the whole field spinning anyway.
+      const spinAngle = drift.spin + t * AMBIENT_SPIN_SPEED
+      const spinCos = Math.cos(spinAngle)
+      const spinSin = Math.sin(spinAngle)
+
       // Update the plate's rippling surface.
       const posAttr = planeGeo.attributes.position
       const colAttr = planeGeo.attributes.color
       for (let i = 0; i < posAttr.count; i++) {
-        const u = posAttr.getX(i) / GRAIN_AREA_SIZE + 0.5
-        const v = posAttr.getZ(i) / GRAIN_AREA_SIZE + 0.5
+        const rawU = posAttr.getX(i) / GRAIN_AREA_SIZE + 0.5 + panU
+        const rawV = posAttr.getZ(i) / GRAIN_AREA_SIZE + 0.5 + panV
+        const du = rawU - 0.5
+        const dv = rawV - 0.5
+        const u = 0.5 + du * spinCos - dv * spinSin
+        const v = 0.5 + du * spinSin + dv * spinCos
         const h = surfaceHeight(n, m, u, v, amplitude, t)
         posAttr.setY(i, h)
         // Hue sweeps across the plate by position (not just time), so the
@@ -194,8 +264,12 @@ export default function GrainField({ analyser, running, onInteract }) {
         const g = grains[i]
         // Fractional part tiles the nodal pattern across the grain's full
         // GRAIN_SPAN-wide roaming area, same trick as the plate mesh.
-        const u = g.x - Math.floor(g.x)
-        const v = g.y - Math.floor(g.y)
+        const rawU = g.x - Math.floor(g.x) + panU
+        const rawV = g.y - Math.floor(g.y) + panV
+        const du0 = rawU - 0.5
+        const dv0 = rawV - 0.5
+        const u = 0.5 + du0 * spinCos - dv0 * spinSin
+        const v = 0.5 + du0 * spinSin + dv0 * spinCos
         const nodal = nodalValue(n, m, u, v)
 
         const pull = 0.002 * (1 - Math.min(1, Math.abs(nodal) * 2))
@@ -222,8 +296,12 @@ export default function GrainField({ analyser, running, onInteract }) {
         g.y = Math.min(GRAIN_SPAN, Math.max(0, g.y))
         g.hue = (g.hue + 0.05) % 360
 
-        const localU = g.x - Math.floor(g.x)
-        const localV = g.y - Math.floor(g.y)
+        const rawLocalU = g.x - Math.floor(g.x) + panU
+        const rawLocalV = g.y - Math.floor(g.y) + panV
+        const dlu = rawLocalU - 0.5
+        const dlv = rawLocalV - 0.5
+        const localU = 0.5 + dlu * spinCos - dlv * spinSin
+        const localV = 0.5 + dlu * spinSin + dlv * spinCos
         const worldX = (g.x / GRAIN_SPAN - 0.5) * PLATE_MESH_SIZE
         const worldZ = (g.y / GRAIN_SPAN - 0.5) * PLATE_MESH_SIZE
         const worldY = surfaceHeight(n, m, localU, localV, amplitude, t) + HOVER_HEIGHT
@@ -272,6 +350,14 @@ export default function GrainField({ analyser, running, onInteract }) {
     pointer.lastX = nx
     pointer.lastY = ny
     pointer.strength = Math.min(1, pointer.strength + Math.max(0.25, moveDist * 6))
+
+    // Drag direction nudges the background spin/pan's momentum — decays on
+    // its own in the draw loop (DRIFT_VELOCITY_DECAY), so a stroke leaves
+    // the pattern drifting/turning for a bit rather than snapping back.
+    const drift = driftRef.current
+    drift.velU += dx * DRIFT_PAN_TOUCH_GAIN
+    drift.velV += dy * DRIFT_PAN_TOUCH_GAIN
+    drift.spinVel += dx * DRIFT_SPIN_TOUCH_GAIN
 
     if (onInteract) {
       onInteract(nx, ny, Math.min(1, Math.max(0.3, moveDist * 8)))

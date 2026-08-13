@@ -148,7 +148,12 @@ export default function App() {
     <div className="gloop-app">
       <div className="grain-field">
         <Suspense fallback={null}>
-          <GrainField analyser={analyser} running={running} onInteract={handleInteract} />
+          <GrainField
+            analyser={analyser}
+            running={running}
+            onInteract={handleInteract}
+            grainSizeMs={params.grainSizeMs}
+          />
         </Suspense>
       </div>
 
@@ -223,8 +228,8 @@ export default function App() {
               valueLabel={`${Math.round(params.grainSizeMs)}ms`}
               value={params.grainSizeMs}
               min={30}
-              max={400}
-              step={5}
+              max={3000}
+              step={20}
               onChange={(v) => updateParam('grainSizeMs', v)}
               color="var(--color-size)"
             />

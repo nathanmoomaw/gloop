@@ -2,7 +2,7 @@
 
 ## Active
 
-- [ ] Tune default grain size / feedback / spread for a good out-of-the-box first impression — grain size, rate, feedback, repeat, and (2026-08-13) overall output volume were bumped up per explicit request, but still needs an actual listening pass to confirm the new values land well (headless/automated testing can't judge this), unlike the other items below
+- [ ] Tune default grain size / feedback / spread for a good out-of-the-box first impression — grain size, rate, feedback, repeat, density, and overall output volume/gain-staging were all bumped up per explicit request (2026-08-12/13, the latter after diagnosing that the safety limiter was silently eating the first volume-boost attempt), but still needs an actual listening pass to confirm the new values land well (headless/automated testing can't judge this), unlike the other items below
 - [ ] Verify 80000-grain field on real (esp. mobile) hardware — measured 31fps under headless software GL, dial back GRAIN_COUNT if it feels janky on an actual device (needs physical-device testing, can't be verified in this environment)
 - [ ] Confirm the new opt-in "raw" mic toggle (no echoCancellation/noiseSuppression/autoGainControl) actually fixes the "choppy, cuts off" recordings on real hardware — Playwright's fake mic device can only confirm the toggle is wired up, not judge real capture quality (this is the same class of item as the two above)
 
@@ -57,3 +57,11 @@
 - [x] Added `WaveformOverlay.jsx`/`.css` — a live time-domain waveform trace of the actual output, layered over the plate at 50vh tall, vertically centered
 - [x] Fixed mobile control-overlap bugs: top-left/top-right clusters now cap at `max-width: 46vw` and wrap instead of colliding at mid-narrow widths (~600-650px); mix-pair's "float above listen" breakpoint widened 480px→700px; bottom-left size/density stacks into a column below 430px to clear the centered listen button
 - [x] Output volume doubled (`OUTPUT_BOOST = 2` multiplier on `masterGain`, on top of the volume dial's existing 0-1 range) — dial itself was already at its ceiling, so loudness had to increase as a multiplier layered on top
+- [x] Real fix for "still needs to be louder": the safety limiter (12:1-ratio compressor, no makeup gain) was eating almost all of the above boost before it reached the speakers — loosened the limiter (threshold -6→-3dB, ratio 12→8, knee 12→6), added a `LIMITER_MAKEUP_GAIN=1.4` stage after it, and raised `OUTPUT_BOOST` 2→3
+- [x] Quiet-time echo boost: the delay/feedback path's own level now scales up to 80% louder (`QUIET_DELAY_BOOST_MAX`) as live input goes quiet, reusing the existing `quietFactor`/`sensitivity` machinery — not just a longer decay tail, actual added presence
+- [x] GrainField background now has ambient spin + horizontal/vertical pan, with decaying momentum nudged by drag direction ("physics from the last touches") — applied as a rotation of the nodal-pattern sampling coordinates rather than an Object3D transform, so it doesn't desync from the pointer-push interaction math
+- [x] Size dial range widened 400ms→3000ms max; fixed a real hidden dependency this exposed — grain pool buffers were hardcoded to 400ms, so larger grains would have silently failed to play. `SIZE_MAX_MS` now sizes both the pool buffers and `MAX_DELAY_SEC`
+- [x] Rendered sand-particle size now follows the size dial (sqrt-scaled `THREE.PointsMaterial.size`)
+- [x] Density default raised 35%→60%
+- [x] Raw-mic toggle's "float below the row, right-aligned" placement made permanent instead of only applying under the 700px mobile breakpoint
+- [x] Waveform visualizer given a playful traveling-sine wobble, independent of the actual audio-reactive trace underneath it

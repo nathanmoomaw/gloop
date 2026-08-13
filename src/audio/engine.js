@@ -41,7 +41,9 @@
 //   delayMix     — overall level of the dynamic-delay/feedback echo path
 //                  reaching the output. Split from granularMix so the two
 //                  can be balanced independently instead of only sharing one
-//                  combined `mix` level.
+//                  combined `mix` level. Automatically boosted further (up
+//                  to QUIET_DELAY_BOOST_MAX louder) while live input is
+//                  quiet, same `quietFactor` as the repeat/sustain ceiling.
 //   volume       — master output gain (0-1 dial range, scaled by OUTPUT_BOOST
 //                  before hitting the masterGain node).
 
@@ -78,6 +80,11 @@ export function getRawCapture() {
 const GRAIN_MS_DEFAULT = 400
 const RATE_MS_DEFAULT = 200
 const POOL_SIZE = 24
+// Ceiling for the `size` (grainSizeMs) dial. Pool buffers below are sized to
+// hold exactly this much captured audio — grains longer than a pool slot
+// silently fail to play (see playGrain's `grainSamples > src.length` guard),
+// so this and the buffer allocation have to move together.
+const SIZE_MAX_MS = 3000
 
 // Modulation ranges — the raw 0-1 dial values are scaled into these before
 // being applied to the audio graph.
@@ -94,13 +101,26 @@ const REPEAT_MAX_MS = 6000
 // stretches from REPEAT_MAX_MS up toward this — a much longer, more
 // persistent wash of echoes instead of the loop dying out quickly.
 const SUSTAIN_MAX_MS = 30000
-const MAX_DELAY_SEC = 2 // matches ctx.createDelay(2)
+// Must cover the largest possible per-grain delay time: SIZE_MAX_MS (the
+// base delay time tracks grainSizeMs) plus wobble's own +/- swing and a bit
+// of margin.
+const MAX_DELAY_SEC = SIZE_MAX_MS / 1000 + WOBBLE_MAX_SEC + 0.1
 // Output boost applied on top of the volume dial's 0-1 range — the dial
-// already maxes out at unity gain, so doubling loudness has to happen as a
+// already maxes out at unity gain, so louder-by-default has to happen as a
 // multiplier on top of it rather than by raising the dial's own ceiling.
-// Safe against harsh clipping because the safety limiter below is already
-// sized for higher feedback/volume settings.
-const OUTPUT_BOOST = 2
+// Bumped 2 -> 3 after the first pass (2x) still read as "not louder" —
+// turned out the safety limiter below was eating most of that gain before
+// it ever reached the speakers (see its comment); this and the limiter
+// retune below are meant to land together.
+const OUTPUT_BOOST = 3
+// Fixed gain applied after the safety limiter to recover the loudness the
+// compression stage takes back out — see the limiter setup in start() for
+// why this exists.
+const LIMITER_MAKEUP_GAIN = 1.4
+// How much louder the delay/feedback echo path gets, on top of its own
+// `delayMix` level, at full quiet (quietFactor === 1). 0.8 = up to 80%
+// louder than the plain delayMix level when nothing new is coming in.
+const QUIET_DELAY_BOOST_MAX = 0.8
 // Sensitivity dial maps to an input-level threshold in this range: higher
 // sensitivity = lower threshold = quieter input still counts as "active".
 const SENSITIVITY_THRESH_MAX = 0.05
@@ -114,7 +134,7 @@ const state = {
   feedback: 0.65,
   repeat: 0.65,
   spread: 0.3,
-  density: 0.35,
+  density: 0.6,
   dynamics: 0.15,
   sensitivity: 0.1,
   wow: 0,
@@ -296,14 +316,28 @@ export async function start() {
   // silence-sustain tails (up to 30s), overlapping grain feedback loops can
   // sum into harsh digital clipping at higher feedback/volume settings.
   // A gentle compressor catches that instead of letting it distort.
+  //
+  // The original -6dB/12:1 settings were so aggressive that OUTPUT_BOOST
+  // (above) mostly just drove the compressor harder instead of making
+  // anything audibly louder — a 2x pre-compressor gain increase barely
+  // moves the post-compressor level when almost everything above -6dB gets
+  // squashed 12:1. Loosened both (higher threshold, gentler ratio) so more
+  // of the boosted signal passes through un-squashed, and added a fixed
+  // makeup-gain stage after the compressor to recover the loudness the
+  // compression stage would otherwise still be eating — safe headroom-wise
+  // since the compressor's own ceiling for even a very hot input stays well
+  // under 0dBFS at these settings.
   const limiter = ctx.createDynamicsCompressor()
-  limiter.threshold.value = -6
-  limiter.knee.value = 12
-  limiter.ratio.value = 12
+  limiter.threshold.value = -3
+  limiter.knee.value = 6
+  limiter.ratio.value = 8
   limiter.attack.value = 0.003
   limiter.release.value = 0.25
+  const makeupGain = ctx.createGain()
+  makeupGain.gain.value = LIMITER_MAKEUP_GAIN
   masterGain.connect(limiter)
-  limiter.connect(ctx.destination)
+  limiter.connect(makeupGain)
+  makeupGain.connect(ctx.destination)
 
   // Tape-style modulation sources — persistent for the life of the session,
   // fanned out to each grain's playbackRate/delayTime as they're created.
@@ -335,7 +369,7 @@ export async function start() {
   // the audio render thread, not main, so it no longer contends with the
   // WebGL grain-field render for main-thread time (replaces the previous
   // ScriptProcessorNode, which was both deprecated and main-thread-bound).
-  pool = Array.from({ length: POOL_SIZE }, () => new Float32Array(Math.ceil((ctx.sampleRate * 400) / 1000)))
+  pool = Array.from({ length: POOL_SIZE }, () => new Float32Array(Math.ceil((ctx.sampleRate * SIZE_MAX_MS) / 1000)))
   poolWriteIndex = 0
   let writeOffset = 0
 
@@ -484,7 +518,14 @@ function playGrain() {
   const granularMixGain = ctx.createGain()
   granularMixGain.gain.value = state.granularMix
   const delayMixGain = ctx.createGain()
-  delayMixGain.gain.value = state.delayMix
+  // Quiet-time echo boost: `quietFactor` (already computed above for the
+  // repeat/sustain ceiling) also raises the delay/feedback path's own
+  // level, not just its tail length — so when the mic isn't picking up new
+  // sound, the looped-back echo actually gets louder/more present instead
+  // of just decaying more slowly, which is what "reflecting back sounds
+  // louder" during silence actually needs. Fades back to the plain
+  // `delayMix` level as soon as live input resumes (quietFactor -> 0).
+  delayMixGain.gain.value = state.delayMix * (1 + quietFactor * QUIET_DELAY_BOOST_MAX)
 
   bufSource.connect(grainGain)
   grainGain.connect(panner)
