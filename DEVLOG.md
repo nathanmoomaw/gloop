@@ -1,5 +1,15 @@
 # DEVLOG
 
+## 2026-08-13 - Output volume 2x
+
+`/dump` with one inbox item: "increase output volume by 2x." The `volume` dial already ranges 0-1
+and was applied directly to `masterGain.gain.value`, so it was already at its ceiling — doubling
+loudness meant adding a multiplier on top of the dial rather than changing the dial's own range.
+Added `OUTPUT_BOOST = 2` in `engine.js`, applied to `masterGain.gain.value` in both `start()`'s
+initial value and the `volume` branch of `setParam()`. The existing safety limiter (dynamics
+compressor on the final output, added for the same "high feedback/volume" clipping risk) already
+covers the louder signal, so no other changes needed.
+
 ## 2026-08-12 - Waveform overlay, louder loopback defaults, mobile overlap fix
 
 `/dump` with five inbox items.

@@ -2,7 +2,7 @@
 
 ## Active
 
-- [ ] Tune default grain size / feedback / spread for a good out-of-the-box first impression — grain size, rate, feedback, and repeat defaults were bumped up 2026-08-12 per explicit request, but still needs an actual listening pass to confirm the new values land well (headless/automated testing can't judge this), unlike the other items below
+- [ ] Tune default grain size / feedback / spread for a good out-of-the-box first impression — grain size, rate, feedback, repeat, and (2026-08-13) overall output volume were bumped up per explicit request, but still needs an actual listening pass to confirm the new values land well (headless/automated testing can't judge this), unlike the other items below
 - [ ] Verify 80000-grain field on real (esp. mobile) hardware — measured 31fps under headless software GL, dial back GRAIN_COUNT if it feels janky on an actual device (needs physical-device testing, can't be verified in this environment)
 - [ ] Confirm the new opt-in "raw" mic toggle (no echoCancellation/noiseSuppression/autoGainControl) actually fixes the "choppy, cuts off" recordings on real hardware — Playwright's fake mic device can only confirm the toggle is wired up, not judge real capture quality (this is the same class of item as the two above)
 
@@ -56,3 +56,4 @@
 - [x] Default feedback (0.45→0.65) and repeat (0.4→0.65) raised so a fresh session loops back more sound out of the box
 - [x] Added `WaveformOverlay.jsx`/`.css` — a live time-domain waveform trace of the actual output, layered over the plate at 50vh tall, vertically centered
 - [x] Fixed mobile control-overlap bugs: top-left/top-right clusters now cap at `max-width: 46vw` and wrap instead of colliding at mid-narrow widths (~600-650px); mix-pair's "float above listen" breakpoint widened 480px→700px; bottom-left size/density stacks into a column below 430px to clear the centered listen button
+- [x] Output volume doubled (`OUTPUT_BOOST = 2` multiplier on `masterGain`, on top of the volume dial's existing 0-1 range) — dial itself was already at its ceiling, so loudness had to increase as a multiplier layered on top

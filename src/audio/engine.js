@@ -42,7 +42,8 @@
 //                  reaching the output. Split from granularMix so the two
 //                  can be balanced independently instead of only sharing one
 //                  combined `mix` level.
-//   volume       — master output gain.
+//   volume       — master output gain (0-1 dial range, scaled by OUTPUT_BOOST
+//                  before hitting the masterGain node).
 
 // Resolved via Vite's `new URL(..., import.meta.url)` asset pattern so it
 // works identically in dev and build — audioWorklet.addModule() needs a URL.
@@ -94,6 +95,12 @@ const REPEAT_MAX_MS = 6000
 // persistent wash of echoes instead of the loop dying out quickly.
 const SUSTAIN_MAX_MS = 30000
 const MAX_DELAY_SEC = 2 // matches ctx.createDelay(2)
+// Output boost applied on top of the volume dial's 0-1 range — the dial
+// already maxes out at unity gain, so doubling loudness has to happen as a
+// multiplier on top of it rather than by raising the dial's own ceiling.
+// Safe against harsh clipping because the safety limiter below is already
+// sized for higher feedback/volume settings.
+const OUTPUT_BOOST = 2
 // Sensitivity dial maps to an input-level threshold in this range: higher
 // sensitivity = lower threshold = quieter input still counts as "active".
 const SENSITIVITY_THRESH_MAX = 0.05
@@ -149,7 +156,7 @@ export function setParam(name, value) {
   // A few params drive already-created persistent nodes and need to be
   // pushed onto the live AudioParam immediately, not just stashed in state.
   if (name === 'volume' && masterGain) {
-    masterGain.gain.value = value
+    masterGain.gain.value = value * OUTPUT_BOOST
   } else if (name === 'wow' && wowDepth) {
     wowDepth.gain.value = value * WOW_MAX_RATIO
   } else if (name === 'flutter' && flutterDepth) {
@@ -282,7 +289,7 @@ export async function start() {
   analyser.smoothingTimeConstant = 0.8
 
   masterGain = ctx.createGain()
-  masterGain.gain.value = state.volume
+  masterGain.gain.value = state.volume * OUTPUT_BOOST
   masterGain.connect(analyser)
 
   // Safety limiter on the final output — with feedback up to 0.95 and long
