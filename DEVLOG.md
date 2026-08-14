@@ -1,5 +1,15 @@
 # DEVLOG
 
+## 2026-08-13 (latest) - Explained the tap-drag hiss
+
+Third `/dump` of the day, one priority question, no code change: "what is the hissing sound that
+occurs when it's not listening and i move the grains around?" That's `playTapSound()` in
+`engine.js` — the synthesized stand-in used when dragging grains while not listening, since there's
+no live mic capture to pull a real grain from at that point. It's built from literal band-passed
+white noise (a 0.3s buffer of pure random samples, bandpass-filtered by vertical drag position, short
+exponential-decay envelope), which is inherently going to read as a hiss/whistle burst — working as
+designed, not a bug. Left open whether the user wants it to sound less noisy/more tonal instead.
+
 ## 2026-08-13 (later) - Real fix for loudness, quiet-time echo boost, background spin/pan, size range to 3s
 
 Second `/dump` of the day, eight items across two rounds (three items landed, then five more
