@@ -33,7 +33,13 @@
 //                  recorded silence) and the repeat/decay ceiling stretches
 //                  out toward SUSTAIN_MAX_MS. Higher value = more sensitive
 //                  = counts quieter input as still "active", so both of the
-//                  above kick in less readily.
+//                  above kick in less readily. The dial sets a floor, not a
+//                  fixed value: the longer input stays below it, the further
+//                  the effective threshold auto-ramps down (see
+//                  AUTO_SENSITIVITY_RAMP_SEC), so a persistently quiet room
+//                  keeps getting easier to pick up instead of just staying
+//                  gated out. Resets back to the dial's own threshold as soon
+//                  as input crosses it again.
 //   mix          — per-grain envelope peak level (internal balance, not
 //                  exposed as its own dial).
 //   granularMix  — overall level of the direct granular voice (the dry grain
@@ -127,6 +133,14 @@ const SENSITIVITY_THRESH_MAX = 0.05
 const SENSITIVITY_THRESH_MIN = 0.002
 // Smoothing factor for the rolling input-level estimate (per audio block).
 const INPUT_LEVEL_SMOOTHING = 0.85
+// Auto-sensitivity: how long a continuous quiet streak takes to reach full
+// ramp (effective threshold at its lowest, i.e. most sensitive).
+const AUTO_SENSITIVITY_RAMP_SEC = 8
+// Floor the ramp can reach, as a fraction of the dial's own threshold — e.g.
+// 0.25 means "at full quiet, pick up input 4x quieter than the dial alone
+// would allow." Never ramps below this, so it can't chase the noise floor
+// forever.
+const AUTO_SENSITIVITY_MIN_RATIO = 0.25
 
 const state = {
   grainSizeMs: GRAIN_MS_DEFAULT,
@@ -156,6 +170,11 @@ let recorderNode = null
 // Rolling estimate of live input level, updated per audio block — drives the
 // "no new sound coming in" sustain behavior via the sensitivity threshold.
 let inputLevel = 0
+// ctx.currentTime of the last block that counted as "active" (crossed the
+// then-current effective threshold) — drives the auto-sensitivity ramp in
+// currentThreshold(). Set to ctx.currentTime on start() so a fresh session
+// doesn't begin mid-ramp.
+let lastActiveTime = 0
 
 // Persistent modulation sources, created once in start().
 let wowLFO = null
@@ -260,9 +279,17 @@ export function playTapSound(nx, ny, intensity) {
 }
 
 // Sensitivity dial (0-1) maps to this amplitude threshold: higher sensitivity
-// = lower threshold = quieter input still counts as "active".
+// = lower threshold = quieter input still counts as "active". That dial
+// value is a floor, not the final answer — the longer input has stayed below
+// it, the further this ramps down toward AUTO_SENSITIVITY_MIN_RATIO of it,
+// so a persistently quiet room gets picked up sooner rather than staying
+// gated out indefinitely.
 function currentThreshold() {
-  return SENSITIVITY_THRESH_MAX - state.sensitivity * (SENSITIVITY_THRESH_MAX - SENSITIVITY_THRESH_MIN)
+  const base = SENSITIVITY_THRESH_MAX - state.sensitivity * (SENSITIVITY_THRESH_MAX - SENSITIVITY_THRESH_MIN)
+  if (!ctx) return base
+  const quietSec = Math.max(0, ctx.currentTime - lastActiveTime)
+  const rampT = Math.min(1, quietSec / AUTO_SENSITIVITY_RAMP_SEC)
+  return base * (1 - rampT * (1 - AUTO_SENSITIVITY_MIN_RATIO))
 }
 
 export async function start() {
@@ -280,6 +307,7 @@ export async function start() {
   }
 
   ctx = new (window.AudioContext || window.webkitAudioContext)()
+  lastActiveTime = ctx.currentTime
 
   try {
     // Reverted on 2026-07-25 as a *default* (see `rawCapture` above for why
@@ -392,7 +420,11 @@ export async function start() {
     // nothing new is coming in: grains keep pulling from the last real
     // captured sound indefinitely, rather than gradually recording over it
     // with silence while only the feedback *decay time* gets extended.
-    if (inputLevel < currentThreshold()) return
+    const threshold = currentThreshold()
+    if (inputLevel < threshold) return
+    // Crossed the (possibly auto-ramped-down) threshold — this counts as
+    // "active" input, so reset the quiet streak the ramp is measured from.
+    lastActiveTime = ctx.currentTime
 
     const buf = pool[poolWriteIndex % POOL_SIZE]
     for (let i = 0; i < input.length; i++) {
@@ -568,6 +600,7 @@ export function stop() {
   analyser = null
   pool = []
   inputLevel = 0
+  lastActiveTime = 0
   wowLFO = null
   wowDepth = null
   flutterLFO = null
