@@ -1,6 +1,23 @@
 # DEVLOG
 
-## 2026-08-13 (latest) - Explained the tap-drag hiss
+## 2026-08-17 (latest) - Auto-sensitivity ramp for quiet rooms
+
+One inbox item: "can the microphone increase sensitivity when not much sound is detected or not
+much sound is being generated?" Previously `sensitivity` mapped to a *fixed* amplitude threshold
+(`currentThreshold()` in `engine.js`) — input below it never got captured into the grain pool no
+matter how long the room stayed quiet, so a soft-spoken room could sit gated out indefinitely
+regardless of the dial position.
+
+Changed `currentThreshold()` so the dial now sets a floor, not a fixed value: the longer input
+stays below the effective threshold, the further it auto-ramps down, reaching
+`AUTO_SENSITIVITY_MIN_RATIO` (25%) of the dial's threshold after `AUTO_SENSITIVITY_RAMP_SEC` (8s)
+of continuous quiet. Tracked via a new `lastActiveTime` (an audio-context timestamp, reset to `now`
+whenever a block crosses the then-current effective threshold) so the ramp ratchets back up to the
+dial's baseline the instant real input returns, rather than needing a separate decay. Since the
+existing `quietFactor` (repeat/sustain ceiling, quiet-time delay boost) already calls
+`currentThreshold()`, it inherits the same ramped value for free — no separate wiring needed there.
+
+## 2026-08-13 - Explained the tap-drag hiss
 
 Third `/dump` of the day, one priority question, no code change: "what is the hissing sound that
 occurs when it's not listening and i move the grains around?" That's `playTapSound()` in

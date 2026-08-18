@@ -65,3 +65,4 @@
 - [x] Density default raised 35%→60%
 - [x] Raw-mic toggle's "float below the row, right-aligned" placement made permanent instead of only applying under the 700px mobile breakpoint
 - [x] Waveform visualizer given a playful traveling-sine wobble, independent of the actual audio-reactive trace underneath it
+- [x] Auto-sensitivity ramp: `sensitivity` dial now sets a floor rather than a fixed capture threshold — the longer input stays quiet, the further the effective threshold auto-lowers (down to 25% of the dial's value after 8s), so a persistently quiet room stops staying gated out indefinitely; resets to the dial's baseline the instant real input returns
