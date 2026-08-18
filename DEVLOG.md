@@ -1,6 +1,16 @@
 # DEVLOG
 
-## 2026-08-17 (latest) - Auto-sensitivity ramp for quiet rooms
+## 2026-08-18 (latest) - Rerouted 4 misfiled VIBE items, no GLOOP change
+
+`/dump`'s Inbox held 4 items referencing "vibe console," "vibe pill," and a "meditating hand" —
+none of that terminology exists anywhere in GLOOP (checked `src/`); it's VIBE's. The two attached
+screenshots were also sitting in GLOOP's repo root rather than VIBE's `screenshots/` dir, confirming
+the whole entry (images + typed notes) landed in the wrong project's dump by mistake rather than
+being a legitimate GLOOP request. Moved both screenshots into `vibe/screenshots/` and relocated the
+4 items into `vibe.md`'s own Inbox (LIFE hub) so VIBE's next `/dump` picks them up instead of GLOOP
+implementing console/pill UI that doesn't belong here. No GLOOP code or roadmap change this round.
+
+## 2026-08-17 - Auto-sensitivity ramp for quiet rooms
 
 One inbox item: "can the microphone increase sensitivity when not much sound is detected or not
 much sound is being generated?" Previously `sensitivity` mapped to a *fixed* amplitude threshold
