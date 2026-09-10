@@ -1,6 +1,17 @@
 # DEVLOG
 
-## 2026-09-10 (later, latest) - NEAT crossover breeding for the host-parasite evolver
+## 2026-09-10 (evening, latest) - Moved raw/evolve toggles to bottom-right of volume
+
+One `/dump` item: "move raw and evolve buttons to bottom, to the right of volume." Both toggles
+were living in the top-right corner cluster (raw pinned below feedback/repeat/sensitivity via an
+absolute-position rule, evolve added alongside it in today's earlier session). Moved both into the
+bottom `control-cluster--center` row, in a new `.control-cluster__utility-pair` column immediately
+right of the volume knob, and dropped the now-unused top-right absolute-position CSS for the raw
+toggle. Verified via Playwright screenshots at 375/430/600/700/900/1280px — no overlap with the
+wow/flutter/wobble column at any width, including the narrow breakpoint where the granular/delay
+mix pair already pops out above the listen button.
+
+## 2026-09-10 (later) - NEAT crossover breeding for the host-parasite evolver
 
 One `/dump` item, sourced from the same `worth-saving/gloop.md` NEAT finding (Aug 30) that flagged
 innovation-number crossover as "the missing recombination-layer answer" for a future "breed two
