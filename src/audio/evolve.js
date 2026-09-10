@@ -27,6 +27,19 @@
 //     generational GA with nothing "host" about it. Resistance decays back
 //     down on its own, so the arms race never permanently settles (the
 //     Red Queen framing already logged for GLOOP in worth-saving/gloop.md)
+//   - parasites are sometimes bred rather than just mutated: NEAT (Stanley
+//     & Miikkulainen 2002) tags every gene with the generation it was
+//     introduced ("innovation number") so two genomes can be crossed even
+//     after their structure has diverged, instead of only ever averaging/
+//     picking blindly per-locus. Every slot here already shares the same
+//     fixed set of param keys, so "structure" can't diverge the way NEAT's
+//     neural-net topologies do — but which generation last touched each key
+//     still can, and that's what's tracked. Two parents agreeing on a key's
+//     innovation number means neither has mutated it since a shared
+//     ancestor (a "matching" gene, NEAT: inherit from either parent at
+//     random); disagreeing means one lineage innovated there and the other
+//     didn't (a "disjoint" gene, NEAT: inherit from the fitter parent) —
+//     the actual crossover rule, not just flavor text.
 
 import { getParams, setParam, getAnalyser } from './engine'
 
@@ -60,6 +73,10 @@ const RESISTANCE_MAX = 1.2
 // Resistance decay per generation tick — an evolved host's edge fades on
 // its own, so the same slot can't just become permanently un-invadable.
 const RESISTANCE_DECAY = 0.85
+// Fraction of generations that breed two slots (NEAT-style crossover) before
+// mutating, rather than just mutating a single slot — the rest stay plain
+// asexual parasites, same as before crossover existed.
+const CROSSOVER_PROBABILITY = 0.5
 
 const GENERATION_INTERVAL_MS = 2400
 // How long a challenging parasite is left actually playing before its
@@ -79,20 +96,45 @@ let fitnessTimer = null
 let dominantBinHistory = []
 let levelHistory = []
 let onTickCallback = null
+// Global tick counter — doubles as the NEAT "innovation number" clock, so
+// every mutation that lands gets a unique, comparable generation tag.
+let generation = 0
 
 function clamp(v, lo, hi) {
   return Math.max(lo, Math.min(hi, v))
 }
 
-function mutate(params, scale, rate) {
-  const next = { ...params }
+// NEAT crossover: for each key, a matching innovation number (neither
+// parent has touched it since whatever generation they last shared)
+// inherits from either parent at random; a mismatch (one lineage innovated
+// there since) inherits from the fitter parent, carrying that parent's
+// innovation number along with the value.
+function crossover(a, b) {
+  const params = {}
+  const innovation = {}
+  for (const key of EVOLVE_KEYS) {
+    const matching = a.innovation[key] === b.innovation[key]
+    const from = matching ? (Math.random() < 0.5 ? a : b) : (a.fitness >= b.fitness ? a : b)
+    params[key] = from.params[key]
+    innovation[key] = from.innovation[key]
+  }
+  return { params, innovation }
+}
+
+// Point-mutates on top of a params/innovation pair (post-crossover, or a
+// plain asexual parasite) — any key it touches gets stamped with the
+// current generation as a fresh innovation event.
+function mutate(params, innovation, scale, rate, gen) {
+  const nextParams = { ...params }
+  const nextInnovation = { ...innovation }
   for (const key of EVOLVE_KEYS) {
     if (Math.random() > rate) continue
     const [lo, hi] = EVOLVE_RANGES[key]
     const jitter = (Math.random() - 0.5) * 2 * (hi - lo) * scale
-    next[key] = clamp((params[key] ?? lo) + jitter, lo, hi)
+    nextParams[key] = clamp((params[key] ?? lo) + jitter, lo, hi)
+    nextInnovation[key] = gen
   }
-  return next
+  return { params: nextParams, innovation: nextInnovation }
 }
 
 function applyParams(params) {
@@ -147,12 +189,22 @@ function currentFitness() {
 
 function runGeneration() {
   if (!running) return
+  generation++
 
   const hostIdx = Math.floor(Math.random() * slots.length)
   const host = slots[hostIdx]
-  const parasiteParams = mutate(host.params, PARASITE_MUTATION_SCALE, PARASITE_MUTATION_RATE)
 
-  applyParams(parasiteParams)
+  let bred = false
+  let base = { params: host.params, innovation: host.innovation }
+  if (slots.length > 1 && Math.random() < CROSSOVER_PROBABILITY) {
+    let partnerIdx
+    do { partnerIdx = Math.floor(Math.random() * slots.length) } while (partnerIdx === hostIdx)
+    base = crossover(host, slots[partnerIdx])
+    bred = true
+  }
+  const parasite = mutate(base.params, base.innovation, PARASITE_MUTATION_SCALE, PARASITE_MUTATION_RATE, generation)
+
+  applyParams(parasite.params)
 
   genTimer = setTimeout(() => {
     if (!running) return
@@ -160,7 +212,7 @@ function runGeneration() {
     const hostEffective = host.fitness * (1 + host.resistance)
 
     if (parasiteFitness > hostEffective) {
-      slots[hostIdx] = { params: parasiteParams, fitness: parasiteFitness, resistance: 0 }
+      slots[hostIdx] = { params: parasite.params, innovation: parasite.innovation, fitness: parasiteFitness, resistance: 0 }
     } else {
       // Host resists the invasion — put its own params back (the parasite
       // was actually playing during the eval window) and reward the win
@@ -174,6 +226,7 @@ function runGeneration() {
     if (onTickCallback) {
       onTickCallback({
         hostIdx,
+        bred,
         won: parasiteFitness > hostEffective,
         fitness: Math.max(parasiteFitness, hostEffective),
       })
@@ -183,9 +236,9 @@ function runGeneration() {
   }, EVAL_DELAY_MS)
 }
 
-// Fires with { hostIdx, won, fitness } after each generation's outcome —
-// purely informational (e.g. for a UI pulse), evolution runs the same
-// without a listener.
+// Fires with { hostIdx, bred, won, fitness } after each generation's
+// outcome — purely informational (e.g. for a UI pulse), evolution runs the
+// same without a listener.
 export function onEvolveTick(callback) {
   onTickCallback = callback
 }
@@ -194,9 +247,20 @@ export function startEvolve() {
   if (running) return
   if (!getAnalyser()) return // needs a live listening session to measure fitness against
   running = true
+  generation = 0
 
   const seed = getParams()
-  slots = Array.from({ length: SLOT_COUNT }, () => ({ params: { ...seed }, fitness: 0, resistance: 0 }))
+  // All slots start identical, so their innovation numbers all agree (0) —
+  // every key reads as "matching" until a mutation actually diverges a
+  // lineage, exactly the NEAT starting condition (a homogeneous initial
+  // population with nothing yet to be disjoint about).
+  const seedInnovation = Object.fromEntries(EVOLVE_KEYS.map((k) => [k, 0]))
+  slots = Array.from({ length: SLOT_COUNT }, () => ({
+    params: { ...seed },
+    innovation: { ...seedInnovation },
+    fitness: 0,
+    resistance: 0,
+  }))
   dominantBinHistory = []
   levelHistory = []
 
