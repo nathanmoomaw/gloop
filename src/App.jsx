@@ -241,8 +241,6 @@ export default function App() {
             color="var(--color-sensitivity)"
             size={40}
           />
-          <MicModeToggle active={rawMic} onToggle={handleRawMicToggle} />
-          <EvolveToggle active={evolving} disabled={!running} onToggle={handleEvolveToggle} />
         </div>
 
         <div className="control-cluster control-cluster--bottom-left">
@@ -352,6 +350,10 @@ export default function App() {
             size={40}
             className="control-cluster__volume"
           />
+          <div className="control-cluster__utility-pair">
+            <MicModeToggle active={rawMic} onToggle={handleRawMicToggle} />
+            <EvolveToggle active={evolving} disabled={!running} onToggle={handleEvolveToggle} />
+          </div>
         </div>
       </div>
     </div>

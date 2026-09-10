@@ -48,17 +48,6 @@
   justify-content: flex-end;
 }
 
-/* Raw-mic toggle always sits below feedback/repeat/sensitivity, right-
-   aligned with the screen edge — previously this only kicked in below the
-   700px breakpoint (it was fighting for row space at desktop widths too),
-   now it's the permanent layout rather than a narrow-width-only override. */
-.control-cluster--top-right .mic-mode-toggle {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 0.35rem;
-}
-
 /* Shake bolt sits above the size/density row, stacked on the same edge. */
 .control-cluster--bottom-left {
   bottom: max(0.75rem, env(safe-area-inset-bottom));
@@ -107,6 +96,17 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
+}
+
+/* Raw-mic and evolve toggles, moved out of the top-right corner cluster to
+   sit at the bottom, right of the volume knob — stacked in their own narrow
+   column so the pair doesn't stretch the centered listen/volume row much
+   wider than it already is. */
+.control-cluster__utility-pair {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 /* Console-less error surface: a small floating pill above the listen
