@@ -245,37 +245,92 @@ function ensureTapContext() {
   return tapCtx
 }
 
+// Tap-sound pitch range: low end reads as a struck object/plate thud, high
+// end as a plucked/dripping ping. Mapped exponentially (musical) rather
+// than linearly across vertical tap position.
+const TAP_F0_MIN = 70
+const TAP_F0_MAX = 1400
+// DelayNode needs a fixed max delay at creation — must cover the longest
+// period we'll ever set (the lowest pitch), plus a little margin.
+const TAP_MAX_DELAY_SEC = 1 / TAP_F0_MIN + 0.002
+
 // (nx, ny) normalized screen position, intensity 0-1 — mirrors the same
 // gesture that would otherwise feed engine.perturb() while listening.
+//
+// Karplus-Strong: a delay line + lowpass filter wired into a feedback loop,
+// excited once by a short noise burst — the standard cheap physical-model
+// technique for plucked strings, struck objects, and water drips, all from
+// the same tiny signal chain (they fall out of pitch/damping/decay choices,
+// not separate models). Fitting for a tap on the Chladni plate itself,
+// which is literally what this gesture represents. Replaces the previous
+// plain band-passed-noise version, which read as a flat hiss/whistle burst
+// with no resonant body (see DEVLOG).
 export function playTapSound(nx, ny, intensity) {
   const c = ensureTapContext()
 
+  const f0 = TAP_F0_MIN * (TAP_F0_MAX / TAP_F0_MIN) ** (1 - ny) // higher on screen = higher pitch
+  const period = 1 / f0
+  // Time to decay to ~-60dB — harder taps ring a little longer.
+  const targetDecay = 0.25 + intensity * 0.55
+  // feedbackCoeff^(targetDecay/period) = 0.001, solved for feedbackCoeff.
+  const feedbackCoeff = Math.min(0.995, Math.exp((Math.log(0.001) * period) / targetDecay))
+
+  // The feedback loop: excitation and the delayed/filtered tail both sum
+  // into loopIn, which feeds the delay line — this summing junction is what
+  // makes it a real closed loop rather than a one-shot filtered noise burst.
+  const loopIn = c.createGain()
+  const delay = c.createDelay(TAP_MAX_DELAY_SEC)
+  delay.delayTime.value = Math.min(TAP_MAX_DELAY_SEC, period)
+
+  // Lowpass inside the loop is what actually gives Karplus-Strong its
+  // string/object character — each pass damps the high end a bit more than
+  // the low end. Brighter (higher cutoff) for harder taps.
+  const damping = c.createBiquadFilter()
+  damping.type = 'lowpass'
+  damping.frequency.value = f0 * (3 + intensity * 5)
+  damping.Q.value = 0.3
+
+  const feedbackGain = c.createGain()
+  feedbackGain.gain.value = feedbackCoeff
+
+  loopIn.connect(delay)
+  delay.connect(damping)
+  damping.connect(feedbackGain)
+  feedbackGain.connect(loopIn)
+
+  // Excitation: a brief noise burst fed into the loop (the "pluck"/"strike"
+  // impulse) — short relative to the loop period so it reads as an impulse,
+  // not a sustained noise source.
   const src = c.createBufferSource()
   src.buffer = tapNoiseBuffer
-  src.playbackRate.value = 0.7 + Math.random() * 0.6
+  const burstDur = Math.min(period * 3, 0.012)
+  const burstGain = c.createGain()
+  burstGain.gain.setValueAtTime(0.6 + intensity * 0.4, c.currentTime)
+  burstGain.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + burstDur)
+  src.connect(burstGain)
+  burstGain.connect(loopIn)
 
-  const filter = c.createBiquadFilter()
-  filter.type = 'bandpass'
-  filter.frequency.value = 300 + (1 - ny) * 3200 // higher on screen = higher pitch
-  filter.Q.value = 3 + Math.random() * 4
-
-  const gain = c.createGain()
-  const peak = Math.min(0.5, 0.15 + intensity * 0.35)
-  const dur = 0.08 + intensity * 0.12
-  gain.gain.setValueAtTime(0, c.currentTime)
-  gain.gain.linearRampToValueAtTime(peak, c.currentTime + 0.008)
-  gain.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + dur)
-
+  const outGain = c.createGain()
+  outGain.gain.value = Math.min(0.9, 0.35 + intensity * 0.5)
   const panner = c.createStereoPanner()
   panner.pan.value = (nx - 0.5) * 1.6
 
-  src.connect(filter)
-  filter.connect(gain)
-  gain.connect(panner)
+  feedbackGain.connect(outGain)
+  outGain.connect(panner)
   panner.connect(c.destination)
 
   src.start()
-  src.stop(c.currentTime + dur + 0.05)
+  src.stop(c.currentTime + burstDur + 0.02)
+
+  const stopInMs = (targetDecay + 0.1) * 1000
+  setTimeout(() => {
+    try { loopIn.disconnect() } catch { /* already disconnected */ }
+    try { delay.disconnect() } catch { /* already disconnected */ }
+    try { damping.disconnect() } catch { /* already disconnected */ }
+    try { feedbackGain.disconnect() } catch { /* already disconnected */ }
+    try { outGain.disconnect() } catch { /* already disconnected */ }
+    try { panner.disconnect() } catch { /* already disconnected */ }
+  }, stopInMs + 50)
 }
 
 // Sensitivity dial (0-1) maps to this amplitude threshold: higher sensitivity

@@ -5,7 +5,9 @@ import ListenButton from './components/ListenButton'
 import { LoopIndicator } from './components/LoopIndicator'
 import ShakeButton from './components/ShakeButton'
 import MicModeToggle from './components/MicModeToggle'
+import EvolveToggle from './components/EvolveToggle'
 import WaveformOverlay from './components/WaveformOverlay'
+import { startEvolve, stopEvolve } from './audio/evolve'
 import './App.css'
 
 // Randomization ranges for the shake button — mirrors each dial's own
@@ -68,6 +70,7 @@ export default function App() {
   const [analyser, setAnalyser] = useState(null)
   const [micError, setMicError] = useState(null)
   const [rawMic, setRawMic] = useState(engine.getRawCapture())
+  const [evolving, setEvolving] = useState(false)
   const loopRef = useRef(null)
 
   // Register the grain-fire pulse once — imperative, so it never re-renders
@@ -79,6 +82,8 @@ export default function App() {
   }, [])
 
   const stopListening = () => {
+    stopEvolve()
+    setEvolving(false)
     engine.stop()
     setRunning(false)
     setAnalyser(null)
@@ -141,6 +146,25 @@ export default function App() {
     engine.setRawCapture(next)
     setRawMic(next)
   }, [])
+
+  const handleEvolveToggle = useCallback((next) => {
+    if (next) {
+      startEvolve()
+    } else {
+      stopEvolve()
+    }
+    setEvolving(next)
+  }, [])
+
+  // Evolution mutates params directly on the engine (not through
+  // updateParam), so while it's running, poll the knobs back in sync —
+  // otherwise the dials would sit frozen while the actual sound underneath
+  // them drifts, hiding the one thing this feature is meant to show.
+  useEffect(() => {
+    if (!evolving) return
+    const id = setInterval(() => setParams(engine.getParams()), 300)
+    return () => clearInterval(id)
+  }, [evolving])
 
   const pct = (v) => `${Math.round(v * 100)}%`
 
@@ -218,6 +242,7 @@ export default function App() {
             size={40}
           />
           <MicModeToggle active={rawMic} onToggle={handleRawMicToggle} />
+          <EvolveToggle active={evolving} disabled={!running} onToggle={handleEvolveToggle} />
         </div>
 
         <div className="control-cluster control-cluster--bottom-left">
