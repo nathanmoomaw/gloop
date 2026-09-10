@@ -1,6 +1,34 @@
 # DEVLOG
 
-## 2026-08-18 (latest) - Rerouted 4 misfiled VIBE items, no GLOOP change
+## 2026-09-10 (latest) - Karplus-Strong tap sound, Avida host-parasite param evolution
+
+Two `/dump` items, both from `/learn` findings logged in `worth-saving/gloop.md`.
+
+**Karplus-Strong tap sound**: `playTapSound()` (the synthesized stand-in played when dragging/
+tapping grains while not listening — see the 2026-08-13 entry below on why it existed as plain
+band-passed noise, and why that read as a flat hiss) is now a real Karplus-Strong string/plate
+model: a delay line + lowpass filter wired into a feedback loop, excited once by a short noise
+burst. Pitch comes from vertical tap position (70Hz-1400Hz, exponential), decay length and filter
+brightness from tap intensity. Same cheap technique covers plucked-string/struck-object/water-drip
+character just by varying those few parameters — no separate models needed. Fitting, since the tap
+gesture already represents striking the Chladni plate itself.
+
+**Avida host-parasite parameter evolution**: new `src/audio/evolve.js`, an opt-in background
+process (toggle button next to the raw-mic switch, disabled until listening) built only on
+`engine.js`'s existing public API (`getParams`/`setParam`/`getAnalyser`) rather than reaching into
+its internals. A fixed population of parameter-set "hosts" occupies 5 slots; each generation
+(~2.4s) a "parasite" — a larger mutation of a random slot — is actually applied to the live engine
+and, after a short settle window, scored against the incumbent host on a stability fitness read off
+the same dominant-FFT-bin signal GrainField's own Chladni visualization already derives its
+resonance mode from (silence can't win — fitness is stability × level, not stability alone). A host
+that survives a challenge gets a small, decaying resistance bonus, so it's a real arms race rather
+than a plain generational GA collapsing to whichever mutation scores highest once. Evolution is
+audible/visible as it runs (params are genuinely live during evaluation, not simulated offline) —
+the point is a generative instrument that keeps auditioning drifted versions of itself, not a hidden
+optimizer. Verified both features via Playwright with a fake mic device — no console errors, evolve
+toggle runs live generations, tap sound plays through the new KS graph.
+
+## 2026-08-18 - Rerouted 4 misfiled VIBE items, no GLOOP change
 
 `/dump`'s Inbox held 4 items referencing "vibe console," "vibe pill," and a "meditating hand" —
 none of that terminology exists anywhere in GLOOP (checked `src/`); it's VIBE's. The two attached
