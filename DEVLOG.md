@@ -1,6 +1,26 @@
 # DEVLOG
 
-## 2026-09-10 (latest) - Karplus-Strong tap sound, Avida host-parasite param evolution
+## 2026-09-10 (later, latest) - NEAT crossover breeding for the host-parasite evolver
+
+One `/dump` item, sourced from the same `worth-saving/gloop.md` NEAT finding (Aug 30) that flagged
+innovation-number crossover as "the missing recombination-layer answer" for a future "breed two
+presets together" feature. `src/audio/evolve.js`'s host-parasite population (added earlier today)
+already has hosts occupying fixed slots, but every parasite until now was a mutation of a single
+slot — no actual recombination between two diverged lineages.
+
+Added: each slot now carries a per-param **innovation number** — the generation it was last
+mutated — alongside its param values. About half of generations now breed two slots via real NEAT
+crossover instead of mutating one: for each param key, if both parents agree on its innovation
+number (neither has touched it since a shared ancestor), the value is inherited from either parent
+at random ("matching" gene, NEAT's actual rule); if they disagree, it's inherited from whichever
+parent has the higher fitness ("disjoint" gene). The bred result still gets the same point-mutation
+pass as before on top, so it's crossover *and* mutation, not crossover replacing it. All slots seed
+identical (innovation 0 everywhere) so early breeding is a no-op until mutations actually diverge
+lineages — the same cold-start behavior real NEAT has with a homogeneous initial population.
+Verified live via Playwright (mic + evolve toggle running through several generations), no console
+errors.
+
+## 2026-09-10 - Karplus-Strong tap sound, Avida host-parasite param evolution
 
 Two `/dump` items, both from `/learn` findings logged in `worth-saving/gloop.md`.
 
