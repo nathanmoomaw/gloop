@@ -1,6 +1,28 @@
 # DEVLOG
 
-## 2026-09-10 (evening, latest) - Moved raw/evolve toggles to bottom-right of volume
+## 2026-09-15 (latest) - GLOOP-specific /learn session, no code change
+
+One `/dump` item: run a `/learn` session scoped to GLOOP itself — granular synthesis, control UX
+arrangement, loop/sound synthesis design, satisfying experience. Research-only, no implementation
+(per the `/learn` skill's own scope boundary). Ran `tone` + `webdev` against that topic; digest
+saved to LIFE memory (`learn_digest_2026-09-15_tone_webdev_gloop.md`), emailed, and published to
+cat.obfusco.us.
+
+Notable findings: Perry Cook's NIME 2001 "instant music, subtlety later" principle and Mutable
+Instruments Clouds' six-knobs-plus-one-multi-function-blend-knob approach, both as reference points
+for how far GLOOP's control surface (11 knobs + 2 toggles as of today) can keep growing before it
+stops reading as "instant." Checked GLOOP's actual `RotaryKnob.jsx` against current rotary-knob
+accessibility practice and confirmed a real, previously-unflagged gap: no `role="slider"`, no
+`aria-value*`, no keyboard/arrow-key support, no `touch-action: none` on the drag surface. Logged
+to `worth-saving/gloop.md` as a candidate DUMP item rather than fixed here, since this was a
+research pass, not a feature session.
+
+Also worth noting for future `/dump` runs: the Inbox-flush helper script reported flushing an item
+that, on inspection, was still sitting unmoved in `## Inbox` — moved it manually via a targeted
+`Edit` instead of trusting the script's report blindly. Not investigated further; flagged here in
+case it recurs.
+
+## 2026-09-10 (evening) - Moved raw/evolve toggles to bottom-right of volume
 
 One `/dump` item: "move raw and evolve buttons to bottom, to the right of volume." Both toggles
 were living in the top-right corner cluster (raw pinned below feedback/repeat/sensitivity via an
