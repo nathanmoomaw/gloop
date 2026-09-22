@@ -1,6 +1,12 @@
 # DEVLOG
 
-## 2026-09-15 (latest) - GLOOP-specific /learn session, no code change
+## 2026-09-22 (latest) - Google Tag Manager wired in
+
+Added the GTM-M5GKBML2 snippet (head script + body noscript iframe) to `index.html`, matching the
+exact pattern already used on obfusco.us. Applied on `dev/v0` and separately on `main`, since the
+two branches have diverged too far to merge for a one-line change.
+
+## 2026-09-15 - GLOOP-specific /learn session, no code change
 
 One `/dump` item: run a `/learn` session scoped to GLOOP itself — granular synthesis, control UX
 arrangement, loop/sound synthesis design, satisfying experience. Research-only, no implementation

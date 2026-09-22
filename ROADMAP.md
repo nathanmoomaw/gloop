@@ -71,3 +71,4 @@
 - [x] Avida-style host-parasite parameter evolution (`src/audio/evolve.js` + `EvolveToggle`) — opt-in background competition mutating live parameter sets against each other, scored on spectral/nodal stability read off the same dominant-FFT-bin signal the Chladni visualization uses, winners expressed onto the live engine
 - [x] NEAT innovation-number crossover breeding layered onto the host-parasite evolver — slots now carry per-param innovation numbers, ~50% of generations breed two slots (matching-innovation keys inherit randomly, disjoint keys inherit from the fitter parent) instead of only mutating one
 - [x] Raw-mic and evolve toggles moved from the top-right corner cluster to bottom-right of the volume knob
+- [x] Google Tag Manager (GTM-M5GKBML2) wired into `index.html`, same snippet pattern as obfusco.us
