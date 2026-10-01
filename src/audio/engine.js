@@ -195,7 +195,7 @@ export function setParam(name, value) {
   // A few params drive already-created persistent nodes and need to be
   // pushed onto the live AudioParam immediately, not just stashed in state.
   if (name === 'volume' && masterGain) {
-    masterGain.gain.value = value * OUTPUT_BOOST
+    if (playing) rampMaster(value * OUTPUT_BOOST)
   } else if (name === 'wow' && wowDepth) {
     wowDepth.gain.value = value * WOW_MAX_RATIO
   } else if (name === 'flutter' && flutterDepth) {
@@ -347,52 +347,65 @@ function currentThreshold() {
   return base * (1 - rampT * (1 - AUTO_SENSITIVITY_MIN_RATIO))
 }
 
-export async function start() {
-  if (ctx) return
+// Listening (mic -> grain pool) and playing (grain pool -> speakers) are
+// independent: either can run without the other, so a phrase can be
+// recorded silently and played back later, or the pool can keep looping
+// with the mic closed. Both share one AudioContext/graph, built lazily by
+// whichever side starts first (memoized so a simultaneous start of both —
+// e.g. hold-to-record — doesn't build it twice).
+let graphPromise = null
+let listening = false
+let playing = false
+// Set synchronously by startListening/stopListening so a release that lands
+// while getUserMedia is still pending (quick tap of a hold-to-record) can
+// cancel the in-flight start instead of leaving the mic open.
+let wantListening = false
+let micSource = null
+let inputHighpass = null
+let suspendTimeout = null
+const OUTPUT_FADE_SEC = 0.05
 
-  // getUserMedia is only exposed in secure contexts (HTTPS, or localhost) —
-  // on mobile this is the most common way to end up here, e.g. testing over
-  // a plain-http LAN address. Fail with a clear message up front rather than
-  // a raw "Cannot read properties of undefined" from calling it directly.
-  if (!navigator.mediaDevices?.getUserMedia) {
-    throw new DOMException(
-      'Microphone access needs a secure connection (HTTPS) — this page was loaded over an insecure one.',
-      'NotSupportedError',
-    )
+export function isListening() {
+  return listening
+}
+
+export function isPlaying() {
+  return playing
+}
+
+// Builds/resumes the audio graph from inside a user gesture. Hold-to-record
+// starts from a timer callback (after the long-press delay), which mobile
+// Safari no longer treats as user activation — so the press itself warms
+// the context up first.
+export function prepare() {
+  if (ctx) {
+    wake()
+    return
   }
+  ensureGraph().catch(() => {})
+}
 
+function ensureGraph() {
+  if (!graphPromise) {
+    graphPromise = buildGraph().catch((err) => {
+      graphPromise = null
+      throw err
+    })
+  }
+  return graphPromise
+}
+
+async function buildGraph() {
   ctx = new (window.AudioContext || window.webkitAudioContext)()
   lastActiveTime = ctx.currentTime
-
-  try {
-    // Reverted on 2026-07-25 as a *default* (see `rawCapture` above for why
-    // it's still available as an opt-in): disabling echoCancellation/
-    // noiseSuppression/autoGainControl measured, via Chromium's fake-device
-    // harness, as dropping the captured signal to near-silence — each of the
-    // three individually, not just AEC. That was a worse failure than the
-    // gating/choppiness this toggle is meant to address, so plain
-    // `audio: true` stays the default; `rawCapture` only applies when a user
-    // explicitly opts in to compare against real hardware.
-    const constraints = rawCapture
-      ? { audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }, video: false }
-      : { audio: true, video: false }
-    micStream = await navigator.mediaDevices.getUserMedia(constraints)
-  } catch (err) {
-    // Nothing was hooked up to this context yet — close it and reset to
-    // null so a retry (e.g. tapping listen again after granting permission)
-    // doesn't just early-return on the `if (ctx) return` guard above.
-    ctx.close()
-    ctx = null
-    throw err
-  }
-  const micSource = ctx.createMediaStreamSource(micStream)
 
   analyser = ctx.createAnalyser()
   analyser.fftSize = 1024
   analyser.smoothingTimeConstant = 0.8
 
+  // Starts silent — startPlaying() fades it up to the volume dial.
   masterGain = ctx.createGain()
-  masterGain.gain.value = state.volume * OUTPUT_BOOST
+  masterGain.gain.value = 0
   masterGain.connect(analyser)
 
   // Safety limiter on the final output — with feedback up to 0.95 and long
@@ -469,6 +482,9 @@ export async function start() {
     for (let i = 0; i < input.length; i++) sumSq += input[i] * input[i]
     const blockRms = Math.sqrt(sumSq / input.length)
     inputLevel = inputLevel * INPUT_LEVEL_SMOOTHING + blockRms * (1 - INPUT_LEVEL_SMOOTHING)
+    // Not listening — the worklet still runs (silence in), but nothing
+    // should land in the pool.
+    if (!listening) return
 
     // While quiet, freeze the pool instead of overwriting it with near-
     // silence — this is what actually makes the echo "just continue" when
@@ -494,11 +510,11 @@ export async function start() {
   // Highpass removes rumble/DC bias from the captured audio itself (mic
   // handling rooms/wind noise, or DC offset from cheap hardware) before it
   // ever enters the grain pool — cleans up every grain pulled from it,
-  // rather than filtering the mix after the fact.
-  const inputHighpass = ctx.createBiquadFilter()
+  // rather than filtering the mix after the fact. The mic source itself
+  // only gets attached while listening (see startListening).
+  inputHighpass = ctx.createBiquadFilter()
   inputHighpass.type = 'highpass'
   inputHighpass.frequency.value = 70
-  micSource.connect(inputHighpass)
   inputHighpass.connect(recorderNode)
   // The audio graph is pulled from the destination backward, so this node
   // only gets processed each render quantum if it has a path through to the
@@ -515,13 +531,122 @@ export async function start() {
     perturbation.feedback *= 0.85
     perturbation.dynamics *= 0.85
   }, 60)
+}
 
+// Opens the mic and starts recording into the grain pool. Resolves true if
+// listening actually started, false if stopListening() was called while the
+// mic permission/stream was still pending.
+export async function startListening() {
+  wantListening = true
+  // getUserMedia is only exposed in secure contexts (HTTPS, or localhost) —
+  // on mobile this is the most common way to end up here, e.g. testing over
+  // a plain-http LAN address. Fail with a clear message up front rather than
+  // a raw "Cannot read properties of undefined" from calling it directly.
+  if (!navigator.mediaDevices?.getUserMedia) {
+    wantListening = false
+    throw new DOMException(
+      'Microphone access needs a secure connection (HTTPS) — this page was loaded over an insecure one.',
+      'NotSupportedError',
+    )
+  }
+  await ensureGraph()
+  if (listening) return true
+  wake()
+
+  // Reverted on 2026-07-25 as a *default* (see `rawCapture` above for why
+  // it's still available as an opt-in): disabling echoCancellation/
+  // noiseSuppression/autoGainControl measured, via Chromium's fake-device
+  // harness, as dropping the captured signal to near-silence — each of the
+  // three individually, not just AEC. That was a worse failure than the
+  // gating/choppiness this toggle is meant to address, so plain
+  // `audio: true` stays the default; `rawCapture` only applies when a user
+  // explicitly opts in to compare against real hardware.
+  const constraints = rawCapture
+    ? { audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }, video: false }
+    : { audio: true, video: false }
+  let stream
+  try {
+    stream = await navigator.mediaDevices.getUserMedia(constraints)
+  } catch (err) {
+    wantListening = false
+    maybeSuspend()
+    throw err
+  }
+  if (!wantListening || listening) {
+    stream.getTracks().forEach((t) => t.stop())
+    maybeSuspend()
+    return listening
+  }
+  micStream = stream
+  micSource = ctx.createMediaStreamSource(micStream)
+  micSource.connect(inputHighpass)
+  lastActiveTime = ctx.currentTime
+  listening = true
+  return true
+}
+
+// Closes the mic. The grain pool keeps whatever it last captured, so
+// playback (if on) carries on looping it.
+export function stopListening() {
+  wantListening = false
+  if (!listening) return
+  listening = false
+  try { micSource?.disconnect() } catch { /* already disconnected */ }
+  micSource = null
+  micStream?.getTracks().forEach((t) => t.stop())
+  micStream = null
+  inputLevel = 0
+  maybeSuspend()
+}
+
+// Starts firing grains from the pool and fades the output up.
+export async function startPlaying() {
+  await ensureGraph()
+  if (playing) return
+  wake()
+  playing = true
+  rampMaster(state.volume * OUTPUT_BOOST)
   scheduleGrains()
+}
+
+// Stops firing new grains and fades the output out — in-flight feedback
+// tails are muted, not cut mid-sample.
+export function stopPlaying() {
+  if (!playing) return
+  playing = false
+  if (grainInterval) clearTimeout(grainInterval)
+  grainInterval = null
+  rampMaster(0)
+  maybeSuspend()
+}
+
+function rampMaster(value) {
+  if (!masterGain) return
+  const t = ctx.currentTime
+  masterGain.gain.cancelScheduledValues(t)
+  masterGain.gain.setTargetAtTime(value, t, OUTPUT_FADE_SEC / 3)
+}
+
+function wake() {
+  if (suspendTimeout) clearTimeout(suspendTimeout)
+  suspendTimeout = null
+  if (ctx?.state === 'suspended') ctx.resume()
+}
+
+// Idle (neither listening nor playing) suspends the context rather than
+// closing it, so the grain pool survives — record now, play later.
+function maybeSuspend() {
+  if (listening || playing || !ctx) return
+  if (suspendTimeout) clearTimeout(suspendTimeout)
+  suspendTimeout = setTimeout(() => {
+    suspendTimeout = null
+    if (!listening && !playing && ctx?.state === 'running') ctx.suspend()
+  }, OUTPUT_FADE_SEC * 4000)
 }
 
 function scheduleGrains() {
   const fire = () => {
-    if (!ctx) return
+    if (!ctx || !playing) return
     playGrain()
     if (onGrainFireCallback) {
       onGrainFireCallback({ rate: state.rate, delayTime: state.grainSizeMs / 1000 })
@@ -642,24 +767,4 @@ function playGrain() {
     try { delayMixGain.disconnect() } catch { /* already disconnected */ }
     try { granularMixGain.disconnect() } catch { /* already disconnected */ }
   }, repeatMs + 80)
-}
-
-export function stop() {
-  if (grainInterval) clearTimeout(grainInterval)
-  grainInterval = null
-  if (perturbDecayInterval) clearInterval(perturbDecayInterval)
-  perturbDecayInterval = null
-  if (micStream) micStream.getTracks().forEach((t) => t.stop())
-  if (ctx) ctx.close()
-  ctx = null
-  analyser = null
-  pool = []
-  inputLevel = 0
-  lastActiveTime = 0
-  wowLFO = null
-  wowDepth = null
-  flutterLFO = null
-  flutterDepth = null
-  wobbleLFO = null
-  wobbleDepth = null
 }

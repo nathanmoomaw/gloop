@@ -72,3 +72,5 @@
 - [x] NEAT innovation-number crossover breeding layered onto the host-parasite evolver — slots now carry per-param innovation numbers, ~50% of generations breed two slots (matching-innovation keys inherit randomly, disjoint keys inherit from the fitter parent) instead of only mutating one
 - [x] Raw-mic and evolve toggles moved from the top-right corner cluster to bottom-right of the volume knob
 - [x] Google Tag Manager (GTM-M5GKBML2) wired into `index.html`, same snippet pattern as obfusco.us
+- [x] Split `listen` (record) from new `on` (playback) toggle; hold spacebar / long-press listen = hold-to-record (auto-on, listen off on release)
+- [x] Shake bolt now a monochrome, centered inline SVG instead of the color ⚡ emoji

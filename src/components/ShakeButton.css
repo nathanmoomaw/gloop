@@ -9,7 +9,7 @@
     rgba(30, 30, 50, 0.95) 60%,
     rgba(15, 15, 25, 1)
   );
-  color: var(--rainbow-3);
+  color: rgba(255, 255, 255, 0.8);
   font-size: 0.95rem;
   line-height: 1;
   display: flex;
@@ -20,9 +20,17 @@
   transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
 }
 
+.shake-button__bolt {
+  display: block;
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
 .shake-button:hover {
-  border-color: var(--rainbow-3);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--rainbow-3) 45%, transparent);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.25);
   transform: scale(1.08);
 }
 
@@ -47,5 +55,10 @@
     width: 30px;
     height: 30px;
     font-size: 0.85rem;
+  }
+
+  .shake-button__bolt {
+    width: 14px;
+    height: 14px;
   }
 }

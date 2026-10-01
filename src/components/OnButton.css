@@ -1,0 +1,45 @@
+.on-button {
+  min-width: 48px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: radial-gradient(
+    circle at 40% 35%,
+    rgba(60, 60, 90, 0.9),
+    rgba(30, 30, 50, 0.95) 60%,
+    rgba(15, 15, 25, 1)
+  );
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s, color 0.2s, transform 0.15s;
+}
+
+.on-button:hover {
+  transform: scale(1.06);
+}
+
+.on-button:active {
+  transform: scale(0.94);
+}
+
+.on-button--active {
+  border-color: var(--color-volume);
+  color: var(--color-volume);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--color-volume) 45%, transparent);
+}
+
+@media (max-width: 767px) {
+  .on-button {
+    height: 24px;
+    font-size: 0.58rem;
+  }
+}

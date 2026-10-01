@@ -5,7 +5,7 @@ GLOOP is a granular synthesis echo loopback device — part of the ribbon/puddle
 
 ## Tech Stack
 - Vite + React 19, no backend
-- Web Audio API: `ScriptProcessor` grain capture → grain pool → randomized playback through per-grain delay/feedback/pan (see `src/audio/engine.js`)
+- Web Audio API: AudioWorklet grain capture → grain pool → randomized playback through per-grain delay/feedback/pan (see `src/audio/engine.js`). Capture (`listen`) and playback (`on`) are independent toggles over one shared graph; idle suspends rather than closes the context so the pool persists.
 - three.js (WebGL) for the grain-field visualization (see `src/components/GrainField.jsx`) — a rippling plate mesh driven by the same Chladni nodal math as the grains, with grains rendered as glowing 3D points hovering just above the live surface height. Not audness-powered — see Audness note below.
 
 ## Status

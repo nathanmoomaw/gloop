@@ -1,6 +1,25 @@
 # DEVLOG
 
-## 2026-09-22 (latest) - Google Tag Manager wired in
+## 2026-10-01 (latest) - `listen` and `on` split; monochrome bolt
+
+`listen` (mic -> grain pool) and new `on` (grain pool -> speakers) are now independent. Engine
+split `start()`/`stop()` into `startListening`/`stopListening` + `startPlaying`/`stopPlaying` over
+one lazily built, memoized graph. Idle (both off) suspends the AudioContext instead of closing it,
+so the pool survives — record silently, play later. Output fades via masterGain ramp instead of
+hard-stopping tails. `wantListening` flag cancels an in-flight getUserMedia if the hold is released
+before the mic opens.
+
+Hold-to-record: holding spacebar or long-pressing listen (350ms) turns `on` on and listens while
+held; release stops listening only, playback keeps looping the capture. Spacebar is no longer a
+listen toggle — tap the button for that. Long press warms the graph on pointerdown
+(`engine.prepare`) since the hold fires from a timer, which mobile Safari doesn't count as a user
+gesture. `on` lives as a pill atop the raw/evolve column; evolve now keys off `on`.
+
+Shake bolt: ⚡ emoji replaced with inline SVG (`currentColor`, white) — fixes both the color and
+the off-center baseline. Verified in headless Chromium (fake mic): all hold/tap/toggle state
+transitions correct, no console errors.
+
+## 2026-09-22 - Google Tag Manager wired in
 
 Added the GTM-M5GKBML2 snippet (head script + body noscript iframe) to `index.html`, matching the
 exact pattern already used on obfusco.us. Applied on `dev/v0` and separately on `main`, since the

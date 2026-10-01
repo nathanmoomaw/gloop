@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import * as engine from './audio/engine'
 import { RotaryKnob } from './components/RotaryKnob'
 import ListenButton from './components/ListenButton'
+import OnButton from './components/OnButton'
 import { LoopIndicator } from './components/LoopIndicator'
 import ShakeButton from './components/ShakeButton'
 import MicModeToggle from './components/MicModeToggle'
@@ -65,6 +66,9 @@ function micErrorMessage(err) {
 }
 
 export default function App() {
+  // `listening` = mic recording into the grain pool, `running` = grains
+  // playing out (the `on` button). Independent — see engine.js.
+  const [listening, setListening] = useState(false)
   const [running, setRunning] = useState(false)
   const [params, setParams] = useState(engine.getParams())
   const [analyser, setAnalyser] = useState(null)
@@ -81,41 +85,66 @@ export default function App() {
     })
   }, [])
 
-  const stopListening = () => {
-    stopEvolve()
-    setEvolving(false)
-    engine.stop()
-    setRunning(false)
-    setAnalyser(null)
-  }
+  const setPower = useCallback(async (next) => {
+    if (!next) {
+      stopEvolve()
+      setEvolving(false)
+      engine.stopPlaying()
+      setRunning(false)
+      return
+    }
+    await engine.startPlaying()
+    setAnalyser(engine.getAnalyser())
+    setRunning(true)
+  }, [])
 
-  const toggle = useCallback(async () => {
-    if (running) {
-      stopListening()
+  const setListen = useCallback(async (next) => {
+    if (!next) {
+      engine.stopListening()
+      setListening(false)
       return
     }
     setMicError(null)
     try {
-      await engine.start()
+      // false = released before the mic finished opening (quick hold).
+      if (await engine.startListening()) setListening(true)
       setAnalyser(engine.getAnalyser())
-      setRunning(true)
     } catch (err) {
       setMicError(micErrorMessage(err))
     }
-  }, [running])
+  }, [])
 
-  // Spacebar toggles listening either way — a quick key that doesn't
-  // require aiming for the listen button.
+  const toggleListen = useCallback(() => setListen(!listening), [listening, setListen])
+
+  // Hold-to-record (long press on listen, or holding spacebar): turns `on`
+  // on (or leaves it on) and listens only while held — release stops
+  // listening but leaves playback running so the capture keeps looping.
+  const holdStart = useCallback(() => {
+    setPower(true)
+    setListen(true)
+  }, [setPower, setListen])
+
+  const holdEnd = useCallback(() => setListen(false), [setListen])
+
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.code === 'Space') {
-        e.preventDefault()
-        toggle()
-      }
+      if (e.code !== 'Space') return
+      e.preventDefault()
+      if (!e.repeat) holdStart()
+    }
+    const handleKeyUp = (e) => {
+      if (e.code !== 'Space') return
+      // Also stops a focused button from treating the keyup as a click.
+      e.preventDefault()
+      holdEnd()
     }
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [toggle])
+    window.addEventListener('keyup', handleKeyUp)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+    }
+  }, [holdStart, holdEnd])
 
   const updateParam = (name, value) => {
     engine.setParam(name, value)
@@ -126,7 +155,7 @@ export default function App() {
     if (running) {
       engine.perturb(intensity)
     } else {
-      // Not listening — there's no live grain stream to nudge, so play a
+      // Not playing — there's no live grain stream to nudge, so play a
       // synthesized stand-in for "what this push would sound like" instead.
       engine.playTapSound(nx, ny, intensity)
     }
@@ -331,7 +360,14 @@ export default function App() {
             />
           </div>
           <div className="listen-wrap">
-            <ListenButton running={running} onToggle={toggle} size={128} />
+            <ListenButton
+              running={listening}
+              onToggle={toggleListen}
+              onHoldStart={holdStart}
+              onHoldEnd={holdEnd}
+              onPress={engine.prepare}
+              size={128}
+            />
             {micError && (
               <button type="button" className="mic-error-toast" onClick={() => setMicError(null)}>
                 {micError}
@@ -351,6 +387,7 @@ export default function App() {
             className="control-cluster__volume"
           />
           <div className="control-cluster__utility-pair">
+            <OnButton active={running} onToggle={setPower} />
             <MicModeToggle active={rawMic} onToggle={handleRawMicToggle} />
             <EvolveToggle active={evolving} disabled={!running} onToggle={handleEvolveToggle} />
           </div>
