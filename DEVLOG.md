@@ -1,6 +1,16 @@
 # DEVLOG
 
-## 2026-10-01 (latest) - Beveled color controls, `on` beside listen, bolt alignment
+## 2026-10-01 (latest) - Bare shake bolt; stray screenshot
+
+- Shake button lost its body entirely (no bg/border/bevel) — just the white bolt with a dark
+  drop-shadow for legibility, glow on hover. SVG viewBox cropped to the bolt's own bounds and
+  left-aligned in its 34px hit area, so the visible bolt edge (not an invisible circle's) is what
+  lines up with the size knob body — measured equal at 1200/600/375px.
+- Moved the root-level `Screenshot 2026-10-01 at 15.28.54.png` into `screenshots/` (already
+  gitignored). The global screenshot Stop hook missed it because it only scans `process.cwd()`,
+  and this session's cwd had drifted into LIFE during dump commits.
+
+## 2026-10-01 - Beveled color controls, `on` beside listen, bolt alignment
 
 - Every knob/button body is now a beveled, hue-polarized gradient of its own accent color (lit
   top-left face → deep same-hue rim, tinted inner bevel edge) instead of shared dark gray. Shared

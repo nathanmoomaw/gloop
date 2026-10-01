@@ -1,34 +1,36 @@
 .shake-button {
   width: 34px;
   height: 34px;
-  border-radius: 50%;
-  /* Neutral gray bevel — the bolt stays monochrome. */
-  --bevel-color: #9aa0b4;
-  border: 1px solid var(--bevel-border);
-  background: var(--bevel-bg);
-  box-shadow: var(--bevel-inset);
-  color: rgba(255, 255, 255, 0.8);
+  /* No body at all — just the bare bolt, left-aligned in a 34px hit area
+     so its visible edge (not an invisible circle's) lines up with the
+     size knob below. A dark drop-shadow keeps it legible over the field. */
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.85));
+  -webkit-tap-highlight-color: transparent;
   font-size: 0.95rem;
   line-height: 1;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   cursor: pointer;
   padding: 0;
-  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+  transition: color 0.2s, filter 0.2s, transform 0.15s;
 }
 
 .shake-button__bolt {
   display: block;
+  /* viewBox is cropped to the bolt's own bounds, so the element edge is
+     the visible edge. */
   width: 16px;
-  height: 16px;
+  height: 22px;
   fill: currentColor;
 }
 
 .shake-button:hover {
   color: #fff;
-  border-color: rgba(255, 255, 255, 0.5);
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.25), var(--bevel-inset);
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.85)) drop-shadow(0 0 6px rgba(255, 255, 255, 0.45));
   transform: scale(1.08);
 }
 
@@ -57,6 +59,6 @@
 
   .shake-button__bolt {
     width: 14px;
-    height: 14px;
+    height: 19px;
   }
 }

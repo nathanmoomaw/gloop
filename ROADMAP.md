@@ -77,3 +77,4 @@
 - [x] Beveled, per-hue polarized backgrounds for all knobs/buttons (shared `.bevel` tokens)
 - [x] `on` as mid-size round button directly right of listen; narrow-phone layout reflow
 - [x] Shake bolt aligned to size knob body's left edge
+- [x] Shake bolt has no background — bare monochrome bolt, edge-aligned with size knob

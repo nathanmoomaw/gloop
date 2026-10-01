@@ -27,7 +27,7 @@ export default function ShakeButton({ onShake }) {
     <button
       ref={btnRef}
       type="button"
-      className="shake-button bevel"
+      className="shake-button"
       onClick={handleClick}
       title="Shake (randomize)"
       aria-label="Shake / randomize controls"
@@ -35,7 +35,7 @@ export default function ShakeButton({ onShake }) {
       {/* Inline SVG instead of the ⚡ emoji — the emoji renders in full
           color on most platforms and sits off-center on its font's
           baseline; this follows currentColor and centers exactly. */}
-      <svg className="shake-button__bolt" viewBox="0 0 24 24" aria-hidden="true">
+      <svg className="shake-button__bolt" viewBox="4.5 2 14.5 20" aria-hidden="true">
         <path d="M13.5 2 4.5 13.5h6.2L9.8 22l9.2-12h-6.3L13.5 2Z" />
       </svg>
     </button>
