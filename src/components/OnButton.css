@@ -1,45 +1,52 @@
 .on-button {
-  min-width: 48px;
-  height: 26px;
-  padding: 0 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: radial-gradient(
-    circle at 40% 35%,
-    rgba(60, 60, 90, 0.9),
-    rgba(30, 30, 50, 0.95) 60%,
-    rgba(15, 15, 25, 1)
-  );
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 0.62rem;
-  font-weight: 600;
-  letter-spacing: 0.05em;
+  --bevel-color: var(--rainbow-4);
+  width: var(--on-size, 76px);
+  height: var(--on-size, 76px);
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid var(--bevel-border);
+  background: var(--bevel-bg);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.5),
+    var(--bevel-inset);
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  line-height: 1;
+  color: rgba(255, 255, 255, 0.6);
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: border-color 0.2s, box-shadow 0.2s, color 0.2s, transform 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: border-color 0.2s, box-shadow 0.25s, color 0.2s, transform 0.15s;
 }
 
 .on-button:hover {
-  transform: scale(1.06);
+  transform: scale(1.04);
 }
 
 .on-button:active {
-  transform: scale(0.94);
+  transform: scale(0.95);
 }
 
 .on-button--active {
-  border-color: var(--color-volume);
-  color: var(--color-volume);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--color-volume) 45%, transparent);
+  border-color: var(--rainbow-4);
+  color: #fff;
+  text-shadow: 0 0 10px color-mix(in srgb, var(--rainbow-4) 70%, transparent);
+  box-shadow:
+    0 4px 18px rgba(0, 0, 0, 0.55),
+    0 0 20px 2px color-mix(in srgb, var(--rainbow-4) 50%, transparent),
+    var(--bevel-inset);
 }
 
 @media (max-width: 767px) {
   .on-button {
-    height: 24px;
-    font-size: 0.58rem;
+    width: calc(var(--on-size, 76px) * 0.78);
+    height: calc(var(--on-size, 76px) * 0.78);
+    font-size: 0.62rem;
   }
 }

@@ -36,18 +36,13 @@
   width: var(--knob-size, 48px);
   height: var(--knob-size, 48px);
   border-radius: 50%;
-  background: radial-gradient(
-    circle at 40% 35%,
-    rgba(60, 60, 90, 0.9),
-    rgba(30, 30, 50, 0.95) 60%,
-    rgba(15, 15, 25, 1)
-  );
-  border: 2px solid rgba(255, 255, 255, 0.12);
+  --bevel-color: var(--knob-color, var(--rainbow-1));
+  background: var(--bevel-bg);
+  border: 2px solid var(--bevel-border);
   box-shadow:
     0 2px 8px rgba(0, 0, 0, 0.5),
     0 0 0 1px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    inset 0 -2px 6px rgba(0, 0, 0, 0.3);
+    var(--bevel-inset);
   cursor: grab;
   user-select: none;
   -webkit-user-select: none;
@@ -60,8 +55,7 @@
   box-shadow:
     0 2px 8px rgba(0, 0, 0, 0.5),
     0 0 8px color-mix(in srgb, var(--knob-color, var(--rainbow-1)) 30%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    inset 0 -2px 6px rgba(0, 0, 0, 0.3);
+    var(--bevel-inset);
 }
 
 .rotary-knob__body:active {
@@ -84,7 +78,8 @@
   height: 30%;
   margin-left: -1.5px;
   border-radius: 2px;
-  background: var(--knob-color, var(--rainbow-1));
+  /* Lifted toward white so it still reads against the knob's own tinted body. */
+  background: color-mix(in srgb, var(--knob-color, var(--rainbow-1)) 55%, #fff);
   box-shadow: 0 0 6px var(--knob-color, var(--rainbow-1)),
               0 0 12px color-mix(in srgb, var(--knob-color, var(--rainbow-1)) 40%, transparent);
 }

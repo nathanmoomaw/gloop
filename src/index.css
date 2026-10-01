@@ -31,6 +31,27 @@
   box-sizing: border-box;
 }
 
+/* Beveled, color-polarized control surface — each knob/button tints its
+   own body from its accent (--bevel-color): a lit face toward the top-left
+   highlight, falling off to a deep shade of the same hue at the rim, with
+   a hue-tinted inner bevel edge. Elements opt in with the class and set
+   --bevel-color; they consume --bevel-bg / --bevel-inset / --bevel-border
+   in their own background/box-shadow/border so their hover/active states
+   can keep the bevel while layering glows on top. */
+.bevel {
+  --bevel-color: #9aa0b4;
+  --bevel-bg: radial-gradient(
+    circle at 36% 30%,
+    color-mix(in srgb, var(--bevel-color) 58%, #2a2a3a) 0%,
+    color-mix(in srgb, var(--bevel-color) 32%, #14141f) 50%,
+    color-mix(in srgb, var(--bevel-color) 14%, #06060c) 100%
+  );
+  --bevel-inset:
+    inset 1.5px 2px 2px color-mix(in srgb, var(--bevel-color) 50%, rgba(255, 255, 255, 0.55)),
+    inset -2px -3px 6px rgba(0, 0, 0, 0.6);
+  --bevel-border: color-mix(in srgb, var(--bevel-color) 40%, rgba(255, 255, 255, 0.08));
+}
+
 html, body, #root {
   margin: 0;
   height: 100%;

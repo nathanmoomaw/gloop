@@ -18,7 +18,7 @@ export default function MicModeToggle({ active, onToggle }) {
   return (
     <button
       type="button"
-      className={`mic-mode-toggle ${active ? 'mic-mode-toggle--active' : ''}`}
+      className={`mic-mode-toggle bevel ${active ? 'mic-mode-toggle--active' : ''}`}
       onClick={handleClick}
       title={
         active

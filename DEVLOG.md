@@ -1,6 +1,22 @@
 # DEVLOG
 
-## 2026-10-01 (latest) - `listen` and `on` split; monochrome bolt
+## 2026-10-01 (latest) - Beveled color controls, `on` beside listen, bolt alignment
+
+- Every knob/button body is now a beveled, hue-polarized gradient of its own accent color (lit
+  top-left face → deep same-hue rim, tinted inner bevel edge) instead of shared dark gray. Shared
+  `.bevel` class in `index.css` exposes `--bevel-bg` / `--bevel-inset` / `--bevel-border`, keyed off
+  each element's `--bevel-color`, so hover/active glows can layer on without losing the bevel.
+  Knobs use `--knob-color`; listen uses `--rainbow-6`; `on` `--rainbow-4`; raw/evolve their active
+  colors; shake bolt neutral gray (stays monochrome). Knob notches lifted toward white so they still
+  read against their own tinted body.
+- `on` is now a 76px round button directly right of listen (128px) — between listen and the knobs
+  in size. Raw/evolve stay right of volume. ≤480px: raw/evolve float above the on/volume end and
+  the mix pair shifts to float over listen, otherwise the wider center row collides with both bottom
+  corner clusters at 375px.
+- Shake bolt left edge now matches the size knob *body* edge (8px in from the knob wrapper; ~11.6px
+  on mobile where the body shrinks to 0.85x). Measured equal at 1200/600/375px in headless Chromium.
+
+## 2026-10-01 - `listen` and `on` split; monochrome bolt
 
 `listen` (mic -> grain pool) and new `on` (grain pool -> speakers) are now independent. Engine
 split `start()`/`stop()` into `startListening`/`stopListening` + `startPlaying`/`stopPlaying` over

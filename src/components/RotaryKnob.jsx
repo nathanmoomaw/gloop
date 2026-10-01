@@ -108,7 +108,7 @@ export const RotaryKnob = memo(function RotaryKnob({
     >
       {label && <span className="rotary-knob__label">{label}</span>}
       <div
-        className="rotary-knob__body"
+        className="rotary-knob__body bevel"
         ref={knobRef}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}

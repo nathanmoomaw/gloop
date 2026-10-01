@@ -374,6 +374,7 @@ export default function App() {
               </button>
             )}
           </div>
+          <OnButton active={running} onToggle={setPower} />
           <RotaryKnob
             label="volume"
             valueLabel={pct(params.volume)}
@@ -387,7 +388,6 @@ export default function App() {
             className="control-cluster__volume"
           />
           <div className="control-cluster__utility-pair">
-            <OnButton active={running} onToggle={setPower} />
             <MicModeToggle active={rawMic} onToggle={handleRawMicToggle} />
             <EvolveToggle active={evolving} disabled={!running} onToggle={handleEvolveToggle} />
           </div>

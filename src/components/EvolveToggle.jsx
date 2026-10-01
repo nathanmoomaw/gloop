@@ -18,7 +18,7 @@ export default function EvolveToggle({ active, disabled, onToggle }) {
   return (
     <button
       type="button"
-      className={`evolve-toggle ${active ? 'evolve-toggle--active' : ''}`}
+      className={`evolve-toggle bevel ${active ? 'evolve-toggle--active' : ''}`}
       onClick={handleClick}
       disabled={disabled}
       title={

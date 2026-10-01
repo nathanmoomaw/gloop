@@ -3,13 +3,10 @@
   height: 26px;
   padding: 0 10px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: radial-gradient(
-    circle at 40% 35%,
-    rgba(60, 60, 90, 0.9),
-    rgba(30, 30, 50, 0.95) 60%,
-    rgba(15, 15, 25, 1)
-  );
+  --bevel-color: var(--color-sensitivity);
+  border: 1px solid var(--bevel-border);
+  background: var(--bevel-bg);
+  box-shadow: var(--bevel-inset);
   color: rgba(255, 255, 255, 0.5);
   font-size: 0.62rem;
   font-weight: 600;
@@ -34,7 +31,7 @@
 .mic-mode-toggle--active {
   border-color: var(--color-sensitivity);
   color: var(--color-sensitivity);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--color-sensitivity) 45%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--color-sensitivity) 45%, transparent), var(--bevel-inset);
 }
 
 @media (max-width: 767px) {

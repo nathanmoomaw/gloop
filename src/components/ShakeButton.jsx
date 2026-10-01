@@ -27,7 +27,7 @@ export default function ShakeButton({ onShake }) {
     <button
       ref={btnRef}
       type="button"
-      className="shake-button"
+      className="shake-button bevel"
       onClick={handleClick}
       title="Shake (randomize)"
       aria-label="Shake / randomize controls"

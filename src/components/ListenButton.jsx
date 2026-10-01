@@ -68,7 +68,7 @@ export default function ListenButton({ running, onToggle, onHoldStart, onHoldEnd
       title="Tap to toggle listening — hold (or hold spacebar) to listen only while held"
     >
       <span className="listen-button__ring" />
-      <span className="listen-button__core">
+      <span className="listen-button__core bevel">
         <span className="listen-button__label">
           {running ? 'listening' : 'listen'}
         </span>
