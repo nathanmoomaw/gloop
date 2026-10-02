@@ -1,6 +1,16 @@
 # DEVLOG
 
-## 2026-10-01 (latest) - Syne Mono, auto-on, clearer toggle states
+## 2026-10-01 (latest) - Spacebar tap vs hold
+
+Spacebar was pure hold-to-record, so a quick tap on a fresh session turned `on` but dropped listen
+again on release. Now tap/hold is decided on keyup (`SPACE_HOLD_MS` = 350, same as listen's long
+press): tap while not listening latches listen on (plus `on`); tap while listening turns listen off;
+hold records only while held. Recording still starts on keydown so a hold doesn't lose its first
+beat — which means every space press turns `on` (can't know tap vs hold yet at keydown). Uses
+`engine.isListening()` for the pre-press state (React Compiler lint rejects render-time ref sync).
+Verified headless: fresh tap → both on; tap again → listen off; hold → listen only while held.
+
+## 2026-10-01 - Syne Mono, auto-on, clearer toggle states
 
 - Font: Syne Mono (Google Fonts) for the whole UI via `--font-mono` + root `font-family`; buttons
   now `font-family: inherit`. Single 400 weight, so the pills' old `font-weight: 600` was dropped.

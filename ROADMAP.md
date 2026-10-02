@@ -82,3 +82,4 @@
 - [x] First listen auto-enables `on`; `on` red/green by state
 - [x] Raw/evolve toggles show state with gray-vs-hue bevel + LED dot
 - [x] Shake bolt centered over size knob
+- [x] Spacebar tap latches listen (fresh session → listen + on), hold = record while held

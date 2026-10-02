@@ -28,6 +28,10 @@ const SHAKE_RANGES = {
   wobble: [0, 1],
 }
 
+// Spacebar press shorter than this counts as a tap (latch listen) rather
+// than a hold (listen only while held) — matches ListenButton's long press.
+const SPACE_HOLD_MS = 350
+
 // three.js pulls the JS bundle from ~205KB to ~715KB (gzip ~65KB→~194KB —
 // see ROADMAP), so GrainField loads as its own chunk behind a dynamic
 // import instead of shipping in the initial bundle every visitor downloads
@@ -133,16 +137,33 @@ export default function App() {
 
   const holdEnd = useCallback(() => setListen(false), [setListen])
 
+  // Spacebar works like the listen button: a quick tap latches listen
+  // on/off (and a session's first listen also turns `on`), a hold records
+  // only while held. Unlike the button, recording starts on keydown rather
+  // than after the hold threshold, so a hold doesn't lose its first beat —
+  // the tap/hold decision is made on keyup instead.
+  const spaceRef = useRef(null)
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.code !== 'Space') return
       e.preventDefault()
-      if (!e.repeat) holdStart()
+      if (e.repeat || spaceRef.current) return
+      const wasListening = engine.isListening()
+      spaceRef.current = { downAt: performance.now(), wasListening }
+      if (!wasListening) holdStart()
     }
     const handleKeyUp = (e) => {
       if (e.code !== 'Space') return
       // Also stops a focused button from treating the keyup as a click.
       e.preventDefault()
+      const press = spaceRef.current
+      spaceRef.current = null
+      if (!press) return
+      const isTap = performance.now() - press.downAt < SPACE_HOLD_MS
+      // Tap while off: leave listening latched on. Anything else (a hold,
+      // or a tap while already listening) ends with listen off.
+      if (isTap && !press.wasListening) return
       holdEnd()
     }
     window.addEventListener('keydown', handleKeyDown)
