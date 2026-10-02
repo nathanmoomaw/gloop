@@ -31,6 +31,10 @@ const SHAKE_RANGES = {
 // Spacebar press shorter than this counts as a tap (latch listen) rather
 // than a hold (listen only while held) — matches ListenButton's long press.
 const SPACE_HOLD_MS = 350
+// A second spacebar press landing within this long after the previous one
+// is released is a double-tap: stop everything (listen, then `on`),
+// whatever state the first tap left things in.
+const SPACE_DOUBLE_TAP_MS = 400
 
 // rate and size are the two most consequential dials (how often grains
 // fire / how long each one is), so they're drawn at 2x the default knob.
@@ -147,14 +151,26 @@ export default function App() {
   // than after the hold threshold, so a hold doesn't lose its first beat —
   // the tap/hold decision is made on keyup instead.
   const spaceRef = useRef(null)
+  const lastSpaceUpRef = useRef(-Infinity)
 
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.code !== 'Space') return
       e.preventDefault()
       if (e.repeat || spaceRef.current) return
+      // Event timestamps, not performance.now() in the handler: the first
+      // press builds the audio graph and can block the main thread long
+      // enough that a quick tap's keyup *handler* runs >350ms later.
+      if (e.timeStamp - lastSpaceUpRef.current < SPACE_DOUBLE_TAP_MS) {
+        // Consumed: the matching keyup shouldn't act again.
+        spaceRef.current = { doubleTap: true }
+        lastSpaceUpRef.current = -Infinity
+        setListen(false)
+        setPower(false)
+        return
+      }
       const wasListening = engine.isListening()
-      spaceRef.current = { downAt: performance.now(), wasListening }
+      spaceRef.current = { downAt: e.timeStamp, wasListening }
       if (!wasListening) holdStart()
     }
     const handleKeyUp = (e) => {
@@ -163,8 +179,9 @@ export default function App() {
       e.preventDefault()
       const press = spaceRef.current
       spaceRef.current = null
-      if (!press) return
-      const isTap = performance.now() - press.downAt < SPACE_HOLD_MS
+      if (!press || press.doubleTap) return
+      lastSpaceUpRef.current = e.timeStamp
+      const isTap = e.timeStamp - press.downAt < SPACE_HOLD_MS
       // Tap while off: leave listening latched on. Anything else (a hold,
       // or a tap while already listening) ends with listen off.
       if (isTap && !press.wasListening) return
@@ -176,7 +193,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
     }
-  }, [holdStart, holdEnd])
+  }, [holdStart, holdEnd, setListen, setPower])
 
   const updateParam = (name, value) => {
     engine.setParam(name, value)
@@ -243,6 +260,8 @@ export default function App() {
       </div>
 
       <WaveformOverlay analyser={analyser} running={running} />
+
+      <div className="gloop-logo" aria-hidden="true">gloop</div>
 
       <LoopIndicator ref={loopRef} active={running} periodMs={loopPeriodFromRate(params.rate)} />
 

@@ -85,3 +85,5 @@
 - [x] Spacebar tap latches listen (fresh session → listen + on), hold = record while held
 - [x] Control palette re-spaced so no two knobs/buttons share a hue
 - [x] Rate and size knobs at 2x (96px), responsive reflow for the bigger bottom-left cluster
+- [x] Double spacebar = stop listen + stop play
+- [x] Cursive gloop wordmark top-center

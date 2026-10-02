@@ -1,6 +1,18 @@
 # DEVLOG
 
-## 2026-10-01 (latest) - Rate + size knobs at 2x
+## 2026-10-01 (latest) - Double-space stop-all, cursive logo, tap timing fix
+
+- Double spacebar (2nd press within 400ms of the 1st's release) = stop everything: listen off,
+  then `on` off — regardless of what the first tap did (from listening, from on-only, etc.).
+- Tap/hold + double-tap timing now uses `KeyboardEvent.timeStamp` rather than `performance.now()`
+  in the handler. The first press of a session builds the audio graph and flips `running`, which
+  blocks the main thread long enough (~300ms+) that a quick tap's keyup *handler* could run >350ms
+  after keydown and be misread as a hold. Verified via raw CDP key events with OS-style timestamps
+  (Playwright's `keyboard.down/up` waits for each handler, so it can't reproduce a real quick tap).
+- Small cursive "gloop" wordmark (Pacifico, Google Fonts) fixed top-center, pointer-events none.
+  Fits between the top corner clusters at 375px.
+
+## 2026-10-01 - Rate + size knobs at 2x
 
 `rate` and `size` (the two most consequential dials) now render at `BIG_KNOB` = 96px vs the
 48px default. Shake bolt's centering width follows (96 + 16). The wider bottom-left cluster ran

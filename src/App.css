@@ -5,6 +5,31 @@
   overflow: hidden;
 }
 
+/* Small cursive wordmark, top center — pure decoration, never blocks the
+   grain field or the corner clusters beneath/beside it. */
+.gloop-logo {
+  position: fixed;
+  top: max(0.6rem, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  pointer-events: none;
+  user-select: none;
+  font-family: 'Pacifico', cursive;
+  font-size: 1.35rem;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow:
+    0 0 10px rgba(0, 0, 0, 0.7),
+    0 0 18px color-mix(in srgb, var(--rainbow-5) 35%, transparent);
+}
+
+@media (max-width: 480px) {
+  .gloop-logo {
+    font-size: 1.1rem;
+  }
+}
+
 .grain-field {
   position: absolute;
   inset: 0;
