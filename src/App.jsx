@@ -32,6 +32,10 @@ const SHAKE_RANGES = {
 // than a hold (listen only while held) — matches ListenButton's long press.
 const SPACE_HOLD_MS = 350
 
+// rate and size are the two most consequential dials (how often grains
+// fire / how long each one is), so they're drawn at 2x the default knob.
+const BIG_KNOB = 96
+
 // three.js pulls the JS bundle from ~205KB to ~715KB (gzip ~65KB→~194KB —
 // see ROADMAP), so GrainField loads as its own chunk behind a dynamic
 // import instead of shipping in the initial bundle every visitor downloads
@@ -253,6 +257,7 @@ export default function App() {
             step={5}
             onChange={(v) => updateParam('rate', v)}
             color="var(--color-rate)"
+            size={BIG_KNOB}
           />
           <RotaryKnob
             label="dynamics"
@@ -312,6 +317,7 @@ export default function App() {
               step={20}
               onChange={(v) => updateParam('grainSizeMs', v)}
               color="var(--color-size)"
+              size={BIG_KNOB}
             />
             <RotaryKnob
               label="density"

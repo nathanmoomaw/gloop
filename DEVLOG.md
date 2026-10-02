@@ -1,6 +1,15 @@
 # DEVLOG
 
-## 2026-10-01 (latest) - Re-spaced control palette
+## 2026-10-01 (latest) - Rate + size knobs at 2x
+
+`rate` and `size` (the two most consequential dials) now render at `BIG_KNOB` = 96px vs the
+48px default. Shake bolt's centering width follows (96 + 16). The wider bottom-left cluster ran
+into the center row below ~800px, so: 481–800px stacks size over density; ≤480px lifts the whole
+bottom-left cluster ~210px clear of the center row + floating mix pair, with size/density side by
+side again. Headless overlap check (every knob body/button bbox pairwise) clean at 1200/800/600/
+430/375px; bolt center = size knob center at all five.
+
+## 2026-10-01 - Re-spaced control palette
 
 Several controls shared near-identical hues once each body was tinted by its accent: wow/flutter/
 wobble all pink-purple, density = wow = listen purple, granular ≈ feedback yellow, delay ≈ size
