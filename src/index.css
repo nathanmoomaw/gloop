@@ -1,7 +1,8 @@
 :root {
   color-scheme: dark;
-  font-family: system-ui, sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', 'Courier New', monospace;
+  /* Syne Mono everywhere — one face for labels, values, and buttons. */
+  --font-mono: 'Syne Mono', ui-monospace, 'SF Mono', 'Courier New', monospace;
+  font-family: var(--font-mono);
 
   /* GLOOP rainbow palette — shared by controls, listen button, loop ring */
   --rainbow-1: #ff4d6d;
@@ -29,6 +30,11 @@
 
 * {
   box-sizing: border-box;
+}
+
+/* Buttons don't inherit font-family by default. */
+button {
+  font-family: inherit;
 }
 
 /* Beveled, color-polarized control surface — each knob/button tints its

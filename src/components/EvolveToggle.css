@@ -3,13 +3,16 @@
   height: 26px;
   padding: 0 10px;
   border-radius: 999px;
-  --bevel-color: var(--color-density);
+  /* Off: neutral gray body + unlit LED. On: full accent hue, lit LED,
+     glow — so state reads at a glance, not just from text color. */
+  --toggle-color: var(--color-density);
+  --bevel-color: #5a5e6e;
   border: 1px solid var(--bevel-border);
   background: var(--bevel-bg);
   box-shadow: var(--bevel-inset);
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.4);
+  gap: 6px;
   font-size: 0.62rem;
-  font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   line-height: 1;
@@ -18,6 +21,21 @@
   justify-content: center;
   cursor: pointer;
   transition: border-color 0.2s, box-shadow 0.2s, color 0.2s, transform 0.15s, opacity 0.2s;
+}
+
+.evolve-toggle::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.12);
+  transition: background 0.2s, box-shadow 0.2s;
+}
+
+.evolve-toggle--active::before {
+  background: color-mix(in srgb, var(--toggle-color) 60%, #fff);
+  box-shadow: 0 0 6px var(--toggle-color), 0 0 2px #fff;
 }
 
 .evolve-toggle:hover:not(:disabled) {
@@ -34,18 +52,20 @@
 }
 
 .evolve-toggle--active {
-  border-color: var(--color-density);
-  color: var(--color-density);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--color-density) 45%, transparent), var(--bevel-inset);
+  --bevel-color: var(--toggle-color);
+  border-color: var(--toggle-color);
+  color: #fff;
+  text-shadow: 0 0 8px var(--toggle-color);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--toggle-color) 45%, transparent), var(--bevel-inset);
   animation: evolve-pulse 2.4s ease-in-out infinite;
 }
 
 @keyframes evolve-pulse {
   0%, 100% {
-    box-shadow: 0 0 10px color-mix(in srgb, var(--color-density) 45%, transparent), var(--bevel-inset);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--toggle-color) 45%, transparent), var(--bevel-inset);
   }
   50% {
-    box-shadow: 0 0 16px color-mix(in srgb, var(--color-density) 75%, transparent), var(--bevel-inset);
+    box-shadow: 0 0 16px color-mix(in srgb, var(--toggle-color) 75%, transparent), var(--bevel-inset);
   }
 }
 

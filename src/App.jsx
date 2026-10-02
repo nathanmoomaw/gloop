@@ -76,6 +76,9 @@ export default function App() {
   const [rawMic, setRawMic] = useState(engine.getRawCapture())
   const [evolving, setEvolving] = useState(false)
   const loopRef = useRef(null)
+  // The first listen of a session also turns `on`, so a first-time visitor
+  // hears something; after that the two stay independent (record silently).
+  const hasListenedRef = useRef(false)
 
   // Register the grain-fire pulse once — imperative, so it never re-renders
   // React on every grain (which can fire tens of times per second).
@@ -104,6 +107,10 @@ export default function App() {
       setListening(false)
       return
     }
+    if (!hasListenedRef.current) {
+      hasListenedRef.current = true
+      setPower(true)
+    }
     setMicError(null)
     try {
       // false = released before the mic finished opening (quick hold).
@@ -112,7 +119,7 @@ export default function App() {
     } catch (err) {
       setMicError(micErrorMessage(err))
     }
-  }, [])
+  }, [setPower])
 
   const toggleListen = useCallback(() => setListen(!listening), [listening, setListen])
 

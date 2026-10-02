@@ -58,18 +58,13 @@
   max-width: 46vw;
 }
 
-/* Line the bolt's left edge up with the size knob body's left edge, not
-   the knob wrapper's — the wrapper is knob-size + 16px wide (see
-   RotaryKnob.css) with the body centered in it, so the body sits 8px in.
-   On mobile the body shrinks to 0.85x inside the same-width wrapper. */
+/* Center the bolt over the size knob: give the shake button the same
+   width as the knob wrapper (knob-size + 16px, see RotaryKnob.css) — the
+   knob body is centered in that wrapper at every breakpoint, so a
+   centered bolt lands over the body's center too. */
 .control-cluster--bottom-left .shake-button {
-  margin-left: 8px;
-}
-
-@media (max-width: 767px) {
-  .control-cluster--bottom-left .shake-button {
-    margin-left: calc((48px + 16px - 48px * 0.85) / 2);
-  }
+  width: calc(48px + 16px);
+  justify-content: center;
 }
 
 .control-cluster__row {

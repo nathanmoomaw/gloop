@@ -1,9 +1,8 @@
 .shake-button {
   width: 34px;
   height: 34px;
-  /* No body at all — just the bare bolt, left-aligned in a 34px hit area
-     so its visible edge (not an invisible circle's) lines up with the
-     size knob below. A dark drop-shadow keeps it legible over the field. */
+  /* No body at all — just the bare bolt (centered over the size knob,
+     see App.css). A dark drop-shadow keeps it legible over the field. */
   border: none;
   background: transparent;
   color: rgba(255, 255, 255, 0.85);
@@ -13,7 +12,7 @@
   line-height: 1;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   cursor: pointer;
   padding: 0;
   transition: color 0.2s, filter 0.2s, transform 0.15s;

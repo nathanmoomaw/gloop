@@ -1,5 +1,6 @@
 .on-button {
-  --bevel-color: var(--rainbow-4);
+  /* Red when off, green when on. */
+  --bevel-color: var(--rainbow-1);
   width: var(--on-size, 76px);
   height: var(--on-size, 76px);
   flex-shrink: 0;
@@ -34,6 +35,7 @@
 }
 
 .on-button--active {
+  --bevel-color: var(--rainbow-4);
   border-color: var(--rainbow-4);
   color: #fff;
   text-shadow: 0 0 10px color-mix(in srgb, var(--rainbow-4) 70%, transparent);

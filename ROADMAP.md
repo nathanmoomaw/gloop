@@ -78,3 +78,7 @@
 - [x] `on` as mid-size round button directly right of listen; narrow-phone layout reflow
 - [x] Shake bolt aligned to size knob body's left edge
 - [x] Shake bolt has no background — bare monochrome bolt, edge-aligned with size knob
+- [x] Syne Mono UI font
+- [x] First listen auto-enables `on`; `on` red/green by state
+- [x] Raw/evolve toggles show state with gray-vs-hue bevel + LED dot
+- [x] Shake bolt centered over size knob

@@ -23,7 +23,7 @@ export default function EvolveToggle({ active, disabled, onToggle }) {
       disabled={disabled}
       title={
         disabled
-          ? 'Start listening first — evolution needs live audio to score against.'
+          ? 'Turn `on` first — evolution needs live output to score against.'
           : active
             ? 'Host/parasite parameter evolution is running — tap to stop.'
             : 'Tap to let mutated parameter sets compete for the live sound, judged on spectral/nodal stability.'

@@ -1,6 +1,16 @@
 # DEVLOG
 
-## 2026-10-01 (latest) - Bare shake bolt; stray screenshot
+## 2026-10-01 (latest) - Syne Mono, auto-on, clearer toggle states
+
+- Font: Syne Mono (Google Fonts) for the whole UI via `--font-mono` + root `font-family`; buttons
+  now `font-family: inherit`. Single 400 weight, so the pills' old `font-weight: 600` was dropped.
+- First listen of a session also turns `on` (so first-timers hear something); after that the two
+  stay independent. `on` is red when off, green when on (bevel color swaps).
+- Raw/evolve: off = neutral gray bevel, dim text, unlit LED dot; on = full accent bevel, white
+  glowing text, lit LED, outer glow. Evolve's disabled tooltip now says to turn `on` (not listen).
+- Shake bolt centered over the size knob (hit area = knob wrapper width), measured equal centers.
+
+## 2026-10-01 - Bare shake bolt; stray screenshot
 
 - Shake button lost its body entirely (no bg/border/bevel) — just the white bolt with a dark
   drop-shadow for legibility, glow on hover. SVG viewBox cropped to the bolt's own bounds and
