@@ -1,6 +1,16 @@
 # DEVLOG
 
-## 2026-10-01 (latest) - Spacebar tap vs hold
+## 2026-10-01 (latest) - Re-spaced control palette
+
+Several controls shared near-identical hues once each body was tinted by its accent: wow/flutter/
+wobble all pink-purple, density = wow = listen purple, granular ≈ feedback yellow, delay ≈ size
+blue, sensitivity ≈ repeat. Per-control colors in `index.css` now spread ~25–30° around the wheel
+(crimson, orange, yellow, lime, green, aqua, sky, royal blue, periwinkle, violet, magenta), with
+granular split from dynamics by lightness (pale peach). Listen body gets its own desaturated
+`--color-listen` (its rainbow ring carries the color); `on` uses dedicated `--color-on`/`--color-off`
+instead of borrowing rainbow vars shared with dials. `--rainbow-*` untouched (ring, loop indicator).
+
+## 2026-10-01 - Spacebar tap vs hold
 
 Spacebar was pure hold-to-record, so a quick tap on a fresh session turned `on` but dropped listen
 again on release. Now tap/hold is decided on keyup (`SPACE_HOLD_MS` = 350, same as listen's long

@@ -20,7 +20,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  --bevel-color: var(--rainbow-6);
+  --bevel-color: var(--color-listen);
   background: var(--bevel-bg);
   border: 2px solid var(--bevel-border);
   box-shadow:

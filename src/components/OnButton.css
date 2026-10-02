@@ -1,6 +1,6 @@
 .on-button {
   /* Red when off, green when on. */
-  --bevel-color: var(--rainbow-1);
+  --bevel-color: var(--color-off);
   width: var(--on-size, 76px);
   height: var(--on-size, 76px);
   flex-shrink: 0;
@@ -35,13 +35,13 @@
 }
 
 .on-button--active {
-  --bevel-color: var(--rainbow-4);
-  border-color: var(--rainbow-4);
+  --bevel-color: var(--color-on);
+  border-color: var(--color-on);
   color: #fff;
-  text-shadow: 0 0 10px color-mix(in srgb, var(--rainbow-4) 70%, transparent);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--color-on) 70%, transparent);
   box-shadow:
     0 4px 18px rgba(0, 0, 0, 0.55),
-    0 0 20px 2px color-mix(in srgb, var(--rainbow-4) 50%, transparent),
+    0 0 20px 2px color-mix(in srgb, var(--color-on) 50%, transparent),
     var(--bevel-inset);
 }
 

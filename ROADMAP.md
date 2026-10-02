@@ -83,3 +83,4 @@
 - [x] Raw/evolve toggles show state with gray-vs-hue bevel + LED dot
 - [x] Shake bolt centered over size knob
 - [x] Spacebar tap latches listen (fresh session → listen + on), hold = record while held
+- [x] Control palette re-spaced so no two knobs/buttons share a hue

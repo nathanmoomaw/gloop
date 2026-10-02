@@ -12,20 +12,29 @@
   --rainbow-5: #4dc9ff;
   --rainbow-6: #b04dff;
 
-  /* Per-control accent colors */
-  --color-rate: var(--rainbow-1);
-  --color-dynamics: var(--rainbow-2);
-  --color-feedback: var(--rainbow-3);
-  --color-repeat: var(--rainbow-4);
-  --color-size: var(--rainbow-5);
-  --color-density: var(--rainbow-6);
-  --color-wow: #c86dff;
-  --color-flutter: #ff6dd6;
-  --color-wobble: #ff6d94;
-  --color-volume: #d8dbe6;
-  --color-sensitivity: #4dffe0;
-  --color-granular-mix: #ffd24d;
-  --color-delay-mix: #4d8aff;
+  /* Per-control accent colors — spread around the hue wheel (~25-30°
+     apart) so no two controls read as the same color; the one place two
+     hues share a hue (dynamics/granular, both ~25°) is split by
+     lightness instead. Hue in each comment. */
+  --color-rate: #ff4d6d;          /* 350 crimson */
+  --color-dynamics: #ff8a3d;      /*  25 orange */
+  --color-feedback: #ffe94d;      /*  55 yellow */
+  --color-repeat: #a8ff4d;        /*  90 lime */
+  --color-wobble: #3dff7a;        /* 140 green */
+  --color-sensitivity: #4dffe0;   /* 170 aqua */
+  --color-size: #4dc3ff;          /* 200 sky */
+  --color-delay-mix: #4d6bff;     /* 230 royal blue */
+  --color-wow: #8f6dff;           /* 255 periwinkle */
+  --color-density: #c04dff;       /* 280 violet */
+  --color-flutter: #ff4df0;       /* 305 magenta */
+  --color-granular-mix: #ffc9a0;  /*  25 pale peach (lightness-split from dynamics) */
+  --color-volume: #d8dbe6;        /* neutral */
+  /* Listen's own body: desaturated slate-lavender so the centerpiece
+     doesn't share a hue with any dial (its rainbow ring is the color). */
+  --color-listen: #a7a2c9;
+  /* `on` state colors — plain stop/go, not tied to any dial. */
+  --color-on: #34e36a;
+  --color-off: #ff3b30;
 }
 
 * {
