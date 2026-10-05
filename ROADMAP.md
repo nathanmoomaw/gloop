@@ -6,6 +6,7 @@
 - [ ] Verify 80000-grain field on real (esp. mobile) hardware — measured 31fps under headless software GL, dial back GRAIN_COUNT if it feels janky on an actual device (needs physical-device testing, can't be verified in this environment)
 - [ ] Confirm the new opt-in "raw" mic toggle (no echoCancellation/noiseSuppression/autoGainControl) actually fixes the "choppy, cuts off" recordings on real hardware — Playwright's fake mic device can only confirm the toggle is wired up, not judge real capture quality (this is the same class of item as the two above)
 - [ ] `RotaryKnob.jsx` has no keyboard or screen-reader support (no `role="slider"`, no `aria-value*`, no arrow-key handling, no `touch-action: none`) — flagged by the 2026-09-15 `/learn` session against current rotary-knob accessibility practice, not yet implemented
+- [ ] Pointer push should raycast onto the plate now that the camera moves (screen→plate mapping ignores perspective)
 - [ ] Listening pass on Kubelka-Munk palette vs HSL (`k`) and new tap-sound level — keep or revert KM default
 
 ## Completed
@@ -93,3 +94,5 @@
 - [x] Ambient tap sound throttled + bussed through lowpass/compressor, much quieter (2026-10-04)
 - [x] Kubelka-Munk pigment palette for plate/grains, `k` to A/B against HSL (2026-10-04)
 - [x] Spacebar tap stops both listen + on, echo trails out (max 10s) (2026-10-04)
+- [x] Evolve slowed (14s generations), smaller glided mutations, live host re-measurement (2026-10-04)
+- [x] Input-reactive wandering camera over the plate (2026-10-04)

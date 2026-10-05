@@ -43,6 +43,31 @@ const DRIFT_VELOCITY_DECAY = 0.95
 const DRIFT_PAN_TOUCH_GAIN = 0.01
 const DRIFT_SPIN_TOUCH_GAIN = 0.01
 
+// Camera wander: the view over the plate drifts in every dimension at once
+// (orbit, elevation, distance, roll, look-at target), each on its own
+// sine sum with mutually irrational frequency ratios so the motion never
+// visibly loops. Its clock is time-warped by the live input — louder
+// audio, and especially sudden onsets, speed the whole drift up (and widen
+// it a little), quiet lets it slow to a near-stall — so the timing itself
+// shifts, not just the position.
+const CAM_BASE_RATE = 0.15 // phase units/sec at rest (~2 min per sway)
+const CAM_LEVEL_RATE = 0.6 // extra at full amplitude
+const CAM_ONSET_RATE = 2.5 // extra per unit of amplitude jump above its slow average
+const CAM_RATE_SMOOTHING = 0.02 // per-frame easing of the clock rate, no jerks
+const CAM_AZIMUTH_RANGE = 0.75 // rad, +/- around the front view
+const CAM_ELEV_MIN = 0.72 // rad (~41°) — lower and the plate's far edge shows
+const CAM_ELEV_MAX = 1.12 // rad (~64°)
+const CAM_DIST_MIN = 1.8
+const CAM_DIST_MAX = 2.4
+const CAM_ROLL_RANGE = 0.07 // rad
+const CAM_TARGET_RANGE = 0.18 // look-at drift across the plate
+// Random per page load so each session opens on a different view.
+const CAM_START_PHASE = Math.random() * 100
+// Sum of two sines at incommensurate rates, normalized to [-1, 1].
+function wander(phase, f1, f2, offset) {
+  return (Math.sin(phase * f1 + offset) + Math.sin(phase * f2 * Math.SQRT2 + offset * 1.7)) / 2
+}
+
 // Rendered sand-particle size scales with the `size` (grainSizeMs) dial —
 // mirrors its min/max in App.jsx. sqrt curve gives more visible change at
 // the low end and tapers off at the high end, instead of 3s grains
@@ -110,6 +135,10 @@ export default function GrainField({ analyser, running, onInteract, grainSizeMs 
   // velocity (see DRIFT_* constants) — panU/panV/spin are the accumulated
   // position, velU/velV/spinVel the decaying momentum from recent drags.
   const driftRef = useRef({ panU: 0, panV: 0, velU: 0, velV: 0, spin: 0, spinVel: 0 })
+  // Camera clock (see CAM_* constants) and the slow amplitude average its
+  // onset detection compares against — in a ref so toggling `on` (which
+  // rebuilds the scene) doesn't jump the view back to a new start point.
+  const camRef = useRef({ phase: CAM_START_PHASE, rate: CAM_BASE_RATE, slowAmplitude: 0.3 })
   // Read live in the draw loop rather than an effect dependency — the size
   // dial changes on every drag tick, and rebuilding the whole three.js scene
   // that often would be both wasteful and visibly jarring.
@@ -204,6 +233,8 @@ export default function GrainField({ analyser, running, onInteract, grainSizeMs 
     let smoothN = 3
     let smoothM = 4
     let smoothAmplitude = 0.3
+    const cam = camRef.current
+    let lastFrame = performance.now()
 
     const draw = () => {
       raf = requestAnimationFrame(draw)
@@ -348,10 +379,27 @@ export default function GrainField({ analyser, running, onInteract, grainSizeMs 
       gPos.needsUpdate = true
       gCol.needsUpdate = true
 
-      // Camera: fixed tilted view over the plate, with a slow, subtle sway
-      // so the 3D depth/parallax of the ripple reads clearly at a glance.
-      camera.position.set(Math.sin(t * 0.012) * 0.15, 1.5, 1.55 + Math.cos(t * 0.008) * 0.08)
-      camera.lookAt(0, 0, 0)
+      // Camera wander (see CAM_* constants): clock rate eased toward a
+      // level + onset-driven target, then every dimension read off it.
+      const now = performance.now()
+      const dt = Math.min(0.1, (now - lastFrame) / 1000)
+      lastFrame = now
+      cam.slowAmplitude += (amplitude - cam.slowAmplitude) * 0.01
+      const onset = Math.max(0, amplitude - cam.slowAmplitude)
+      const targetRate = CAM_BASE_RATE + amplitude * CAM_LEVEL_RATE + onset * CAM_ONSET_RATE
+      cam.rate += (targetRate - cam.rate) * CAM_RATE_SMOOTHING
+      cam.phase += cam.rate * dt
+      const camPhase = cam.phase
+      const reach = 0.85 + amplitude * 0.15
+      const azimuth = wander(camPhase, 0.31, 0.17, 0) * CAM_AZIMUTH_RANGE * reach
+      const elev = CAM_ELEV_MIN + (wander(camPhase, 0.23, 0.13, 2.1) * 0.5 + 0.5) * (CAM_ELEV_MAX - CAM_ELEV_MIN)
+      const dist = CAM_DIST_MIN + (wander(camPhase, 0.19, 0.29, 4.3) * 0.5 + 0.5) * (CAM_DIST_MAX - CAM_DIST_MIN)
+      const tx = wander(camPhase, 0.27, 0.11, 1.3) * CAM_TARGET_RANGE * reach
+      const tz = wander(camPhase, 0.21, 0.15, 3.7) * CAM_TARGET_RANGE * reach
+      const horiz = Math.cos(elev) * dist
+      camera.position.set(tx + Math.sin(azimuth) * horiz, Math.sin(elev) * dist, tz + Math.cos(azimuth) * horiz)
+      camera.lookAt(tx, 0, tz)
+      camera.rotateZ(wander(camPhase, 0.37, 0.09, 5.9) * CAM_ROLL_RANGE * reach)
 
       renderer.render(scene, camera)
     }

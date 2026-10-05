@@ -63,11 +63,13 @@ const SLOT_COUNT = 5
 // How much of a slot's own params a parasite jumps by, per mutated key, as
 // a fraction of that param's full range — a real "invasive" jump, bigger
 // than incremental drift.
-const PARASITE_MUTATION_SCALE = 0.35
+// Was 0.35 at 50% of keys every 2.4s — read as constant lurching. Smaller,
+// rarer jumps, glided in (see GLIDE_MS), let each variant actually be heard.
+const PARASITE_MUTATION_SCALE = 0.18
 // Fraction of evolvable keys a parasite actually touches per challenge —
 // the rest of the host's params pass through unchanged (a point mutation,
 // not a full reshuffle like the shake button).
-const PARASITE_MUTATION_RATE = 0.5
+const PARASITE_MUTATION_RATE = 0.3
 const RESISTANCE_GAIN = 0.35
 const RESISTANCE_MAX = 1.2
 // Resistance decay per generation tick — an evolved host's edge fades on
@@ -78,16 +80,25 @@ const RESISTANCE_DECAY = 0.85
 // asexual parasites, same as before crossover existed.
 const CROSSOVER_PROBABILITY = 0.5
 
-const GENERATION_INTERVAL_MS = 2400
+const GENERATION_INTERVAL_MS = 14000
 // How long a challenging parasite is left actually playing before its
-// fitness is read — long enough for the rolling fitness window (below) to
-// mostly reflect the new params rather than the outgoing host's tail.
-const EVAL_DELAY_MS = 1100
+// fitness is read. The fitness history is cleared once the glide in has
+// finished, so the score covers only the parasite itself, not the outgoing
+// host's tail or the transition.
+const EVAL_DELAY_MS = 7000
 const FITNESS_SAMPLE_MS = 120
-// Rolling window (in samples) the dominant-bin stability score is measured
-// over — short enough to react within one generation, long enough not to
-// be noise on a single frame.
-const FITNESS_HISTORY_LEN = Math.round(1000 / FITNESS_SAMPLE_MS)
+// Rolling window (in samples) the stability score is measured over —
+// covers the whole post-glide eval period.
+const FITNESS_HISTORY_LEN = Math.round(5000 / FITNESS_SAMPLE_MS)
+// Params glide to a new set over this long instead of snapping, so a
+// generation reads as the sound morphing rather than a preset jump.
+const GLIDE_MS = 1800
+const GLIDE_STEP_MS = 50
+// How much a fresh measurement of the playing host moves its stored
+// fitness (EMA). Hosts used to keep whatever score they won with forever,
+// even after the room/input changed under them; and the seed started at 0,
+// so the first few parasites won by default.
+const HOST_FITNESS_EMA = 0.5
 
 let slots = []
 let running = false
@@ -99,6 +110,10 @@ let onTickCallback = null
 // Global tick counter — doubles as the NEAT "innovation number" clock, so
 // every mutation that lands gets a unique, comparable generation tag.
 let generation = 0
+// Slot whose params are currently on the engine (rest period between
+// challenges) — gets its fitness re-measured at the next generation.
+let playingIdx = 0
+let glideTimer = null
 
 function clamp(v, lo, hi) {
   return Math.max(lo, Math.min(hi, v))
@@ -137,10 +152,30 @@ function mutate(params, innovation, scale, rate, gen) {
   return { params: nextParams, innovation: nextInnovation }
 }
 
+// Glides the live engine from its current params to `params` over
+// GLIDE_MS (smoothstep), cancelling any glide still in flight.
 function applyParams(params) {
-  for (const key of EVOLVE_KEYS) {
-    if (key in params) setParam(key, params[key])
+  if (glideTimer) clearInterval(glideTimer)
+  const from = getParams()
+  const start = performance.now()
+  const step = () => {
+    const t = Math.min(1, (performance.now() - start) / GLIDE_MS)
+    const e = t * t * (3 - 2 * t)
+    for (const key of EVOLVE_KEYS) {
+      if (key in params) setParam(key, from[key] + (params[key] - from[key]) * e)
+    }
+    if (t >= 1) {
+      clearInterval(glideTimer)
+      glideTimer = null
+    }
   }
+  step()
+  glideTimer = setInterval(step, GLIDE_STEP_MS)
+}
+
+function resetFitnessHistory() {
+  dominantBinHistory = []
+  levelHistory = []
 }
 
 // Reads the live analyser each tick and folds it into a short rolling
@@ -191,6 +226,12 @@ function runGeneration() {
   if (!running) return
   generation++
 
+  // The rest period just played the current slot's params — fold that
+  // fresh reading into its stored fitness before challenging anything.
+  const measured = currentFitness()
+  const resting = slots[playingIdx]
+  if (resting) resting.fitness = resting.fitness * (1 - HOST_FITNESS_EMA) + measured * HOST_FITNESS_EMA
+
   const hostIdx = Math.floor(Math.random() * slots.length)
   const host = slots[hostIdx]
 
@@ -205,6 +246,8 @@ function runGeneration() {
   const parasite = mutate(base.params, base.innovation, PARASITE_MUTATION_SCALE, PARASITE_MUTATION_RATE, generation)
 
   applyParams(parasite.params)
+  // Score only the parasite once fully glided in.
+  setTimeout(resetFitnessHistory, GLIDE_MS)
 
   genTimer = setTimeout(() => {
     if (!running) return
@@ -220,6 +263,10 @@ function runGeneration() {
       applyParams(host.params)
       host.resistance = Math.min(RESISTANCE_MAX, host.resistance + RESISTANCE_GAIN)
     }
+    // Either way this slot now plays through the rest period; clear the
+    // history once the glide lands so its re-measurement is clean too.
+    playingIdx = hostIdx
+    setTimeout(resetFitnessHistory, GLIDE_MS)
 
     for (const slot of slots) slot.resistance *= RESISTANCE_DECAY
 
@@ -248,6 +295,7 @@ export function startEvolve() {
   if (!getAnalyser()) return // needs a live listening session to measure fitness against
   running = true
   generation = 0
+  playingIdx = 0
 
   const seed = getParams()
   // All slots start identical, so their innovation numbers all agree (0) —
@@ -274,6 +322,8 @@ export function stopEvolve() {
   genTimer = null
   if (fitnessTimer) clearInterval(fitnessTimer)
   fitnessTimer = null
+  if (glideTimer) clearInterval(glideTimer)
+  glideTimer = null
   slots = []
 }
 

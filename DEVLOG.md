@@ -1,6 +1,25 @@
 # DEVLOG
 
-## 2026-10-04 (latest) - Spacebar stop-all with trail
+## 2026-10-04 (latest) - Slower, smoother evolve; wandering plate camera
+
+- **Evolve reworked** (`src/audio/evolve.js`). Was a 2.4s generation with ±35% jumps on half the
+  keys, snapped on and (if the parasite lost) snapped back 1.1s later — constant lurching. Now:
+  14s generations, 7s parasite eval, ±18% on ~30% of keys, and every param change glides over
+  1.8s (smoothstep) instead of snapping. Fitness history is cleared once each glide lands, so a
+  score covers only the params being judged, not the transition or the previous set's tail.
+  Hosts' stored fitness is now re-measured during the rest period (EMA 0.5) — before, a host kept
+  the score it won with forever (stale once the room/input changed), and the seed started at 0 so
+  the first parasites won by default.
+- **Plate camera wanders** in orbit (±0.75 rad), elevation (41°–64°), distance, roll and look-at
+  target, each a two-sine sum at incommensurate rates so it never visibly loops. Its clock is
+  time-warped by the input: rest ~0.15 phase/s (~2 min sways), faster with level, faster still on
+  onsets (amplitude above its slow average), eased so speed changes stay smooth; louder also
+  widens the reach slightly. State lives in a ref so `on`/`off` (which rebuilds the scene) doesn't
+  jump the view. Elevation floor keeps the plate's far edge out of frame. Note: pointer push still
+  maps screen → plate without perspective, so the push spot drifts a bit from the cursor as the
+  camera moves (it was already approximate).
+
+## 2026-10-04 - Spacebar stop-all with trail
 
 - A quick spacebar tap while anything is going (listening, or `on` alone) now stops **both**
   listen and `on` — previously a tap while listening only stopped listen. Tap from fully off still
