@@ -1,6 +1,13 @@
 # DEVLOG
 
-## 2026-10-04 (latest) - Default rate 10x sparser
+## 2026-10-04 (latest) - Tap velocity ramp
+
+Inactive-mode grain touches were still too loud. Each tap now gets a velocity that starts at 10%
+and eases (smoothstep) up to full over 5s of continuous touching; a gap over 0.6s starts over from
+10%. Velocity scales the output level and the gesture intensity (which also drives decay length and
+in-loop brightness), so a soft touch sounds soft, not just quieter — roughly −20dB on a fresh touch.
+
+## 2026-10-04 - Default rate 10x sparser
 
 Default `rate` (grain trigger interval) 200ms → 2000ms — 10% as many grains. Dial range widened
 20–600 → 20–4000ms (linear, so the new default sits mid-dial); evolve range follows; shake uses a

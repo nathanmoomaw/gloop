@@ -250,6 +250,9 @@ let tapNoiseBuffer = null
 // can't stack up into the harsh, loud wall it used to.
 let tapBus = null
 let lastTapAt = -Infinity
+// ctx.currentTime the current unbroken run of taps began — drives the
+// velocity ramp (see tapVelocity).
+let tapStreakStart = -Infinity
 
 function ensureTapContext() {
   if (!tapCtx) {
@@ -293,6 +296,19 @@ const TAP_BUS_GAIN = 0.6
 // Pointermove fires every frame during a drag; each event used to spawn its
 // own voice. Taps closer together than this are dropped.
 const TAP_MIN_INTERVAL_SEC = 0.09
+// Velocity ramp: a fresh touch starts at TAP_VELOCITY_START of full
+// velocity and eases up to full over TAP_VELOCITY_RAMP_SEC of continued
+// touching. A gap longer than TAP_STREAK_GAP_SEC starts over from soft —
+// so a stray touch is a whisper and only deliberate play gets loud.
+const TAP_VELOCITY_START = 0.1
+const TAP_VELOCITY_RAMP_SEC = 5
+const TAP_STREAK_GAP_SEC = 0.6
+
+function tapVelocity(now) {
+  if (now - lastTapAt > TAP_STREAK_GAP_SEC) tapStreakStart = now
+  const t = Math.min(1, (now - tapStreakStart) / TAP_VELOCITY_RAMP_SEC)
+  return TAP_VELOCITY_START + (1 - TAP_VELOCITY_START) * t * t * (3 - 2 * t)
+}
 
 // (nx, ny) normalized screen position, intensity 0-1 — mirrors the same
 // gesture that would otherwise feed engine.perturb() while listening.
@@ -309,7 +325,11 @@ export function playTapSound(nx, ny, intensity) {
   const c = ensureTapContext()
   if (c.state === 'suspended') c.resume()
   if (c.currentTime - lastTapAt < TAP_MIN_INTERVAL_SEC) return
+  // Velocity scales both level and gesture intensity, so soft taps also
+  // sound soft (shorter, darker), not just quieter.
+  const velocity = tapVelocity(c.currentTime)
   lastTapAt = c.currentTime
+  intensity *= velocity
 
   const f0 = TAP_F0_MIN * (TAP_F0_MAX / TAP_F0_MIN) ** (1 - ny) // higher on screen = higher pitch
   const period = 1 / f0
@@ -354,7 +374,7 @@ export function playTapSound(nx, ny, intensity) {
   burstGain.connect(loopIn)
 
   const outGain = c.createGain()
-  outGain.gain.value = 0.2 + intensity * 0.2
+  outGain.gain.value = (0.2 + intensity * 0.2) * velocity
   const panner = c.createStereoPanner()
   panner.pan.value = (nx - 0.5) * 1.6
 
