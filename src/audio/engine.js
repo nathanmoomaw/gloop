@@ -406,6 +406,15 @@ let micSource = null
 let inputHighpass = null
 let suspendTimeout = null
 const OUTPUT_FADE_SEC = 0.05
+// Longest a trailing stop (see stopPlaying) lets in-flight echo tails ring
+// before the output is fully faded.
+const TRAIL_MAX_SEC = 10
+// ctx.currentTime at which the last fired grain's feedback tail has fully
+// decayed — how much trail there actually is to leave.
+let lastTailEnd = 0
+// ctx.currentTime until which a trailing stop is still ringing out —
+// maybeSuspend must not suspend the context before then.
+let trailUntil = 0
 
 export function isListening() {
   return listening
@@ -693,14 +702,28 @@ export async function startPlaying() {
   scheduleGrains()
 }
 
-// Stops firing new grains and fades the output out — in-flight feedback
-// tails are muted, not cut mid-sample.
-export function stopPlaying() {
+// Stops firing new grains. Default: fades the output out fast — in-flight
+// feedback tails are muted, not cut mid-sample. With `trail`, the output
+// stays up and fades over however long the in-flight tails still have to
+// ring (capped at TRAIL_MAX_SEC), so the echo dies away naturally instead.
+export function stopPlaying({ trail = false } = {}) {
   if (!playing) return
   playing = false
   if (grainInterval) clearTimeout(grainInterval)
   grainInterval = null
-  rampMaster(0)
+  const trailSec = trail && ctx ? Math.max(0, Math.min(TRAIL_MAX_SEC, lastTailEnd - ctx.currentTime)) : 0
+  if (trailSec > OUTPUT_FADE_SEC) {
+    const t = ctx.currentTime
+    masterGain.gain.cancelScheduledValues(t)
+    masterGain.gain.setValueAtTime(masterGain.gain.value, t)
+    // Time constant at a fifth of the trail: ~-43dB by the end, then a
+    // hard zero so nothing lingers past the cap.
+    masterGain.gain.setTargetAtTime(0, t, trailSec / 5)
+    masterGain.gain.setValueAtTime(0, t + trailSec)
+    trailUntil = t + trailSec
+  } else {
+    rampMaster(0)
+  }
   maybeSuspend()
 }
 
@@ -722,10 +745,11 @@ function wake() {
 function maybeSuspend() {
   if (listening || playing || !ctx) return
   if (suspendTimeout) clearTimeout(suspendTimeout)
+  const trailMs = Math.max(0, trailUntil - ctx.currentTime) * 1000
   suspendTimeout = setTimeout(() => {
     suspendTimeout = null
     if (!listening && !playing && ctx?.state === 'running') ctx.suspend()
-  }, OUTPUT_FADE_SEC * 4000)
+  }, OUTPUT_FADE_SEC * 4000 + trailMs)
 }
 
 function scheduleGrains() {
@@ -807,6 +831,8 @@ function playGrain() {
   if (effFeedback > 0.0005) {
     feedbackGain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + repeatMs / 1000)
   }
+
+  lastTailEnd = Math.max(lastTailEnd, ctx.currentTime + repeatMs / 1000)
 
   const panner = ctx.createStereoPanner()
   panner.pan.value = (Math.random() - 0.5) * effSpread * 2

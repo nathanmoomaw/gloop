@@ -1,6 +1,18 @@
 # DEVLOG
 
-## 2026-10-04 (latest) - Thru bypass, listen-off fix, gentler taps, Kubelka-Munk palette
+## 2026-10-04 (latest) - Spacebar stop-all with trail
+
+- A quick spacebar tap while anything is going (listening, or `on` alone) now stops **both**
+  listen and `on` — previously a tap while listening only stopped listen. Tap from fully off still
+  latches listen + on; hold still records only while held (release leaves `on` looping). Double-tap
+  stop-all kept, now also trailing.
+- Spacebar stops leave a trail: `engine.stopPlaying({ trail: true })` stops firing grains but
+  keeps the output up, fading it over however long the in-flight feedback tails still have
+  (`lastTailEnd`, tracked per fired grain), capped at 10s (`TRAIL_MAX_SEC`); hard zero at the cap.
+  `maybeSuspend` waits out the trail before suspending the context. The `on` button keeps its quick
+  50ms fade. Starting again mid-trail cancels the fade.
+
+## 2026-10-04 - Thru bypass, listen-off fix, gentler taps, Kubelka-Munk palette
 
 - **Listen off felt like still listening.** The quiet-room behavior (echo up to 80% louder, tails
   stretched toward 30s) keyed off `inputLevel`, which drops to 0 the instant the mic closes — so

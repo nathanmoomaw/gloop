@@ -102,11 +102,13 @@ export default function App() {
     })
   }, [])
 
-  const setPower = useCallback(async (next) => {
+  // `trail` (spacebar stops) lets in-flight echo tails ring out instead of
+  // the quick fade the `on` button uses — see engine.stopPlaying.
+  const setPower = useCallback(async (next, { trail = false } = {}) => {
     if (!next) {
       stopEvolve()
       setEvolving(false)
-      engine.stopPlaying()
+      engine.stopPlaying({ trail })
       setRunning(false)
       return
     }
@@ -153,13 +155,19 @@ export default function App() {
 
   const holdEnd = useCallback(() => setListen(false), [setListen])
 
-  // Spacebar works like the listen button: a quick tap latches listen
-  // on/off (and a session's first listen also turns `on`), a hold records
-  // only while held. Unlike the button, recording starts on keydown rather
-  // than after the hold threshold, so a hold doesn't lose its first beat —
-  // the tap/hold decision is made on keyup instead.
+  // Spacebar: a quick tap from fully off latches listen + `on`; a quick tap
+  // while anything is going stops both, leaving the echo to trail off
+  // (up to 10s). A hold records only while held. Unlike the button,
+  // recording starts on keydown rather than after the hold threshold, so a
+  // hold doesn't lose its first beat — the tap/hold decision is made on
+  // keyup instead.
   const spaceRef = useRef(null)
   const lastSpaceUpRef = useRef(-Infinity)
+
+  const stopAllWithTrail = useCallback(() => {
+    setListen(false)
+    setPower(false, { trail: true })
+  }, [setListen, setPower])
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -173,12 +181,12 @@ export default function App() {
         // Consumed: the matching keyup shouldn't act again.
         spaceRef.current = { doubleTap: true }
         lastSpaceUpRef.current = -Infinity
-        setListen(false)
-        setPower(false)
+        stopAllWithTrail()
         return
       }
       const wasListening = engine.isListening()
-      spaceRef.current = { downAt: e.timeStamp, wasListening }
+      const wasActive = wasListening || engine.isPlaying()
+      spaceRef.current = { downAt: e.timeStamp, wasListening, wasActive }
       if (!wasListening) holdStart()
     }
     const handleKeyUp = (e) => {
@@ -190,9 +198,13 @@ export default function App() {
       if (!press || press.doubleTap) return
       lastSpaceUpRef.current = e.timeStamp
       const isTap = e.timeStamp - press.downAt < SPACE_HOLD_MS
-      // Tap while off: leave listening latched on. Anything else (a hold,
-      // or a tap while already listening) ends with listen off.
-      if (isTap && !press.wasListening) return
+      if (isTap) {
+        // Tap from fully off: leave listen + on latched. Tap while anything
+        // was going: stop both, with a trail.
+        if (press.wasActive) stopAllWithTrail()
+        return
+      }
+      // Hold: listen only while held; `on` keeps looping the capture.
       holdEnd()
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -201,7 +213,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
     }
-  }, [holdStart, holdEnd, setListen, setPower])
+  }, [holdStart, holdEnd, stopAllWithTrail])
 
   const updateParam = (name, value) => {
     engine.setParam(name, value)

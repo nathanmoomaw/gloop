@@ -92,3 +92,4 @@
 - [x] Listen-off no longer boosts/stretches the loop (quiet-room factor gated on listening) (2026-10-04)
 - [x] Ambient tap sound throttled + bussed through lowpass/compressor, much quieter (2026-10-04)
 - [x] Kubelka-Munk pigment palette for plate/grains, `k` to A/B against HSL (2026-10-04)
+- [x] Spacebar tap stops both listen + on, echo trails out (max 10s) (2026-10-04)
