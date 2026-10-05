@@ -93,7 +93,8 @@ export function getRawCapture() {
 }
 
 const GRAIN_MS_DEFAULT = 400
-const RATE_MS_DEFAULT = 200
+// 200 fired grains far too busily by default — 10x sparser.
+const RATE_MS_DEFAULT = 2000
 const POOL_SIZE = 24
 // Ceiling for the `size` (grainSizeMs) dial. Pool buffers below are sized to
 // hold exactly this much captured audio — grains longer than a pool slot

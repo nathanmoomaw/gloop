@@ -96,3 +96,4 @@
 - [x] Spacebar tap stops both listen + on, echo trails out (max 10s) (2026-10-04)
 - [x] Evolve slowed (14s generations), smaller glided mutations, live host re-measurement (2026-10-04)
 - [x] Input-reactive wandering camera over the plate (2026-10-04)
+- [x] Default rate 200 → 2000ms, dial to 4000ms (2026-10-04)

@@ -17,7 +17,9 @@ import './App.css'
 // ribbon's shake convention of never randomizing master level — a shake
 // should reshuffle texture, not suddenly blast or mute the output).
 const SHAKE_RANGES = {
-  rate: [20, 600],
+  // Narrower than the dial's 20-4000: a shake shouldn't land on either
+  // extreme (machine-gun buzz or near-silent gaps).
+  rate: [100, 3000],
   dynamics: [0, 1],
   feedback: [0, 0.9],
   repeat: [0, 1],
@@ -301,8 +303,8 @@ export default function App() {
             valueLabel={`${Math.round(params.rate)}ms`}
             value={params.rate}
             min={20}
-            max={600}
-            step={5}
+            max={4000}
+            step={10}
             onChange={(v) => updateParam('rate', v)}
             color="var(--color-rate)"
             size={BIG_KNOB}

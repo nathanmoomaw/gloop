@@ -1,6 +1,13 @@
 # DEVLOG
 
-## 2026-10-04 (latest) - Slower, smoother evolve; wandering plate camera
+## 2026-10-04 (latest) - Default rate 10x sparser
+
+Default `rate` (grain trigger interval) 200ms → 2000ms — 10% as many grains. Dial range widened
+20–600 → 20–4000ms (linear, so the new default sits mid-dial); evolve range follows; shake uses a
+narrower 100–3000 so it never lands on either extreme. With 400ms grains this leaves gaps between
+direct hits that the delay/feedback tails fill.
+
+## 2026-10-04 - Slower, smoother evolve; wandering plate camera
 
 - **Evolve reworked** (`src/audio/evolve.js`). Was a 2.4s generation with ±35% jumps on half the
   keys, snapped on and (if the parasite lost) snapped back 1.1s later — constant lurching. Now:

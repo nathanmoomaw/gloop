@@ -47,7 +47,7 @@ import { getParams, setParam, getAnalyser } from './engine'
 // and sensitivity are excluded so evolution reshuffles the sound's
 // character without ever drifting it toward silence or blasting output.
 const EVOLVE_RANGES = {
-  rate: [20, 600],
+  rate: [20, 4000],
   dynamics: [0, 1],
   feedback: [0, 0.9],
   repeat: [0, 1],
