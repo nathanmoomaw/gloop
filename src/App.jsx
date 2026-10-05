@@ -7,6 +7,7 @@ import { LoopIndicator } from './components/LoopIndicator'
 import ShakeButton from './components/ShakeButton'
 import MicModeToggle from './components/MicModeToggle'
 import EvolveToggle from './components/EvolveToggle'
+import ThruToggle from './components/ThruToggle'
 import WaveformOverlay from './components/WaveformOverlay'
 import { startEvolve, stopEvolve } from './audio/evolve'
 import './App.css'
@@ -87,6 +88,7 @@ export default function App() {
   const [micError, setMicError] = useState(null)
   const [rawMic, setRawMic] = useState(engine.getRawCapture())
   const [evolving, setEvolving] = useState(false)
+  const [thru, setThru] = useState(engine.isThru())
   const loopRef = useRef(null)
   // The first listen of a session also turns `on`, so a first-time visitor
   // hears something; after that the two stay independent (record silently).
@@ -133,7 +135,13 @@ export default function App() {
     }
   }, [setPower])
 
-  const toggleListen = useCallback(() => setListen(!listening), [listening, setListen])
+  // A tap while the mic is still opening (permission prompt up) cancels it
+  // — React's `listening` is still false then, so toggling off that alone
+  // would start a second listen instead of stopping the first.
+  const toggleListen = useCallback(
+    () => setListen(!(listening || engine.isListenPending())),
+    [listening, setListen],
+  )
 
   // Hold-to-record (long press on listen, or holding spacebar): turns `on`
   // on (or leaves it on) and listens only while held — release stops
@@ -224,6 +232,15 @@ export default function App() {
     engine.setRawCapture(next)
     setRawMic(next)
   }, [])
+
+  // Thru passes the mic straight out, so engaging it also opens the mic if
+  // it isn't already — otherwise the button would do nothing audible.
+  // Turning thru off leaves listen as it is.
+  const handleThruToggle = useCallback((next) => {
+    engine.setThru(next)
+    setThru(next)
+    if (next && !engine.isListening()) setListen(true)
+  }, [setListen])
 
   const handleEvolveToggle = useCallback((next) => {
     if (next) {
@@ -442,6 +459,7 @@ export default function App() {
           />
           <div className="control-cluster__utility-pair">
             <MicModeToggle active={rawMic} onToggle={handleRawMicToggle} />
+            <ThruToggle active={thru} onToggle={handleThruToggle} />
             <EvolveToggle active={evolving} disabled={!running} onToggle={handleEvolveToggle} />
           </div>
         </div>

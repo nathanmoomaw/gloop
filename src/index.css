@@ -29,6 +29,7 @@
   --color-flutter: #ff4df0;       /* 305 magenta */
   --color-granular-mix: #ffc9a0;  /*  25 pale peach (lightness-split from dynamics) */
   --color-volume: #d8dbe6;        /* neutral */
+  --color-thru: #fff4c2;          /*  50 pale cream (lightness-split from feedback) */
   /* Listen's own body: desaturated slate-lavender so the centerpiece
      doesn't share a hue with any dial (its rainbow ring is the color). */
   --color-listen: #a7a2c9;

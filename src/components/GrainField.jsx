@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
+import { pigmentAt } from '../color/kubelkaMunk'
 
 // Renders rainbow "sand" grains settling into Chladni-plate-style nodal
 // patterns driven by the dominant frequency of the live audio analyser —
@@ -77,6 +78,30 @@ function surfaceHeight(n, m, u, v, amplitude, t) {
   )
 }
 
+// Kubelka-Munk pigment palette (see color/kubelkaMunk.js) vs. the original
+// HSL rainbow — on by default, `k` flips between them live for A/B.
+const KM_DEFAULT = true
+
+// Shared color writer for plate and grains: `phase` around the color wheel,
+// `lightness` on the same 0-1 HSL scale the rainbow mode already uses.
+const pigmentScratch = [0, 0, 0]
+function setPaletteColor(color, useKM, phase, saturation, lightness) {
+  if (!useKM) {
+    color.setHSL(phase, saturation, lightness)
+    return
+  }
+  const [r, g, b] = pigmentAt(phase, pigmentScratch)
+  if (lightness <= 0.5) {
+    // Darker than a full tint: scale the pigment down (HSL l=0.5 ~ full).
+    const k = lightness * 2
+    color.setRGB(r * k, g * k, b * k, THREE.SRGBColorSpace)
+  } else {
+    // Lighter: wash toward white, like adding titanium white to the paint.
+    const w = (lightness - 0.5) * 2
+    color.setRGB(r + (1 - r) * w, g + (1 - g) * w, b + (1 - b) * w, THREE.SRGBColorSpace)
+  }
+}
+
 export default function GrainField({ analyser, running, onInteract, grainSizeMs = 400 }) {
   const containerRef = useRef(null)
   const grainsRef = useRef([])
@@ -89,6 +114,15 @@ export default function GrainField({ analyser, running, onInteract, grainSizeMs 
   // dial changes on every drag tick, and rebuilding the whole three.js scene
   // that often would be both wasteful and visibly jarring.
   const grainSizeRef = useRef(grainSizeMs)
+  // Read live in the draw loop, same reason as grainSizeRef.
+  const kmRef = useRef(KM_DEFAULT)
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'k' && !e.metaKey && !e.ctrlKey && !e.altKey) kmRef.current = !kmRef.current
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
   useEffect(() => {
     grainSizeRef.current = grainSizeMs
   }, [grainSizeMs])
@@ -202,6 +236,7 @@ export default function GrainField({ analyser, running, onInteract, grainSizeMs 
       const amplitude = smoothAmplitude
 
       grainMat.size = pointSizeForGrainMs(grainSizeRef.current)
+      const useKM = kmRef.current
 
       // Pointer push: decays on its own each frame, independent of audio state.
       const pointer = pointerRef.current
@@ -249,7 +284,7 @@ export default function GrainField({ analyser, running, onInteract, grainSizeMs 
         // nodal valleys, saturated and bright on the ripple peaks.
         const hue = ((u + v) * 0.5 + t * 0.008) % 1
         const brightness = 0.04 + Math.min(1, Math.abs(h) / NODAL_HEIGHT_SCALE) * 0.42
-        tmpColor.setHSL(hue, 0.8, brightness)
+        setPaletteColor(tmpColor, useKM, hue, 0.8, brightness)
         colAttr.setXYZ(i, tmpColor.r, tmpColor.g, tmpColor.b)
       }
       posAttr.needsUpdate = true
@@ -307,7 +342,7 @@ export default function GrainField({ analyser, running, onInteract, grainSizeMs 
         const worldY = surfaceHeight(n, m, localU, localV, amplitude, t) + HOVER_HEIGHT
         gPos.setXYZ(i, worldX, worldY, worldZ)
 
-        tmpColor.setHSL(g.hue / 360, 0.85, 0.55 + amplitude * 0.2)
+        setPaletteColor(tmpColor, useKM, g.hue / 360, 0.85, 0.55 + amplitude * 0.2)
         gCol.setXYZ(i, tmpColor.r, tmpColor.g, tmpColor.b)
       }
       gPos.needsUpdate = true

@@ -6,6 +6,7 @@
 - [ ] Verify 80000-grain field on real (esp. mobile) hardware — measured 31fps under headless software GL, dial back GRAIN_COUNT if it feels janky on an actual device (needs physical-device testing, can't be verified in this environment)
 - [ ] Confirm the new opt-in "raw" mic toggle (no echoCancellation/noiseSuppression/autoGainControl) actually fixes the "choppy, cuts off" recordings on real hardware — Playwright's fake mic device can only confirm the toggle is wired up, not judge real capture quality (this is the same class of item as the two above)
 - [ ] `RotaryKnob.jsx` has no keyboard or screen-reader support (no `role="slider"`, no `aria-value*`, no arrow-key handling, no `touch-action: none`) — flagged by the 2026-09-15 `/learn` session against current rotary-knob accessibility practice, not yet implemented
+- [ ] Listening pass on Kubelka-Munk palette vs HSL (`k`) and new tap-sound level — keep or revert KM default
 
 ## Completed
 
@@ -87,3 +88,7 @@
 - [x] Rate and size knobs at 2x (96px), responsive reflow for the bigger bottom-left cluster
 - [x] Double spacebar = stop listen + stop play
 - [x] Cursive gloop wordmark top-center
+- [x] `thru` toggle: clean mic straight out, full grain/delay bypass (2026-10-04)
+- [x] Listen-off no longer boosts/stretches the loop (quiet-room factor gated on listening) (2026-10-04)
+- [x] Ambient tap sound throttled + bussed through lowpass/compressor, much quieter (2026-10-04)
+- [x] Kubelka-Munk pigment palette for plate/grains, `k` to A/B against HSL (2026-10-04)

@@ -62,6 +62,15 @@ let micStream = null
 let analyser = null
 let grainInterval = null
 let masterGain = null
+// Sits between every grain's output and masterGain, so `thru` can mute the
+// whole granular/delay path at once without touching the volume dial.
+let fxBus = null
+// Dry mic -> output monitor path for `thru` (see setThru).
+let thruGain = null
+let thru = false
+// Final-stage limiter, kept so the thru path can feed it directly — the dry
+// signal has to be audible whether or not `on` (masterGain) is up.
+let limiter = null
 let perturbDecayInterval = null
 let onGrainFireCallback = null
 
@@ -127,6 +136,9 @@ const LIMITER_MAKEUP_GAIN = 1.4
 // `delayMix` level, at full quiet (quietFactor === 1). 0.8 = up to 80%
 // louder than the plain delayMix level when nothing new is coming in.
 const QUIET_DELAY_BOOST_MAX = 0.8
+// Dry thru level relative to the volume dial — unity-ish, no OUTPUT_BOOST:
+// a clean monitor shouldn't be hotter than the source.
+const THRU_GAIN = 1
 // Sensitivity dial maps to an input-level threshold in this range: higher
 // sensitivity = lower threshold = quieter input still counts as "active".
 const SENSITIVITY_THRESH_MAX = 0.05
@@ -196,6 +208,7 @@ export function setParam(name, value) {
   // pushed onto the live AudioParam immediately, not just stashed in state.
   if (name === 'volume' && masterGain) {
     if (playing) rampMaster(value * OUTPUT_BOOST)
+    if (thru) applyThru()
   } else if (name === 'wow' && wowDepth) {
     wowDepth.gain.value = value * WOW_MAX_RATIO
   } else if (name === 'flutter' && flutterDepth) {
@@ -231,10 +244,30 @@ export function onGrainFire(callback) {
 // on first tap and kept alive across taps; independent of start()/stop().
 let tapCtx = null
 let tapNoiseBuffer = null
+// Every tap voice sums into this bus: a lowpass to take the brittle top
+// off, then a compressor so a fast drag (dozens of overlapping voices)
+// can't stack up into the harsh, loud wall it used to.
+let tapBus = null
+let lastTapAt = -Infinity
 
 function ensureTapContext() {
   if (!tapCtx) {
     tapCtx = new (window.AudioContext || window.webkitAudioContext)()
+    tapBus = tapCtx.createGain()
+    tapBus.gain.value = TAP_BUS_GAIN
+    const tone = tapCtx.createBiquadFilter()
+    tone.type = 'lowpass'
+    tone.frequency.value = 2400
+    tone.Q.value = 0.5
+    const comp = tapCtx.createDynamicsCompressor()
+    comp.threshold.value = -24
+    comp.knee.value = 12
+    comp.ratio.value = 6
+    comp.attack.value = 0.005
+    comp.release.value = 0.2
+    tapBus.connect(tone)
+    tone.connect(comp)
+    comp.connect(tapCtx.destination)
   }
   if (!tapNoiseBuffer) {
     const len = Math.ceil(tapCtx.sampleRate * 0.3)
@@ -253,6 +286,12 @@ const TAP_F0_MAX = 1400
 // DelayNode needs a fixed max delay at creation — must cover the longest
 // period we'll ever set (the lowest pitch), plus a little margin.
 const TAP_MAX_DELAY_SEC = 1 / TAP_F0_MIN + 0.002
+// Overall tap level — the old per-voice gains (up to 0.85, straight to the
+// destination) read as harsh and far too loud, especially mid-drag.
+const TAP_BUS_GAIN = 0.6
+// Pointermove fires every frame during a drag; each event used to spawn its
+// own voice. Taps closer together than this are dropped.
+const TAP_MIN_INTERVAL_SEC = 0.09
 
 // (nx, ny) normalized screen position, intensity 0-1 — mirrors the same
 // gesture that would otherwise feed engine.perturb() while listening.
@@ -267,11 +306,14 @@ const TAP_MAX_DELAY_SEC = 1 / TAP_F0_MIN + 0.002
 // with no resonant body (see DEVLOG).
 export function playTapSound(nx, ny, intensity) {
   const c = ensureTapContext()
+  if (c.state === 'suspended') c.resume()
+  if (c.currentTime - lastTapAt < TAP_MIN_INTERVAL_SEC) return
+  lastTapAt = c.currentTime
 
   const f0 = TAP_F0_MIN * (TAP_F0_MAX / TAP_F0_MIN) ** (1 - ny) // higher on screen = higher pitch
   const period = 1 / f0
   // Time to decay to ~-60dB — harder taps ring a little longer.
-  const targetDecay = 0.25 + intensity * 0.55
+  const targetDecay = 0.18 + intensity * 0.3
   // feedbackCoeff^(targetDecay/period) = 0.001, solved for feedbackCoeff.
   const feedbackCoeff = Math.min(0.995, Math.exp((Math.log(0.001) * period) / targetDecay))
 
@@ -287,7 +329,7 @@ export function playTapSound(nx, ny, intensity) {
   // the low end. Brighter (higher cutoff) for harder taps.
   const damping = c.createBiquadFilter()
   damping.type = 'lowpass'
-  damping.frequency.value = f0 * (3 + intensity * 5)
+  damping.frequency.value = f0 * (2 + intensity * 2)
   damping.Q.value = 0.3
 
   const feedbackGain = c.createGain()
@@ -305,19 +347,19 @@ export function playTapSound(nx, ny, intensity) {
   src.buffer = tapNoiseBuffer
   const burstDur = Math.min(period * 3, 0.012)
   const burstGain = c.createGain()
-  burstGain.gain.setValueAtTime(0.6 + intensity * 0.4, c.currentTime)
+  burstGain.gain.setValueAtTime(0.25 + intensity * 0.2, c.currentTime)
   burstGain.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + burstDur)
   src.connect(burstGain)
   burstGain.connect(loopIn)
 
   const outGain = c.createGain()
-  outGain.gain.value = Math.min(0.9, 0.35 + intensity * 0.5)
+  outGain.gain.value = 0.2 + intensity * 0.2
   const panner = c.createStereoPanner()
   panner.pan.value = (nx - 0.5) * 1.6
 
   feedbackGain.connect(outGain)
   outGain.connect(panner)
-  panner.connect(c.destination)
+  panner.connect(tapBus)
 
   src.start()
   src.stop(c.currentTime + burstDur + 0.02)
@@ -373,6 +415,35 @@ export function isPlaying() {
   return playing
 }
 
+export function isThru() {
+  return thru
+}
+
+// True while a startListening() call is waiting on the mic — lets the UI
+// treat a second tap during the permission prompt as "cancel", not "start
+// again" (otherwise the mic opens after the user already turned it off).
+export function isListenPending() {
+  return wantListening && !listening
+}
+
+// Thru = full bypass: the live mic passes straight to the output, clean,
+// and the whole granular/delay path (in-flight feedback tails included) is
+// muted. Off restores the effects and silences the dry monitor. Only
+// audible while listening — there's no mic signal to pass otherwise.
+export function setThru(value) {
+  thru = value
+  applyThru()
+}
+
+function applyThru() {
+  if (!ctx) return
+  const t = ctx.currentTime
+  fxBus.gain.cancelScheduledValues(t)
+  fxBus.gain.setTargetAtTime(thru ? 0 : 1, t, OUTPUT_FADE_SEC / 3)
+  thruGain.gain.cancelScheduledValues(t)
+  thruGain.gain.setTargetAtTime(thru ? state.volume * THRU_GAIN : 0, t, OUTPUT_FADE_SEC / 3)
+}
+
 // Builds/resumes the audio graph from inside a user gesture. Hold-to-record
 // starts from a timer callback (after the long-press delay), which mobile
 // Safari no longer treats as user activation — so the press itself warms
@@ -408,6 +479,10 @@ async function buildGraph() {
   masterGain.gain.value = 0
   masterGain.connect(analyser)
 
+  fxBus = ctx.createGain()
+  fxBus.gain.value = thru ? 0 : 1
+  fxBus.connect(masterGain)
+
   // Safety limiter on the final output — with feedback up to 0.95 and long
   // silence-sustain tails (up to 30s), overlapping grain feedback loops can
   // sum into harsh digital clipping at higher feedback/volume settings.
@@ -423,7 +498,7 @@ async function buildGraph() {
   // compression stage would otherwise still be eating — safe headroom-wise
   // since the compressor's own ceiling for even a very hot input stays well
   // under 0dBFS at these settings.
-  const limiter = ctx.createDynamicsCompressor()
+  limiter = ctx.createDynamicsCompressor()
   limiter.threshold.value = -3
   limiter.knee.value = 6
   limiter.ratio.value = 8
@@ -434,6 +509,14 @@ async function buildGraph() {
   masterGain.connect(limiter)
   limiter.connect(makeupGain)
   makeupGain.connect(ctx.destination)
+
+  // Thru monitor bypasses masterGain (which only opens while `on`) but
+  // still goes through the limiter, and taps the analyser so the plate
+  // keeps reacting to the dry signal.
+  thruGain = ctx.createGain()
+  thruGain.gain.value = thru ? state.volume * THRU_GAIN : 0
+  thruGain.connect(limiter)
+  thruGain.connect(analyser)
 
   // Tape-style modulation sources — persistent for the life of the session,
   // fanned out to each grain's playbackRate/delayTime as they're created.
@@ -580,6 +663,7 @@ export async function startListening() {
   micStream = stream
   micSource = ctx.createMediaStreamSource(micStream)
   micSource.connect(inputHighpass)
+  micSource.connect(thruGain)
   lastActiveTime = ctx.currentTime
   listening = true
   return true
@@ -713,7 +797,10 @@ function playGrain() {
   // The ceiling itself stretches toward SUSTAIN_MAX_MS as live input goes
   // quiet (per `sensitivity`), so echoes linger much longer when nothing new
   // is coming in, and behave normally while actively fed.
-  const quietFactor = Math.max(0, Math.min(1, 1 - inputLevel / currentThreshold()))
+  // Only while listening: with the mic closed, "quiet" is just the absence
+  // of a mic, and boosting/stretching the echo the moment listen goes off
+  // made it sound like it was still picking the room up.
+  const quietFactor = listening ? Math.max(0, Math.min(1, 1 - inputLevel / currentThreshold())) : 0
   const repeatCeilingMs = REPEAT_MAX_MS + quietFactor * (SUSTAIN_MAX_MS - REPEAT_MAX_MS)
   const repeatMs = REPEAT_MIN_MS + state.repeat * (repeatCeilingMs - REPEAT_MIN_MS)
   feedbackGain.gain.setValueAtTime(Math.max(0.0001, effFeedback), ctx.currentTime)
@@ -742,12 +829,12 @@ function playGrain() {
   bufSource.connect(grainGain)
   grainGain.connect(panner)
   panner.connect(granularMixGain)
-  granularMixGain.connect(masterGain)
+  granularMixGain.connect(fxBus)
   panner.connect(delay)
   delay.connect(feedbackGain)
   feedbackGain.connect(delay)
   feedbackGain.connect(delayMixGain)
-  delayMixGain.connect(masterGain)
+  delayMixGain.connect(fxBus)
 
   bufSource.start()
   const stopAt = ctx.currentTime + state.grainSizeMs / 1000 + 0.05

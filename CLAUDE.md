@@ -5,8 +5,8 @@ GLOOP is a granular synthesis echo loopback device — part of the ribbon/puddle
 
 ## Tech Stack
 - Vite + React 19, no backend
-- Web Audio API: AudioWorklet grain capture → grain pool → randomized playback through per-grain delay/feedback/pan (see `src/audio/engine.js`). Capture (`listen`) and playback (`on`) are independent toggles over one shared graph; idle suspends rather than closes the context so the pool persists.
-- three.js (WebGL) for the grain-field visualization (see `src/components/GrainField.jsx`) — a rippling plate mesh driven by the same Chladni nodal math as the grains, with grains rendered as glowing 3D points hovering just above the live surface height. Not audness-powered — see Audness note below.
+- Web Audio API: AudioWorklet grain capture → grain pool → randomized playback through per-grain delay/feedback/pan (see `src/audio/engine.js`). Capture (`listen`) and playback (`on`) are independent toggles over one shared graph; idle suspends rather than closes the context so the pool persists. Grain outputs sum into `fxBus`; `thru` mutes it and opens a dry mic → limiter monitor path (`thruGain`) that bypasses `masterGain`.
+- three.js (WebGL) for the grain-field visualization (see `src/components/GrainField.jsx`) — a rippling plate mesh driven by the same Chladni nodal math as the grains, with grains rendered as glowing 3D points hovering just above the live surface height. Colors come from a Kubelka-Munk pigment ring LUT (`src/color/kubelkaMunk.js`) by default; `k` toggles back to the HSL rainbow. Not audness-powered — see Audness note below.
 
 ## Status
 Scaffold stage (2026-07-12). Core mic → grain → feedback loop and Chladni-driven visualization are implemented as a first pass. Deploy infra provisioned 2026-07-23.

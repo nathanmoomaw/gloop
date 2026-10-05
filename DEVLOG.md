@@ -1,6 +1,33 @@
 # DEVLOG
 
-## 2026-10-01 (latest) - Double-space stop-all, cursive logo, tap timing fix
+## 2026-10-04 (latest) - Thru bypass, listen-off fix, gentler taps, Kubelka-Munk palette
+
+- **Listen off felt like still listening.** The quiet-room behavior (echo up to 80% louder, tails
+  stretched toward 30s) keyed off `inputLevel`, which drops to 0 the instant the mic closes — so
+  turning listen *off* made the loop louder and longer, reading as still picking up the room.
+  `quietFactor` now only applies while listening. Also: a tap on listen while the mic is still
+  opening (permission prompt up) now cancels it (`engine.isListenPending()`) instead of firing a
+  second start.
+- **`thru` toggle** (utility column, between raw and evolve, pale-cream accent). Full bypass: live
+  mic → `thruGain` → limiter (skips masterGain, so works whether or not `on`), and the whole
+  grain/delay path — in-flight feedback tails too — goes through a new `fxBus` that ramps to 0.
+  Engaging thru opens the mic if closed; disengaging leaves listen alone. Thru also taps the
+  analyser so the plate reacts to the dry signal.
+- **Ambient tap sound tamed.** Every pointermove during a drag spawned its own Karplus-Strong
+  voice at up to 0.85 gain straight to the destination — a fast drag stacked dozens. Now: taps
+  throttled to ≥90ms apart, all voices sum into a shared bus (gain 0.6 → lowpass 2.4kHz →
+  compressor), lower burst/out gains, darker in-loop damping, shorter decay. Roughly −18dB per
+  voice before the compressor.
+- **Kubelka-Munk pigment palette** (`src/color/kubelkaMunk.js`) for plate + grains, replacing the
+  HSL rainbow by default; `k` toggles live for A/B. Single-constant KM per RGB channel over a
+  pigment ring (hansa yellow → cadmium red → quinacridone magenta → ultramarine → phthalo blue →
+  wraps to yellow, so greens come from blue+yellow mixing). Learned in tuning: masstone swatches
+  and a 0.1% reflectance floor make one near-black channel swamp every mix (grays, or red
+  dominating within 2% of the segment), so tint swatches + 1% floor, and the ring is resampled by
+  cumulative color distance so equal phase steps are equal color steps. Normalized to max channel
+  = 1 (KM decides hue/chroma, caller decides brightness).
+
+## 2026-10-01 - Double-space stop-all, cursive logo, tap timing fix
 
 - Double spacebar (2nd press within 400ms of the 1st's release) = stop everything: listen off,
   then `on` off — regardless of what the first tap did (from listening, from on-only, etc.).
