@@ -286,6 +286,7 @@ export default function App() {
             running={running}
             onInteract={handleInteract}
             grainSizeMs={params.grainSizeMs}
+            params={params}
           />
         </Suspense>
       </div>

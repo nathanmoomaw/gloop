@@ -98,3 +98,4 @@
 - [x] Input-reactive wandering camera over the plate (2026-10-04)
 - [x] Default rate 200 → 2000ms, dial to 4000ms (2026-10-04)
 - [x] Tap velocity starts at 10%, ramps to full over 5s of continuous touching (2026-10-04)
+- [x] Camera frozen while off, driven by feedback/size/density/wow/flutter/dynamics/rate while on (2026-10-04)

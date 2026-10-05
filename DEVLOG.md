@@ -1,6 +1,18 @@
 # DEVLOG
 
-## 2026-10-04 (latest) - Tap velocity ramp
+## 2026-10-04 (latest) - Camera tied to `on` and output params
+
+The wandering plate camera kept drifting with everything off. Now an eased on/off gate stops its
+clock and freezes its shape, so the view settles and holds when `on` goes off (and resumes from
+the same pose). While on, motion comes from the actual output rather than a free-running base:
+clock speed = level + onsets + grain rate (faster firing → faster) + wobble, on top of a small
+base; elevation center = feedback (hotter → lower, more dramatic); distance = size (bigger grains
+→ further back); orbit width = density; roll = wow + flutter; look-at drift = dynamics. Each
+param target is eased, so knob turns and evolve glides morph the motion. GrainField now takes the
+full `params` object. The ambient plate-pattern pan/spin (separate from the camera) still runs
+while off.
+
+## 2026-10-04 - Tap velocity ramp
 
 Inactive-mode grain touches were still too loud. Each tap now gets a velocity that starts at 10%
 and eases (smoothstep) up to full over 5s of continuous touching; a gap over 0.6s starts over from

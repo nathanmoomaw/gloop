@@ -46,14 +46,24 @@ const DRIFT_SPIN_TOUCH_GAIN = 0.01
 // Camera wander: the view over the plate drifts in every dimension at once
 // (orbit, elevation, distance, roll, look-at target), each on its own
 // sine sum with mutually irrational frequency ratios so the motion never
-// visibly loops. Its clock is time-warped by the live input — louder
-// audio, and especially sudden onsets, speed the whole drift up (and widen
-// it a little), quiet lets it slow to a near-stall — so the timing itself
-// shifts, not just the position.
-const CAM_BASE_RATE = 0.15 // phase units/sec at rest (~2 min per sway)
+// visibly loops. It only moves while `on` — off, it eases to a stop and
+// holds. While on, both its timing and its shape come from the output:
+//   clock speed — live level + onsets, how fast grains fire (rate), wobble
+//   elevation   — feedback: hotter loop tilts the view lower, more dramatic
+//   distance    — size: bigger grains pull the camera back
+//   orbit width — density: drawing from more of the pool swings wider
+//   roll        — wow + flutter: tape wobble tips the horizon
+//   aim drift   — dynamics: delay-time jitter wanders the look-at point
+// Every param-driven value is eased, so knob turns (and evolve's glides)
+// morph the motion rather than jump it.
+const CAM_BASE_RATE = 0.04 // phase units/sec while on, before params/level
 const CAM_LEVEL_RATE = 0.6 // extra at full amplitude
 const CAM_ONSET_RATE = 2.5 // extra per unit of amplitude jump above its slow average
+const CAM_FIRE_RATE = 0.25 // extra at the fastest grain rate (20ms)
+const CAM_WOBBLE_RATE = 0.2 // extra at full wobble
 const CAM_RATE_SMOOTHING = 0.02 // per-frame easing of the clock rate, no jerks
+const CAM_SHAPE_SMOOTHING = 0.02 // per-frame easing of param-driven shape
+const CAM_ACTIVE_SMOOTHING = 0.03 // per-frame easing of the on/off gate
 const CAM_AZIMUTH_RANGE = 0.75 // rad, +/- around the front view
 const CAM_ELEV_MIN = 0.72 // rad (~41°) — lower and the plate's far edge shows
 const CAM_ELEV_MAX = 1.12 // rad (~64°)
@@ -127,7 +137,21 @@ function setPaletteColor(color, useKM, phase, saturation, lightness) {
   }
 }
 
-export default function GrainField({ analyser, running, onInteract, grainSizeMs = 400 }) {
+// Param-driven camera shape targets (see CAM_* comment), all 0-1-ish.
+function cameraShapeFor(p) {
+  const sizeNorm = Math.max(0, Math.min(1, ((p.grainSizeMs ?? 400) - SIZE_KNOB_MIN_MS) / (SIZE_KNOB_MAX_MS - SIZE_KNOB_MIN_MS)))
+  return {
+    fire: 1 - Math.max(0, Math.min(1, ((p.rate ?? 2000) - 20) / 3980)),
+    wobble: p.wobble ?? 0,
+    elev: 1 - Math.min(1, (p.feedback ?? 0.65) / 0.9),
+    dist: Math.sqrt(sizeNorm),
+    orbit: 0.3 + 0.7 * (p.density ?? 0.6),
+    roll: Math.min(2, 0.2 + (p.wow ?? 0) + (p.flutter ?? 0) * 0.5),
+    aim: 0.3 + (p.dynamics ?? 0.15),
+  }
+}
+
+export default function GrainField({ analyser, running, onInteract, grainSizeMs = 400, params }) {
   const containerRef = useRef(null)
   const grainsRef = useRef([])
   const pointerRef = useRef({ x: 0.5, y: 0.5, strength: 0, lastX: 0.5, lastY: 0.5 })
@@ -138,7 +162,20 @@ export default function GrainField({ analyser, running, onInteract, grainSizeMs 
   // Camera clock (see CAM_* constants) and the slow amplitude average its
   // onset detection compares against — in a ref so toggling `on` (which
   // rebuilds the scene) doesn't jump the view back to a new start point.
-  const camRef = useRef({ phase: CAM_START_PHASE, rate: CAM_BASE_RATE, slowAmplitude: 0.3 })
+  const camRef = useRef({
+    phase: CAM_START_PHASE,
+    rate: 0,
+    slowAmplitude: 0.3,
+    active: 0,
+    reach: 0.9,
+    shape: cameraShapeFor({}),
+  })
+  // Latest output params, read live in the draw loop (same reason as
+  // grainSizeRef) to steer the camera.
+  const paramsRef = useRef(params ?? {})
+  useEffect(() => {
+    paramsRef.current = params ?? {}
+  }, [params])
   // Read live in the draw loop rather than an effect dependency — the size
   // dial changes on every drag tick, and rebuilding the whole three.js scene
   // that often would be both wasteful and visibly jarring.
@@ -384,22 +421,40 @@ export default function GrainField({ analyser, running, onInteract, grainSizeMs 
       const now = performance.now()
       const dt = Math.min(0.1, (now - lastFrame) / 1000)
       lastFrame = now
+      // Off: the gate eases to 0, which stops the clock and freezes the
+      // shape where it is — the view settles and holds instead of snapping.
+      cam.active += ((running ? 1 : 0) - cam.active) * CAM_ACTIVE_SMOOTHING
+      const shape = cam.shape
+      const target = cameraShapeFor(paramsRef.current)
+      const shapeEase = CAM_SHAPE_SMOOTHING * cam.active
+      for (const k in shape) shape[k] += (target[k] - shape[k]) * shapeEase
       cam.slowAmplitude += (amplitude - cam.slowAmplitude) * 0.01
       const onset = Math.max(0, amplitude - cam.slowAmplitude)
-      const targetRate = CAM_BASE_RATE + amplitude * CAM_LEVEL_RATE + onset * CAM_ONSET_RATE
+      const targetRate = running
+        ? CAM_BASE_RATE + amplitude * CAM_LEVEL_RATE + onset * CAM_ONSET_RATE +
+          shape.fire * CAM_FIRE_RATE + shape.wobble * CAM_WOBBLE_RATE
+        : 0
       cam.rate += (targetRate - cam.rate) * CAM_RATE_SMOOTHING
       cam.phase += cam.rate * dt
       const camPhase = cam.phase
-      const reach = 0.85 + amplitude * 0.15
-      const azimuth = wander(camPhase, 0.31, 0.17, 0) * CAM_AZIMUTH_RANGE * reach
-      const elev = CAM_ELEV_MIN + (wander(camPhase, 0.23, 0.13, 2.1) * 0.5 + 0.5) * (CAM_ELEV_MAX - CAM_ELEV_MIN)
-      const dist = CAM_DIST_MIN + (wander(camPhase, 0.19, 0.29, 4.3) * 0.5 + 0.5) * (CAM_DIST_MAX - CAM_DIST_MIN)
-      const tx = wander(camPhase, 0.27, 0.11, 1.3) * CAM_TARGET_RANGE * reach
-      const tz = wander(camPhase, 0.21, 0.15, 3.7) * CAM_TARGET_RANGE * reach
+      // Amplitude keeps easing while off (toward its idle value), so reach
+      // is gated too or the frozen view would still creep.
+      cam.reach += (0.85 + amplitude * 0.15 - cam.reach) * cam.active
+      const reach = cam.reach
+      const elevSpan = CAM_ELEV_MAX - CAM_ELEV_MIN
+      const azimuth = wander(camPhase, 0.31, 0.17, 0) * CAM_AZIMUTH_RANGE * shape.orbit * reach
+      // Param sets the center, wander sways +/- a quarter span around it.
+      const elev = Math.max(CAM_ELEV_MIN, Math.min(CAM_ELEV_MAX,
+        CAM_ELEV_MIN + shape.elev * elevSpan + wander(camPhase, 0.23, 0.13, 2.1) * elevSpan * 0.25))
+      const distSpan = CAM_DIST_MAX - CAM_DIST_MIN
+      const dist = Math.max(CAM_DIST_MIN, Math.min(CAM_DIST_MAX,
+        CAM_DIST_MIN + shape.dist * distSpan + wander(camPhase, 0.19, 0.29, 4.3) * distSpan * 0.2))
+      const tx = wander(camPhase, 0.27, 0.11, 1.3) * CAM_TARGET_RANGE * shape.aim * reach
+      const tz = wander(camPhase, 0.21, 0.15, 3.7) * CAM_TARGET_RANGE * shape.aim * reach
       const horiz = Math.cos(elev) * dist
       camera.position.set(tx + Math.sin(azimuth) * horiz, Math.sin(elev) * dist, tz + Math.cos(azimuth) * horiz)
       camera.lookAt(tx, 0, tz)
-      camera.rotateZ(wander(camPhase, 0.37, 0.09, 5.9) * CAM_ROLL_RANGE * reach)
+      camera.rotateZ(wander(camPhase, 0.37, 0.09, 5.9) * CAM_ROLL_RANGE * shape.roll * reach)
 
       renderer.render(scene, camera)
     }
