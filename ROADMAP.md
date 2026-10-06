@@ -7,6 +7,7 @@
 - [ ] Confirm the new opt-in "raw" mic toggle (no echoCancellation/noiseSuppression/autoGainControl) actually fixes the "choppy, cuts off" recordings on real hardware — Playwright's fake mic device can only confirm the toggle is wired up, not judge real capture quality (this is the same class of item as the two above)
 - [ ] `RotaryKnob.jsx` has no keyboard or screen-reader support (no `role="slider"`, no `aria-value*`, no arrow-key handling, no `touch-action: none`) — flagged by the 2026-09-15 `/learn` session against current rotary-knob accessibility practice, not yet implemented
 - [ ] Pointer push should raycast onto the plate now that the camera moves (screen→plate mapping ignores perspective)
+- [ ] Loop ring dot jumps when its lap time changes mid-lap — drive it from JS phase instead of CSS animation duration
 - [ ] Listening pass on Kubelka-Munk palette vs HSL (`k`) and new tap-sound level — keep or revert KM default
 
 ## Completed
@@ -99,3 +100,4 @@
 - [x] Default rate 200 → 2000ms, dial to 4000ms (2026-10-04)
 - [x] Tap velocity starts at 10%, ramps to full over 5s of continuous touching (2026-10-04)
 - [x] Camera frozen while off, driven by feedback/size/density/wow/flutter/dynamics/rate while on (2026-10-04)
+- [x] Rate knob clockwise = faster (grains/sec, log), loop ring lap responds over full range (2026-10-06)

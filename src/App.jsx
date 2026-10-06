@@ -49,13 +49,26 @@ const BIG_KNOB = 96
 // before they've even tapped "listen".
 const GrainField = lazy(() => import('./components/GrainField'))
 
-// Loop ring rotation period is derived from the current grain rate, but
-// scaled up so it stays visually legible across the whole rate range —
-// at rate=20ms a 1:1 spin would be an unreadable blur, so the ring turns
-// once every few grain cycles instead. It still speeds up/slows down live
-// with the rate dial, which is the "tracks the actual current rate" ask.
+// Loop ring lap time follows the grain interval on a compressed power
+// curve: 20ms -> 0.4s lap, 2000ms -> ~8s, 4000ms -> ~12.5s. The old
+// `rateMs * 6` clamped to 4s stopped responding above ~667ms, which after
+// the default moved to 2000ms meant the ring ignored most of the dial.
 function loopPeriodFromRate(rateMs) {
-  return Math.min(4000, Math.max(400, rateMs * 6))
+  return 400 * (Math.max(20, rateMs) / 20) ** 0.65
+}
+
+// The engine's `rate` is an interval (ms between grains), so a knob on it
+// directly turned the wrong way for a control called "rate": clockwise =
+// longer gaps = fewer grains = slower loop ring. The knob instead drives a
+// 0-1 position mapped exponentially (clockwise = faster) across the same
+// 20-4000ms span, and reads out grains per second.
+const RATE_MS_MIN = 20
+const RATE_MS_MAX = 4000
+const rateMsFromKnob = (t) => RATE_MS_MAX * (RATE_MS_MIN / RATE_MS_MAX) ** t
+const knobFromRateMs = (ms) => Math.log(RATE_MS_MAX / ms) / Math.log(RATE_MS_MAX / RATE_MS_MIN)
+function formatGrainsPerSec(ms) {
+  const hz = 1000 / ms
+  return `${hz < 1 ? hz.toFixed(2) : hz < 10 ? hz.toFixed(1) : Math.round(hz)}/s`
 }
 
 // Maps getUserMedia/AudioContext failures to a message a non-technical user
@@ -301,12 +314,12 @@ export default function App() {
         <div className="control-cluster control-cluster--top-left">
           <RotaryKnob
             label="rate"
-            valueLabel={`${Math.round(params.rate)}ms`}
-            value={params.rate}
-            min={20}
-            max={4000}
-            step={10}
-            onChange={(v) => updateParam('rate', v)}
+            valueLabel={formatGrainsPerSec(params.rate)}
+            value={knobFromRateMs(params.rate)}
+            min={0}
+            max={1}
+            step={0.005}
+            onChange={(v) => updateParam('rate', rateMsFromKnob(v))}
             color="var(--color-rate)"
             size={BIG_KNOB}
           />

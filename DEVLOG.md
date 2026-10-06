@@ -1,6 +1,18 @@
 # DEVLOG
 
-## 2026-10-04 (latest) - Camera tied to `on` and output params
+## 2026-10-06 (latest) - Rate knob turns the right way; loop ring responds across full range
+
+Q: "is the rate indicator going around the edge operating opposite?" — effectively yes. The engine's
+`rate` is an interval (ms between grains), and the knob drove it directly, so clockwise = longer
+gaps = fewer grains = slower ring: backwards for a control named rate. Worse, the ring's lap was
+`rate * 6` clamped to 4s, so from ~667ms up (including the new 2000ms default) it didn't respond at
+all. Now the knob is a 0-1 position mapped exponentially across 20–4000ms with clockwise = faster,
+reading grains/sec (default 0.50/s); engine/evolve/shake still work in ms. Ring lap =
+`400 * (ms/20)^0.65` — 0.4s at 20ms, ~8s at 2000ms, ~12.5s at 4000ms, monotonic everywhere. Ring
+still travels clockwise. Known: changing `--loop-duration` mid-lap makes the dot jump position
+(CSS animation progress is recomputed) — pre-existing.
+
+## 2026-10-04 - Camera tied to `on` and output params
 
 The wandering plate camera kept drifting with everything off. Now an eased on/off gate stops its
 clock and freezes its shape, so the view settles and holds when `on` goes off (and resumes from
