@@ -1,6 +1,21 @@
 # DEVLOG
 
-## 2026-10-06 (latest) - Inverted see-through controls; plate tilt dance
+## 2026-10-06 (latest) - Grain scheduling lookahead; tilt dance slowed to a nod
+
+Sound bugs reported after the inverted-controls/tilt commit, which touched no audio code. Likely cause:
+grains fire from a main-thread `setTimeout` and set their envelopes/start at exactly
+`ctx.currentTime`, so any main-thread jank (the new per-frame backdrop-filter recomposite on ~15
+controls over the WebGL canvas) lands the call late → envelope begins already past its start →
+clicks / truncated attacks. `playGrain` now schedules everything at `t0 = currentTime + 30ms`
+(`SCHEDULE_LOOKAHEAD_SEC`), including `bufSource.start(t0)`. Backdrop filter trimmed to
+`invert(1) brightness(0.55)` (dropped saturate/contrast) to cut compositing cost. Not verified by ear.
+
+Tilt dance read as fast panting: the 1.4Hz underdamped spring + per-onset kicks + raw-amplitude
+tempo made it twitchy. Replaced with a slow nod: two incommensurate sines (~14s period at silence,
+~8s at full level), depth/tempo following a ~4s-smoothed level, no kicks, no spring. Depth eases to
+0 when off so the view settles level.
+
+## 2026-10-06 - Inverted see-through controls; plate tilt dance
 
 Controls: `.bevel` (index.css) flipped from opaque domed discs to inverted windows — each knob/button
 backdrop-filters the grain field behind it (`invert(1) brightness(0.5) saturate(1.8) contrast(1.2)`,

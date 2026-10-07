@@ -773,6 +773,9 @@ function maybeSuspend() {
   }, OUTPUT_FADE_SEC * 4000 + trailMs)
 }
 
+// How far ahead of ctx.currentTime each grain is scheduled (see playGrain).
+const SCHEDULE_LOOKAHEAD_SEC = 0.03
+
 function scheduleGrains() {
   const fire = () => {
     if (!ctx || !playing) return
@@ -800,6 +803,12 @@ function playGrain() {
   const effFeedback = Math.min(0.95, state.feedback + perturbation.feedback)
   const effDynamics = Math.min(1, state.dynamics + perturbation.dynamics)
 
+  // Everything below is scheduled at t0 (a short lookahead) rather than
+  // "now": grains are triggered from a main-thread setTimeout, so any jank
+  // (WebGL frame, backdrop-filter recomposite) lands the call late and an
+  // envelope set at ctx.currentTime starts already past its own start —
+  // clicks, truncated attacks. The lookahead absorbs that jitter.
+  const t0 = ctx.currentTime + SCHEDULE_LOOKAHEAD_SEC
   const src = pickPoolSlot()
   const grainSamples = Math.floor((ctx.sampleRate * state.grainSizeMs) / 1000)
   if (grainSamples < 8 || grainSamples > src.length) return
@@ -822,9 +831,9 @@ function playGrain() {
   // grains overlapping at once (default rate/grainSize overlap ~4-5x). The
   // exponential curve is the standard smoother window shape for granular
   // synthesis envelopes.
-  grainGain.gain.setValueAtTime(0.0001, ctx.currentTime)
-  grainGain.gain.exponentialRampToValueAtTime(state.mix, ctx.currentTime + attack / 1000)
-  grainGain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + state.grainSizeMs / 1000)
+  grainGain.gain.setValueAtTime(0.0001, t0)
+  grainGain.gain.exponentialRampToValueAtTime(state.mix, t0 + attack / 1000)
+  grainGain.gain.exponentialRampToValueAtTime(0.0001, t0 + state.grainSizeMs / 1000)
 
   // Dynamic delay: per-grain random jitter on top of the grain-size-derived
   // base delay time. Distinct from wobble, which is a continuous LFO below.
@@ -848,12 +857,12 @@ function playGrain() {
   const quietFactor = listening ? Math.max(0, Math.min(1, 1 - inputLevel / currentThreshold())) : 0
   const repeatCeilingMs = REPEAT_MAX_MS + quietFactor * (SUSTAIN_MAX_MS - REPEAT_MAX_MS)
   const repeatMs = REPEAT_MIN_MS + state.repeat * (repeatCeilingMs - REPEAT_MIN_MS)
-  feedbackGain.gain.setValueAtTime(Math.max(0.0001, effFeedback), ctx.currentTime)
+  feedbackGain.gain.setValueAtTime(Math.max(0.0001, effFeedback), t0)
   if (effFeedback > 0.0005) {
-    feedbackGain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + repeatMs / 1000)
+    feedbackGain.gain.exponentialRampToValueAtTime(0.0001, t0 + repeatMs / 1000)
   }
 
-  lastTailEnd = Math.max(lastTailEnd, ctx.currentTime + repeatMs / 1000)
+  lastTailEnd = Math.max(lastTailEnd, t0 + repeatMs / 1000)
 
   const panner = ctx.createStereoPanner()
   panner.pan.value = (Math.random() - 0.5) * effSpread * 2
@@ -883,8 +892,8 @@ function playGrain() {
   feedbackGain.connect(delayMixGain)
   delayMixGain.connect(fxBus)
 
-  bufSource.start()
-  const stopAt = ctx.currentTime + state.grainSizeMs / 1000 + 0.05
+  bufSource.start(t0)
+  const stopAt = t0 + state.grainSizeMs / 1000 + 0.05
   bufSource.stop(stopAt)
   bufSource.onended = () => {
     try { wowDepth.disconnect(bufSource.playbackRate) } catch { /* already disconnected */ }
