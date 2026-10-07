@@ -71,6 +71,19 @@ const CAM_DIST_MIN = 1.8
 const CAM_DIST_MAX = 2.4
 const CAM_ROLL_RANGE = 0.07 // rad
 const CAM_TARGET_RANGE = 0.18 // look-at drift across the plate
+// Tilt dance: on top of the wander, the view rocks forward/backward —
+// pitching toward the plate and pushing in, then rebounding away — on a
+// damped spring. A steady rocking drive (tempo rises with level) keeps it
+// swaying, and each onset kicks it forward so transients read as a lean
+// into the sound. Gated by `on` like the rest of the camera.
+const TILT_RANGE = 0.07 // rad, drive amplitude at full level
+const TILT_BASE_HZ = 0.35 // rocking tempo at silence
+const TILT_LEVEL_HZ = 0.9 // extra tempo at full amplitude
+const TILT_KICK = 0.6 // rad/s of forward velocity per unit onset per 60fps frame
+const TILT_SPRING_HZ = 1.4 // spring natural frequency
+const TILT_DAMPING = 0.3 // damping ratio — underdamped, so kicks bounce back
+const TILT_MAX = 0.16 // rad, hard clamp
+const TILT_DOLLY = 0.9 // forward push (world units) per rad of tilt
 // Random per page load so each session opens on a different view.
 const CAM_START_PHASE = Math.random() * 100
 // Sum of two sines at incommensurate rates, normalized to [-1, 1].
@@ -169,6 +182,9 @@ export default function GrainField({ analyser, running, onInteract, grainSizeMs 
     active: 0,
     reach: 0.9,
     shape: cameraShapeFor({}),
+    tilt: 0,
+    tiltVel: 0,
+    tiltPhase: 0,
   })
   // Latest output params, read live in the draw loop (same reason as
   // grainSizeRef) to steer the camera.
@@ -455,6 +471,19 @@ export default function GrainField({ analyser, running, onInteract, grainSizeMs 
       camera.position.set(tx + Math.sin(azimuth) * horiz, Math.sin(elev) * dist, tz + Math.cos(azimuth) * horiz)
       camera.lookAt(tx, 0, tz)
       camera.rotateZ(wander(camPhase, 0.37, 0.09, 5.9) * CAM_ROLL_RANGE * shape.roll * reach)
+
+      // Tilt dance (see TILT_* constants): spring chases the rocking drive,
+      // onsets kick it forward. Off, drive and kicks gate to 0 and the
+      // spring settles back to level.
+      cam.tiltPhase += (TILT_BASE_HZ + amplitude * TILT_LEVEL_HZ) * dt * cam.active
+      const tiltDrive = Math.sin(cam.tiltPhase * Math.PI * 2) * TILT_RANGE * (0.35 + amplitude * 0.65) * cam.active
+      const omega = TILT_SPRING_HZ * Math.PI * 2
+      cam.tiltVel += ((tiltDrive - cam.tilt) * omega * omega - 2 * TILT_DAMPING * omega * cam.tiltVel) * dt
+      cam.tiltVel -= onset * TILT_KICK * dt * 60 * cam.active
+      cam.tilt = Math.max(-TILT_MAX, Math.min(TILT_MAX, cam.tilt + cam.tiltVel * dt))
+      // Negative tilt pitches down toward the plate and dollies in.
+      camera.rotateX(cam.tilt)
+      camera.translateZ(cam.tilt * TILT_DOLLY)
 
       renderer.render(scene, camera)
     }

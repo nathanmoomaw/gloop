@@ -47,25 +47,33 @@ button {
   font-family: inherit;
 }
 
-/* Beveled, color-polarized control surface — each knob/button tints its
-   own body from its accent (--bevel-color): a lit face toward the top-left
-   highlight, falling off to a deep shade of the same hue at the rim, with
-   a hue-tinted inner bevel edge. Elements opt in with the class and set
-   --bevel-color; they consume --bevel-bg / --bevel-inset / --bevel-border
-   in their own background/box-shadow/border so their hover/active states
-   can keep the bevel while layering glows on top. */
+/* Inverted, see-through control surface — each knob/button is a window
+   that photo-negatives whatever the grain field is doing behind it
+   (backdrop invert, dimmed so the near-black bg goes mid-grey and bright
+   grains go dark), washed with a translucent tint of its own
+   accent (--bevel-color) so the hue still identifies the control and
+   labels stay legible. The bevel is flipped too: light pools at the
+   bottom-right and the rim catches shadow top-left, so controls read as
+   dished into the plate rather than domed on top of it. Moving grains,
+   ripples and the camera dance all bleed through, so the controls shift
+   with the bg instead of sitting on it as flat opaque discs.
+   Elements opt in with the class and set --bevel-color; they consume
+   --bevel-bg / --bevel-inset / --bevel-border in their own
+   background/box-shadow/border so hover/active can layer glows on top. */
 .bevel {
   --bevel-color: #9aa0b4;
   --bevel-bg: radial-gradient(
-    circle at 36% 30%,
-    color-mix(in srgb, var(--bevel-color) 58%, #2a2a3a) 0%,
-    color-mix(in srgb, var(--bevel-color) 32%, #14141f) 50%,
-    color-mix(in srgb, var(--bevel-color) 14%, #06060c) 100%
+    circle at 64% 70%,
+    color-mix(in srgb, color-mix(in srgb, var(--bevel-color) 40%, #1a1a28) 42%, transparent) 0%,
+    color-mix(in srgb, color-mix(in srgb, var(--bevel-color) 30%, #0c0c16) 62%, transparent) 55%,
+    color-mix(in srgb, color-mix(in srgb, var(--bevel-color) 20%, #04040a) 80%, transparent) 100%
   );
   --bevel-inset:
-    inset 1.5px 2px 2px color-mix(in srgb, var(--bevel-color) 50%, rgba(255, 255, 255, 0.55)),
-    inset -2px -3px 6px rgba(0, 0, 0, 0.6);
-  --bevel-border: color-mix(in srgb, var(--bevel-color) 40%, rgba(255, 255, 255, 0.08));
+    inset -1.5px -2px 2px color-mix(in srgb, var(--bevel-color) 50%, rgba(255, 255, 255, 0.5)),
+    inset 2px 3px 6px rgba(0, 0, 0, 0.65);
+  --bevel-border: color-mix(in srgb, var(--bevel-color) 55%, rgba(255, 255, 255, 0.1));
+  -webkit-backdrop-filter: invert(1) brightness(0.5) saturate(1.8) contrast(1.2);
+  backdrop-filter: invert(1) brightness(0.5) saturate(1.8) contrast(1.2);
 }
 
 html, body, #root {

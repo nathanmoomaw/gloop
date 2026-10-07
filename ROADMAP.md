@@ -9,6 +9,7 @@
 - [ ] Pointer push should raycast onto the plate now that the camera moves (screen→plate mapping ignores perspective)
 - [ ] Loop ring dot jumps when its lap time changes mid-lap — drive it from JS phase instead of CSS animation duration
 - [ ] Listening pass on Kubelka-Munk palette vs HSL (`k`) and new tap-sound level — keep or revert KM default
+- [ ] Eyeball pass on inverted see-through controls (legibility over bright grain clusters) and tilt-dance intensity on device
 
 ## Completed
 
@@ -101,3 +102,5 @@
 - [x] Tap velocity starts at 10%, ramps to full over 5s of continuous touching (2026-10-04)
 - [x] Camera frozen while off, driven by feedback/size/density/wow/flutter/dynamics/rate while on (2026-10-04)
 - [x] Rate knob clockwise = faster (grains/sec, log), loop ring lap responds over full range (2026-10-06)
+- [x] Inverted see-through control surfaces (backdrop invert + flipped bevel) (2026-10-06)
+- [x] Plate camera forward/backward tilt dance — level-driven spring with onset kicks (2026-10-06)

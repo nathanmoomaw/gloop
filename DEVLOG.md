@@ -1,6 +1,21 @@
 # DEVLOG
 
-## 2026-10-06 (latest) - Rate knob turns the right way; loop ring responds across full range
+## 2026-10-06 (latest) - Inverted see-through controls; plate tilt dance
+
+Controls: `.bevel` (index.css) flipped from opaque domed discs to inverted windows — each knob/button
+backdrop-filters the grain field behind it (`invert(1) brightness(0.5) saturate(1.8) contrast(1.2)`,
+so near-black bg reads mid-grey and bright grains go dark) under a translucent tint of its own accent,
+and the bevel lighting is reversed (light pools bottom-right, rim shadow top-left → dished in, not
+domed). Grains, ripples, camera motion all bleed through, so controls shift with the bg. Hue still
+identifies each control; labels keep their dark text-shadow for legibility.
+
+Bg: new tilt dance on the plate camera (GrainField `TILT_*`) — a damped spring (1.4Hz, ζ 0.3) chases a
+rocking drive whose tempo rises with level (0.35Hz→1.25Hz) and amplitude with level, and onsets kick it
+forward. Applied as camera pitch (`rotateX`) + forward dolly (`translateZ`), so the view leans into
+the plate and rebounds away. Gated by `on` like the rest of the camera; settles level when off.
+Untested by ear/eye on device — tune `TILT_RANGE` / `TILT_KICK` if it's too seasick or too timid.
+
+## 2026-10-06 - Rate knob turns the right way; loop ring responds across full range
 
 Q: "is the rate indicator going around the edge operating opposite?" — effectively yes. The engine's
 `rate` is an interval (ms between grains), and the knob drove it directly, so clockwise = longer
