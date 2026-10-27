@@ -3,7 +3,7 @@
 ## Active
 
 - [ ] Tune default grain size / feedback / spread for a good out-of-the-box first impression — grain size, rate, feedback, repeat, density, and overall output volume/gain-staging were all bumped up per explicit request (2026-08-12/13, the latter after diagnosing that the safety limiter was silently eating the first volume-boost attempt), but still needs an actual listening pass to confirm the new values land well (headless/automated testing can't judge this), unlike the other items below
-- [ ] Verify 80000-grain field on real (esp. mobile) hardware — measured 31fps under headless software GL, dial back GRAIN_COUNT if it feels janky on an actual device (needs physical-device testing, can't be verified in this environment)
+- [ ] Verify 80000-grain field on real (esp. mobile) hardware — grain loop cut 20.5 → 9.8 ms JS/frame on desktop (2026-10-27), ~40fps under headless software GL; dial back GRAIN_COUNT if it feels janky on an actual device (needs physical-device testing, can't be verified in this environment)
 - [ ] Confirm the new opt-in "raw" mic toggle (no echoCancellation/noiseSuppression/autoGainControl) actually fixes the "choppy, cuts off" recordings on real hardware — Playwright's fake mic device can only confirm the toggle is wired up, not judge real capture quality (this is the same class of item as the two above)
 - [ ] `RotaryKnob.jsx` has no keyboard or screen-reader support (no `role="slider"`, no `aria-value*`, no arrow-key handling, no `touch-action: none`) — flagged by the 2026-09-15 `/learn` session against current rotary-knob accessibility practice, not yet implemented
 - [ ] Pointer push should raycast onto the plate now that the camera moves (screen→plate mapping ignores perspective)
@@ -14,6 +14,7 @@
 
 ## Completed
 
+- [x] Opus review pass: grain field 2× cheaper per frame, pointer push raycast onto plate, long-grain teardown cutoff, startPlaying cancel race (2026-10-27)
 - [x] Unit tests (vitest) + big-diff review wired in; dev-stack debug pass fixed GrainField renderer rebuild, KM color seam, unhandled rejection (2026-10-27)
 - [x] GitHub repo + local project scaffold
 - [x] Vite + React build setup

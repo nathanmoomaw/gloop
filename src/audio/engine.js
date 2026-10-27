@@ -423,6 +423,7 @@ let playing = false
 // while getUserMedia is still pending (quick tap of a hold-to-record) can
 // cancel the in-flight start instead of leaving the mic open.
 let wantListening = false
+let wantPlaying = false
 let micSource = null
 let inputHighpass = null
 let suspendTimeout = null
@@ -713,14 +714,19 @@ export function stopListening() {
   maybeSuspend()
 }
 
-// Starts firing grains from the pool and fades the output up.
+// Starts firing grains from the pool and fades the output up. Resolves true
+// if playing, false if stopPlaying() was called while the graph was still
+// being built (first use) — same cancel guard as startListening.
 export async function startPlaying() {
+  wantPlaying = true
   await ensureGraph()
-  if (playing) return
+  if (!wantPlaying) return false
+  if (playing) return true
   wake()
   playing = true
   rampMaster(state.volume * OUTPUT_BOOST)
   scheduleGrains()
+  return true
 }
 
 // Stops firing new grains. Default: fades the output out fast — in-flight
@@ -728,6 +734,7 @@ export async function startPlaying() {
 // stays up and fades over however long the in-flight tails still have to
 // ring (capped at TRAIL_MAX_SEC), so the echo dies away naturally instead.
 export function stopPlaying({ trail = false } = {}) {
+  wantPlaying = false
   if (!playing) return
   playing = false
   if (grainInterval) clearTimeout(grainInterval)
@@ -902,12 +909,15 @@ function playGrain() {
 
   // Tear down this grain's private feedback subgraph once its tail has fully
   // decayed, so the persistent LFO depth nodes don't accumulate fan-out
-  // connections to long-dead nodes over a running session.
+  // connections to long-dead nodes over a running session. Not before the
+  // dry grain itself has finished, though: at low repeat (250ms) a long
+  // grain was cut off mid-play when granularMixGain got disconnected.
+  const teardownMs = (Math.max(t0 + repeatMs / 1000, stopAt) - ctx.currentTime) * 1000 + 80
   setTimeout(() => {
     try { wobbleDepth.disconnect(delay.delayTime) } catch { /* already disconnected */ }
     try { delay.disconnect() } catch { /* already disconnected */ }
     try { feedbackGain.disconnect() } catch { /* already disconnected */ }
     try { delayMixGain.disconnect() } catch { /* already disconnected */ }
     try { granularMixGain.disconnect() } catch { /* already disconnected */ }
-  }, repeatMs + 80)
+  }, teardownMs)
 }

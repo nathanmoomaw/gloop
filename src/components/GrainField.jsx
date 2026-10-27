@@ -23,6 +23,14 @@ const GRAIN_AREA_SIZE = 2
 const PLATE_MESH_SIZE = 10
 const GRAIN_SPAN = PLATE_MESH_SIZE / GRAIN_AREA_SIZE
 const GRAIN_COUNT = 800 * GRAIN_SPAN * 20
+// Grain colors are looked up per frame from this many hue steps — matches
+// the KM pigment LUT's resolution, so KM mode loses nothing.
+const GRAIN_HUE_STEPS = 512
+// Pointer push radius as a fraction of the view's height at the touch
+// point, and per-frame push distance per unit radius (the old screen-space
+// push: 0.19 radius, 0.006 step).
+const PUSH_RADIUS_FRAC = 0.19
+const PUSH_STEP = 0.006 / 0.19
 const PLANE_SEGMENTS = 80
 const HOVER_HEIGHT = 0.002
 const NODAL_HEIGHT_SCALE = 0.018
@@ -116,7 +124,10 @@ function nodalValue(n, m, u, v) {
 }
 
 function surfaceHeight(n, m, u, v, amplitude, t) {
-  const nodal = nodalValue(n, m, u, v)
+  return surfaceHeightFromNodal(nodalValue(n, m, u, v), u, v, amplitude, t)
+}
+
+function surfaceHeightFromNodal(nodal, u, v, amplitude, t) {
   // Ambient liquid motion — present even with no audio, so the plate never
   // looks static, scaled up when the resonance amplitude is higher.
   const ripple = Math.sin(u * 8 + t * 0.1) * Math.cos(v * 8 - t * 0.08)
@@ -281,6 +292,12 @@ export default function GrainField({ analyser, running, onInteract, grainSizeMs 
 
     let freqData = null
     const tmpColor = new THREE.Color()
+    const grainHueLUT = new Float32Array(GRAIN_HUE_STEPS * 3)
+    const grainNodal = new Float32Array(GRAIN_COUNT)
+    const raycaster = new THREE.Raycaster()
+    const pushNdc = new THREE.Vector2()
+    const pushHit = new THREE.Vector3()
+    const platePlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
     const startTime = performance.now()
     let raf
     // Smoothed mode numbers/amplitude — the raw dominant FFT bin is noisy
@@ -389,38 +406,56 @@ export default function GrainField({ analyser, running, onInteract, grainSizeMs 
 
       // Update grains — same nodal-drift physics as the 2D version, now
       // hovering above the plate's live surface height at their (x, y).
-      const gPos = grainGeo.attributes.position
-      const gCol = grainGeo.attributes.color
+      // Every grain shares this frame's lightness, so its color depends on
+      // hue alone — convert the palette once per hue step here instead of
+      // once per grain (80k sRGB→linear conversions a frame was the single
+      // biggest cost in the loop below).
+      const grainLightness = 0.55 + amplitude * 0.2
+      for (let h = 0; h < GRAIN_HUE_STEPS; h++) {
+        setPaletteColor(tmpColor, useKM, h / GRAIN_HUE_STEPS, 0.85, grainLightness)
+        grainHueLUT[h * 3] = tmpColor.r
+        grainHueLUT[h * 3 + 1] = tmpColor.g
+        grainHueLUT[h * 3 + 2] = tmpColor.b
+      }
+
+      // Pointer push lands where the finger meets the plate, through the
+      // wandering camera (last frame's pose) — comparing raw screen coords
+      // to plate coords pushed grains nowhere near the touch.
+      let pushX = 0
+      let pushY = 0
+      let pushR = 0
+      if (pushActive) {
+        pushNdc.set(pointer.x * 2 - 1, 1 - pointer.y * 2)
+        raycaster.setFromCamera(pushNdc, camera)
+        if (raycaster.ray.intersectPlane(platePlane, pushHit)) {
+          pushX = (pushHit.x / PLATE_MESH_SIZE + 0.5) * GRAIN_SPAN
+          pushY = (pushHit.z / PLATE_MESH_SIZE + 0.5) * GRAIN_SPAN
+          const viewHeight = 2 * camera.position.distanceTo(pushHit) * Math.tan((camera.fov * Math.PI) / 360)
+          pushR = (PUSH_RADIUS_FRAC * viewHeight) / GRAIN_AREA_SIZE
+        }
+      }
+      const pushR2 = pushR * pushR
+
       const grains = grainsRef.current
       for (let i = 0; i < grains.length; i++) {
         const g = grains[i]
-        // Fractional part tiles the nodal pattern across the grain's full
-        // GRAIN_SPAN-wide roaming area, same trick as the plate mesh.
-        const rawU = g.x - Math.floor(g.x) + panU
-        const rawV = g.y - Math.floor(g.y) + panV
-        const du0 = rawU - 0.5
-        const dv0 = rawV - 0.5
-        const u = 0.5 + du0 * spinCos - dv0 * spinSin
-        const v = 0.5 + du0 * spinSin + dv0 * spinCos
-        const nodal = nodalValue(n, m, u, v)
-
+        // Drift reads the nodal value cached from this grain's height pass
+        // last frame (same spot, n/m/pan a frame stale) — saves a second
+        // full nodal evaluation per grain.
+        const nodal = grainNodal[i]
         const pull = 0.002 * (1 - Math.min(1, Math.abs(nodal) * 2))
         g.x += (Math.random() - 0.5) * 0.004 * (0.3 + amplitude) - Math.sign(nodal) * pull
         g.y += (Math.random() - 0.5) * 0.004 * (0.3 + amplitude) - Math.sign(nodal) * pull
 
-        if (pushActive) {
-          // pointer.x/y are normalized [0,1] screen-space; grains roam a
-          // GRAIN_SPAN-wide domain, so compare in normalized terms and scale
-          // the resulting displacement back up — keeps the same push feel
-          // as before regardless of the larger roaming area.
-          const dxNorm = g.x / GRAIN_SPAN - pointer.x
-          const dyNorm = g.y / GRAIN_SPAN - pointer.y
-          const distSq = dxNorm * dxNorm + dyNorm * dyNorm
-          if (distSq < 0.035) {
+        if (pushR2 > 0) {
+          const dx = g.x - pushX
+          const dy = g.y - pushY
+          const distSq = dx * dx + dy * dy
+          if (distSq < pushR2) {
             const dist = Math.sqrt(distSq) || 0.001
-            const force = pointer.strength * (1 - dist / 0.19)
-            g.x += (dxNorm / dist) * force * 0.006 * GRAIN_SPAN
-            g.y += (dyNorm / dist) * force * 0.006 * GRAIN_SPAN
+            const step = pointer.strength * (1 - dist / pushR) * pushR * PUSH_STEP
+            g.x += (dx / dist) * step
+            g.y += (dy / dist) * step
           }
         }
 
@@ -428,22 +463,26 @@ export default function GrainField({ analyser, running, onInteract, grainSizeMs 
         g.y = Math.min(GRAIN_SPAN, Math.max(0, g.y))
         g.hue = (g.hue + 0.05) % 360
 
-        const rawLocalU = g.x - Math.floor(g.x) + panU
-        const rawLocalV = g.y - Math.floor(g.y) + panV
-        const dlu = rawLocalU - 0.5
-        const dlv = rawLocalV - 0.5
-        const localU = 0.5 + dlu * spinCos - dlv * spinSin
-        const localV = 0.5 + dlu * spinSin + dlv * spinCos
-        const worldX = (g.x / GRAIN_SPAN - 0.5) * PLATE_MESH_SIZE
-        const worldZ = (g.y / GRAIN_SPAN - 0.5) * PLATE_MESH_SIZE
-        const worldY = surfaceHeight(n, m, localU, localV, amplitude, t) + HOVER_HEIGHT
-        gPos.setXYZ(i, worldX, worldY, worldZ)
+        // Fractional part tiles the nodal pattern across the grain's full
+        // GRAIN_SPAN-wide roaming area, same trick as the plate mesh.
+        const du = g.x - Math.floor(g.x) + panU - 0.5
+        const dv = g.y - Math.floor(g.y) + panV - 0.5
+        const u = 0.5 + du * spinCos - dv * spinSin
+        const v = 0.5 + du * spinSin + dv * spinCos
+        const local = nodalValue(n, m, u, v)
+        grainNodal[i] = local
+        const j = i * 3
+        grainPositions[j] = (g.x / GRAIN_SPAN - 0.5) * PLATE_MESH_SIZE
+        grainPositions[j + 1] = surfaceHeightFromNodal(local, u, v, amplitude, t) + HOVER_HEIGHT
+        grainPositions[j + 2] = (g.y / GRAIN_SPAN - 0.5) * PLATE_MESH_SIZE
 
-        setPaletteColor(tmpColor, useKM, g.hue / 360, 0.85, 0.55 + amplitude * 0.2)
-        gCol.setXYZ(i, tmpColor.r, tmpColor.g, tmpColor.b)
+        const c = Math.floor((g.hue / 360) * GRAIN_HUE_STEPS) * 3
+        grainColors[j] = grainHueLUT[c]
+        grainColors[j + 1] = grainHueLUT[c + 1]
+        grainColors[j + 2] = grainHueLUT[c + 2]
       }
-      gPos.needsUpdate = true
-      gCol.needsUpdate = true
+      grainGeo.attributes.position.needsUpdate = true
+      grainGeo.attributes.color.needsUpdate = true
 
       // Camera wander (see CAM_* constants): clock rate eased toward a
       // level + onset-driven target, then every dimension read off it.

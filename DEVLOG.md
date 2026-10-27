@@ -1,6 +1,33 @@
 # DEVLOG
 
-## 2026-10-27 (latest) - Dev-stack pass: vitest + big-diff review, three fixes
+## 2026-10-27 (latest) - Grain field 2× cheaper; push follows the finger; grain teardown + start race fixed
+
+Second stack pass, "improve dev as much as possible". `review-haiku <root> --model opus` ($0.54) over
+the whole repo found 4 things Sonnet missed. All 4 verified real:
+
+- **Grain field per-frame cost** (main-thread, also delays the setTimeout grain scheduler).
+  Measured headless via CDP `ScriptDuration`: 20.5 ms JS/frame before → 9.8 ms after, ~28 → ~40fps
+  (swiftshader GL caps the rest). Changes: all grains share a frame's lightness, so color is a
+  per-frame 512-step hue LUT instead of 80k `setRGB` sRGB→linear conversions; drift reuses each
+  grain's nodal value cached from last frame's height pass (one nodal eval per grain, not two);
+  direct typed-array writes instead of `setXYZ`. Remaining JS is the trig itself; going further means
+  moving grain physics into a shader.
+- **Pointer push hit the wrong grains**: it compared normalized screen coords to plate coords
+  while the camera orbits/rolls/tilts. Now raycasts the pointer onto the y=0 plate through last
+  frame's camera; radius = 19% of the view height at the touch point, step proportional to radius
+  (same on-screen feel as the old 0.19/0.006). Verified headless: a drag clears a swath right under
+  the cursor path.
+- **Long grains cut off at low repeat**: per-grain teardown fired `repeatMs + 80` ms after the call
+  (min ~330 ms, ignoring the 30 ms lookahead), disconnecting `granularMixGain` mid-grain for sizes
+  over ~300 ms. Now waits for the later of the repeat tail and the grain's own stop time.
+- **Off during first-use graph build turned back on**: `stopPlaying` was a no-op while `playing`
+  was still false, then the pending `startPlaying` started grains anyway. `wantPlaying` guard,
+  mirroring `wantListening`; `startPlaying` resolves false when cancelled and `setPower` skips
+  `setRunning(true)`.
+
+Haiku pass on the diff: 1 finding (push "5× weaker") dismissed, since step scales with radius.
+
+## 2026-10-27 - Dev-stack pass: vitest + big-diff review, three fixes
 
 Ran the the-switch dev stack over the whole repo. Baseline lint/build/smoke clean. `review-haiku
 <root> --model sonnet` (big diff, $0.23) over all of src: 8 findings, verified each against source.

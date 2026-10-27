@@ -127,9 +127,10 @@ export default function App() {
       setRunning(false)
       return
     }
-    await engine.startPlaying()
+    // false = turned off again before the graph finished building.
+    const started = await engine.startPlaying()
     setAnalyser(engine.getAnalyser())
-    setRunning(true)
+    if (started) setRunning(true)
   }, [])
 
   const setListen = useCallback(async (next) => {
