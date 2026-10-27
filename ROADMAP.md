@@ -14,6 +14,7 @@
 
 ## Completed
 
+- [x] Unit tests (vitest) + big-diff review wired in; dev-stack debug pass fixed GrainField renderer rebuild, KM color seam, unhandled rejection (2026-10-27)
 - [x] GitHub repo + local project scaffold
 - [x] Vite + React build setup
 - [x] Mic → grain pool → feedback delay network (engine.js)

@@ -18,6 +18,7 @@ GLOOP does **not** use `@audness/core` and shouldn't — audness is a synth-voic
 - DUMP.md is a symlink to `~/Sites/LIFE/dumps/gloop.md` — gitignored here, lives privately in LIFE.
 - `/dump` here follows the same 3-step pattern as other lineage projects (see `.claude/commands/dump.md`).
 - ETHOS.md / MYTHOS.md hold direction and narrative; update DEVLOG.md and ROADMAP.md as work lands.
+- Tests: `npm test` = vitest unit tests (`tests/*.test.js`, pure modules only — no AudioContext/WebGL) + build smoke. `npm run review:haiku [-- <ref>]` runs the global big-diff `review-haiku` before merging to main.
 
 ## Deploy
 - `main` → `gloop.obfusco.us`, `dev/*` → `gloop-dev.obfusco.us`, via `.github/workflows/deploy.yml` (GitHub Actions → S3 → CloudFront).

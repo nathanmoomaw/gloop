@@ -63,12 +63,15 @@ function mixRing(a, t) {
 // concentration evenly would flash past the yellows/oranges and dwell on
 // near-identical reds. Sample the ring densely, then resample it by
 // cumulative color distance so equal phase steps are equal color steps.
+// Concentration is cosine-warped so samples bunch up at both segment ends,
+// where those swamps happen — evenly spaced, the last stretch into hansa
+// yellow was coarser than one LUT step and left a visible seam at the wrap.
 const DENSE = 8192
 const dense = []
 for (let i = 0; i < DENSE; i++) {
   const pos = (i / DENSE) * PIGMENT_RING.length
   const a = Math.floor(pos)
-  dense.push(mixRing(a, pos - a))
+  dense.push(mixRing(a, (1 - Math.cos(Math.PI * (pos - a))) / 2))
 }
 const arc = new Float64Array(DENSE + 1)
 for (let i = 1; i <= DENSE; i++) {

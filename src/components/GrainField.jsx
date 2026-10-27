@@ -172,8 +172,8 @@ export default function GrainField({ analyser, running, onInteract, grainSizeMs 
   // position, velU/velV/spinVel the decaying momentum from recent drags.
   const driftRef = useRef({ panU: 0, panV: 0, velU: 0, velV: 0, spin: 0, spinVel: 0 })
   // Camera clock (see CAM_* constants) and the slow amplitude average its
-  // onset detection compares against — in a ref so toggling `on` (which
-  // rebuilds the scene) doesn't jump the view back to a new start point.
+  // onset detection compares against — in a ref so a remount (e.g. dev
+  // StrictMode) doesn't jump the view back to a new start point.
   const camRef = useRef({
     phase: CAM_START_PHASE,
     rate: 0,
@@ -191,6 +191,15 @@ export default function GrainField({ analyser, running, onInteract, grainSizeMs 
   useEffect(() => {
     paramsRef.current = params ?? {}
   }, [params])
+  // Read live in the draw loop so toggling `on` (or the analyser first
+  // appearing) doesn't tear down and rebuild the WebGL renderer — each
+  // rebuild opened a fresh GL context and snapped the smoothed pattern.
+  const runningRef = useRef(running)
+  const analyserRef = useRef(analyser)
+  useEffect(() => {
+    runningRef.current = running
+    analyserRef.current = analyser
+  }, [running, analyser])
   // Read live in the draw loop rather than an effect dependency — the size
   // dial changes on every drag tick, and rebuilding the whole three.js scene
   // that often would be both wasteful and visibly jarring.
@@ -270,7 +279,7 @@ export default function GrainField({ analyser, running, onInteract, grainSizeMs 
     resize()
     window.addEventListener('resize', resize)
 
-    const freqData = analyser ? new Uint8Array(analyser.frequencyBinCount) : null
+    let freqData = null
     const tmpColor = new THREE.Color()
     const startTime = performance.now()
     let raf
@@ -296,7 +305,12 @@ export default function GrainField({ analyser, running, onInteract, grainSizeMs 
       let targetM = 4
       let targetAmplitude = 0.3
 
-      if (running && freqData) {
+      const running = runningRef.current
+      const analyser = analyserRef.current
+      if (analyser && freqData?.length !== analyser.frequencyBinCount) {
+        freqData = new Uint8Array(analyser.frequencyBinCount)
+      }
+      if (running && analyser) {
         analyser.getByteFrequencyData(freqData)
         let maxBin = 0
         let maxVal = 0
@@ -493,9 +507,10 @@ export default function GrainField({ analyser, running, onInteract, grainSizeMs 
       planeGeo.dispose()
       planeMat.dispose()
       renderer.dispose()
+      renderer.forceContextLoss()
       container.removeChild(renderer.domElement)
     }
-  }, [analyser, running])
+  }, [])
 
   const handlePointer = (e) => {
     const container = containerRef.current

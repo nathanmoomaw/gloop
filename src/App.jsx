@@ -140,7 +140,9 @@ export default function App() {
     }
     if (!hasListenedRef.current) {
       hasListenedRef.current = true
-      setPower(true)
+      // A graph-build failure also rejects startListening below, which
+      // shows it — swallow this copy so it isn't an unhandled rejection.
+      setPower(true).catch(() => {})
     }
     setMicError(null)
     try {
@@ -164,7 +166,7 @@ export default function App() {
   // on (or leaves it on) and listens only while held — release stops
   // listening but leaves playback running so the capture keeps looping.
   const holdStart = useCallback(() => {
-    setPower(true)
+    setPower(true).catch(() => {}) // surfaced by setListen, as above
     setListen(true)
   }, [setPower, setListen])
 

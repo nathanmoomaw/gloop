@@ -1,6 +1,33 @@
 # DEVLOG
 
-## 2026-10-06 (latest) - Grain scheduling lookahead; tilt dance slowed to a nod
+## 2026-10-27 (latest) - Dev-stack pass: vitest + big-diff review, three fixes
+
+Ran the the-switch dev stack over the whole repo. Baseline lint/build/smoke clean. `review-haiku
+<root> --model sonnet` (big diff, $0.23) over all of src: 8 findings, verified each against source.
+Kept 2:
+- **GrainField rebuilt the whole WebGL renderer on every `on` toggle** (effect deps
+  `[analyser, running]`): fresh GL context + 80k-point buffers each time, `dispose()` without
+  `forceContextLoss()` so old contexts linger until GC, and the smoothed Chladni n/m/amplitude reset
+  → pattern snapped on toggle. Now `running`/`analyser` are read via refs, scene builds once, freqData
+  allocated lazily. Checked headless (Playwright, fake mic): 18 toggles, no errors, one GL canvas.
+- **Unhandled rejection** from the un-awaited `setPower(true)` in first-listen and hold-to-record.
+  Same memoized `ensureGraph()` rejects `startListening`, which already shows the error → `.catch`.
+
+Dismissed: inputLevel reset (0.85 smoothing per 128-sample block reaches threshold in ~40ms), perturb
+interval never cleared (graph lives for the page by design), trail/teardown hedges, thru-without-mic,
+GRAIN_COUNT perf (already on Active list).
+
+New unit tests turned up a third: **Kubelka-Munk LUT seam at the yellow wrap**. Hansa yellow is weak,
+so the phthalo→yellow mix changes almost entirely in the last sliver of the segment; 8192 evenly
+spaced dense samples were coarser there than one LUT step (max step 9× the mean, a visible jump at
+phase ~1→0). Cosine-warping concentration so samples bunch at segment ends fixes it at the same cost
+(max step 0.083 → 0.012).
+
+Tooling: `npm run test:unit` (vitest: pigmentAt ring properties, NEAT crossover/mutate — now exported
+from evolve.js — and engine param surface), `npm test` = unit + smoke, `npm run review:haiku [-- <ref>]`
+→ global `review-haiku` (big diff).
+
+## 2026-10-06 - Grain scheduling lookahead; tilt dance slowed to a nod
 
 Sound bugs reported after the inverted-controls/tilt commit, which touched no audio code. Likely cause:
 grains fire from a main-thread `setTimeout` and set their envelopes/start at exactly

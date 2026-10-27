@@ -124,7 +124,7 @@ function clamp(v, lo, hi) {
 // inherits from either parent at random; a mismatch (one lineage innovated
 // there since) inherits from the fitter parent, carrying that parent's
 // innovation number along with the value.
-function crossover(a, b) {
+export function crossover(a, b) {
   const params = {}
   const innovation = {}
   for (const key of EVOLVE_KEYS) {
@@ -139,7 +139,7 @@ function crossover(a, b) {
 // Point-mutates on top of a params/innovation pair (post-crossover, or a
 // plain asexual parasite) — any key it touches gets stamped with the
 // current generation as a fresh innovation event.
-function mutate(params, innovation, scale, rate, gen) {
+export function mutate(params, innovation, scale, rate, gen) {
   const nextParams = { ...params }
   const nextInnovation = { ...innovation }
   for (const key of EVOLVE_KEYS) {
