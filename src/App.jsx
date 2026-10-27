@@ -142,8 +142,8 @@ export default function App() {
     if (!hasListenedRef.current) {
       hasListenedRef.current = true
       // A graph-build failure also rejects startListening below, which
-      // shows it — swallow this copy so it isn't an unhandled rejection.
-      setPower(true).catch(() => {})
+      // shows it — just log this copy so it isn't an unhandled rejection.
+      setPower(true).catch(console.error)
     }
     setMicError(null)
     try {
@@ -167,7 +167,7 @@ export default function App() {
   // on (or leaves it on) and listens only while held — release stops
   // listening but leaves playback running so the capture keeps looping.
   const holdStart = useCallback(() => {
-    setPower(true).catch(() => {}) // surfaced by setListen, as above
+    setPower(true).catch(console.error) // surfaced by setListen, as above
     setListen(true)
   }, [setPower, setListen])
 
@@ -219,7 +219,14 @@ export default function App() {
       if (isTap) {
         // Tap from fully off: leave listen + on latched. Tap while anything
         // was going: stop both, with a trail.
-        if (press.wasActive) stopAllWithTrail()
+        if (press.wasActive) {
+          stopAllWithTrail()
+        } else {
+          // Re-assert `on` (idempotent, also resyncs the button) — a first
+          // tap on Chrome was reported leaving listen on but `on` off,
+          // which didn't reproduce in testing.
+          setPower(true).catch(console.error)
+        }
         return
       }
       // Hold: listen only while held; `on` keeps looping the capture.
@@ -231,7 +238,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
     }
-  }, [holdStart, holdEnd, stopAllWithTrail])
+  }, [holdStart, holdEnd, stopAllWithTrail, setPower])
 
   const updateParam = (name, value) => {
     engine.setParam(name, value)

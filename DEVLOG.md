@@ -1,6 +1,22 @@
 # DEVLOG
 
-## 2026-10-27 (latest) - Grain field 2× cheaper; push follows the finger; grain teardown + start race fixed
+## 2026-10-27 (latest) - First spacebar tap re-asserts `on`; favicon
+
+Reported: on gloop-dev in Chrome, the first spacebar tap turned on listen but not `on`. Didn't
+reproduce in four setups: headless Chromium against the local build (mic auto-granted, and with the
+prompt left pending), plus real Google Chrome against gloop-dev with a fake mic and with the real mic
+on a granted permission. Every run latched `on`. The only code paths that turn `on` off
+(`stopAllWithTrail`) would kill listen too, so the likely failure is `setRunning(true)` never
+running. Defensive fix: a tap from fully off now calls `setPower(true)` again on keyup. That's
+idempotent (startPlaying returns true if already playing and shares the in-flight graph build), and
+it also resyncs the button if engine and UI disagree. The swallowed `setPower` rejections are now
+`console.error`'d so a recurrence leaves a trace. Sequence check (tap, tap, tap, double-tap → on/off/on/off)
+passes.
+
+Also: `/favicon.svg` was referenced in index.html but never shipped (403 from CloudFront on every
+load). Added `public/favicon.svg` (pigment-ring dots).
+
+## 2026-10-27 - Grain field 2× cheaper; push follows the finger; grain teardown + start race fixed
 
 Second stack pass, "improve dev as much as possible". `review-haiku <root> --model opus` ($0.54) over
 the whole repo found 4 things Sonnet missed. All 4 verified real:
