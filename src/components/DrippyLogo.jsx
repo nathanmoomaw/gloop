@@ -5,9 +5,12 @@ import './DrippyLogo.css'
 // baseline sits near 38%, so strands start just inside a letter), cycle
 // length and delay, staggered so they never fall in step.
 const DRIPS = [
+  { x: 14, top: 36, dur: 6.1, delay: 0.7 },
   { x: 22, top: 33, dur: 5.2, delay: 0 },
+  { x: 36, top: 37, dur: 7.9, delay: 4.4 },
   { x: 47, top: 35, dur: 6.8, delay: 2.1 },
   { x: 64, top: 34, dur: 4.6, delay: 3.4 },
+  { x: 73, top: 36, dur: 5.7, delay: 5.3 },
   { x: 80, top: 32, dur: 7.4, delay: 1.2 },
 ]
 
@@ -22,9 +25,17 @@ export default function DrippyLogo() {
       <svg className="gloop-logo__defs" width="0" height="0">
         <defs>
           <filter id="gloop-goo">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="1.1" result="blur" />
-            <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="goo" />
+            {/* Blur sized for the 3x wordmark: wide enough that strands and
+                drops visibly pool into the letters. */}
+            <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
+            <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -8" result="goo" />
             {/* Crisp letters back on top, so only the joins melt. */}
+            <feComposite in="SourceGraphic" in2="goo" operator="atop" />
+          </filter>
+          {/* Phone size (smaller font): same goo, proportionally less blur. */}
+          <filter id="gloop-goo-sm">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="1.8" result="blur" />
+            <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -8" result="goo" />
             <feComposite in="SourceGraphic" in2="goo" operator="atop" />
           </filter>
         </defs>

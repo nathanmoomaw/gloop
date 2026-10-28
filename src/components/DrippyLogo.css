@@ -1,6 +1,6 @@
 .gloop-logo {
   position: fixed;
-  top: max(0.6rem, env(safe-area-inset-top));
+  top: max(0.2rem, env(safe-area-inset-top));
   left: 50%;
   transform: translateX(-50%);
   z-index: 2;
@@ -8,34 +8,35 @@
   user-select: none;
   /* Glow goes on the wrapper: a text-shadow inside the goo filter would
      get thresholded into the letter shapes. */
-  filter: drop-shadow(0 0 6px rgba(0, 0, 0, 0.7))
-    drop-shadow(0 0 10px color-mix(in srgb, var(--rainbow-5) 40%, transparent));
+  filter: drop-shadow(0 0 8px rgba(0, 0, 0, 0.7))
+    drop-shadow(0 0 16px color-mix(in srgb, var(--rainbow-5) 40%, transparent));
 }
 
 .gloop-logo__defs {
   position: absolute;
 }
 
+/* Everything below is in em of this font size, so drips scale with it. */
 .gloop-logo__goo {
   position: relative;
+  font-size: 4.05rem;
   /* Room below the text for drips and falling drops. */
-  padding: 0 0.3rem 1.6rem;
+  padding: 0 0.1em 1.2em;
   filter: url(#gloop-goo);
   color: rgba(255, 255, 255, 0.88);
 }
 
 .gloop-logo__text {
   font-family: 'Pacifico', cursive;
-  font-size: 1.35rem;
   line-height: 1.4;
 }
 
 .gloop-logo__drip {
   position: absolute;
-  width: 3px;
-  height: 13px;
-  margin-left: -1.5px;
-  border-radius: 0 0 2px 2px;
+  width: 0.075em;
+  height: 0.5em;
+  margin-left: -0.0375em;
+  border-radius: 0 0 0.05em 0.05em;
   background: currentColor;
   transform-origin: top center;
   animation: gloop-drip-stretch var(--dur) ease-in-out var(--delay) infinite;
@@ -45,9 +46,9 @@
   position: absolute;
   left: 50%;
   top: 100%;
-  width: 4px;
-  height: 5px;
-  margin: -3px 0 0 -2px;
+  width: 0.13em;
+  height: 0.16em;
+  margin: -0.08em 0 0 -0.065em;
   border-radius: 50% 50% 50% 50% / 40% 40% 60% 60%;
   background: currentColor;
   animation: gloop-drop-fall var(--dur) ease-in var(--delay) infinite;
@@ -56,18 +57,18 @@
 /* Strand swells out of the letter, hangs, then snaps back as the drop
    lets go. */
 @keyframes gloop-drip-stretch {
-  0% { transform: scaleY(0.15); }
+  0% { transform: scaleY(0.2); }
   55% { transform: scaleY(1); }
-  62% { transform: scaleY(1.15); }
-  70%, 100% { transform: scaleY(0.15); }
+  62% { transform: scaleY(1.2); }
+  70%, 100% { transform: scaleY(0.2); }
 }
 
 /* Drop rides the strand tip, then falls and thins out. */
 @keyframes gloop-drop-fall {
   0%, 55% { transform: translateY(0) scale(0.6); opacity: 0; }
-  62% { transform: translateY(1px) scale(1); opacity: 1; }
-  92% { transform: translateY(16px) scale(0.8); opacity: 0.9; }
-  100% { transform: translateY(20px) scale(0.5); opacity: 0; }
+  62% { transform: translateY(0.05em) scale(1); opacity: 1; }
+  92% { transform: translateY(0.55em) scale(0.8); opacity: 0.9; }
+  100% { transform: translateY(0.68em) scale(0.5); opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -75,8 +76,11 @@
   .gloop-logo__drop { animation: none; opacity: 0; }
 }
 
+/* Phones: the big rate/feedback knobs hold the top corners, so the
+   wordmark can't take the full 3x there. */
 @media (max-width: 480px) {
-  .gloop-logo__text {
-    font-size: 1.1rem;
+  .gloop-logo__goo {
+    font-size: 2.6rem;
+    filter: url(#gloop-goo-sm);
   }
 }

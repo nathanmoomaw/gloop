@@ -1,6 +1,19 @@
 # DEVLOG
 
-## 2026-10-28 (latest) - Argon + Jev wired in for every project
+## 2026-10-28 (latest) - Logo 3× bigger, drippier
+
+The wordmark goes from 1.35rem to 4.05rem (3×) on desktop. Phones get 2.6rem instead: 3× there would
+run into the big rate/feedback knobs in the top corners. All drip sizes are now `em` of the wordmark,
+so they scale with it. Seven strands instead of four, each longer (0.5em), with bigger drops falling
+further. The goo blur goes from 1.1 to 3px, sized to the bigger text. A fixed-px blur over-melts the
+smaller phone wordmark into an unreadable blob, so phones get their own `#gloop-goo-sm` (1.8px),
+switched in CSS. Checked in screenshots at desktop and 390px.
+
+Tool data (Argon + Jev rule): too small for Argon (2 files), done by hand. Jev with a spec flagged
+`DrippyLogo.jsx` at 0.39; Haiku review ($0.0012) found nothing, and neither did I. A spec didn't make
+Jev quieter on this purely visual component.
+
+## 2026-10-28 - Argon + Jev wired in for every project
 
 Standing instruction (until Nathan says otherwise): use Argon and Jev in all projects so Nic gets real
 data.
