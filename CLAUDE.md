@@ -20,6 +20,7 @@ GLOOP does **not** use `@audness/core` and shouldn't — audness is a synth-voic
 - `/dump` here follows the same 3-step pattern as other lineage projects (see `.claude/commands/dump.md`).
 - ETHOS.md / MYTHOS.md hold direction and narrative; update DEVLOG.md and ROADMAP.md as work lands.
 - Tests: `npm test` = vitest unit tests (`tests/*.test.js`, pure modules only — no AudioContext/WebGL) + build smoke. `npm run review:haiku [-- <ref>]` runs the global big-diff `review-haiku` before merging to main.
+- Argon + Jev (from 2026-10-28 until Nathan says otherwise, Nic's test): bulk new code (3+ files / 300+ lines) goes through `/argon` with `test_cmd: npx vitest run --reporter=dot`. Every change gets `jev [--spec "…"] [ref]` on the changed files before `review:haiku`; log what each caught in DEVLOG.
 
 ## Deploy
 - `main` → `gloop.obfusco.us`, `dev/*` → `gloop-dev.obfusco.us`, via `.github/workflows/deploy.yml` (GitHub Actions → S3 → CloudFront).

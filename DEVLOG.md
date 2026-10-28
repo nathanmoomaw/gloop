@@ -1,6 +1,22 @@
 # DEVLOG
 
-## 2026-10-28 (latest) - `sound` button; dev-stack effectiveness review
+## 2026-10-28 (latest) - Argon + Jev wired in for every project
+
+Standing instruction (until Nathan says otherwise): use Argon and Jev in all projects so Nic gets real
+data.
+- **Jev** now runs outside the Argon flow: new `tools/jev.py` in the-switch (thin CLI over
+  `gate.jev_scores`, same pinned `jev-1.14.0`, FLAG 0.3, metrics logging) plus a global
+  `~/.local/bin/jev [--spec …] [ref]` that scores a repo's changed source files.
+- **First run, gloop `HEAD~6`** (16 files, all already reviewed and tested, no spec, ~$0.0006): 13
+  flagged ≥ 0.3 (0.30–0.78), 3 under (sound.js, DrippyLogo, SoundButton). There's no known open bug in
+  any of them, so spec-less Jev on React/JS reads as noise here. It's the same finding as the-switch's
+  Oct 21 bench (clean files up to 0.64). Next runs will pass `--spec` from the DUMP item to test whether
+  that sharpens it.
+- **Argon:** global `/argon` command (follows the-switch's flow; `test_cmd` = vitest here). Not usable
+  in gloop sessions yet: the `argon` MCP server is registered only for the-switch, and adding it at user
+  scope was blocked as a Claude-config change, so Nathan has to run that step.
+
+## 2026-10-28 - `sound` button; dev-stack effectiveness review
 
 **`sound`** is a one-shot "make it audible" action left of listen. It's a squircle with a press flash,
 deliberately unlike the round listen/on lamps, since it's an action, not a state. `soundFix`
