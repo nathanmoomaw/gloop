@@ -1,6 +1,37 @@
 # DEVLOG
 
-## 2026-10-28 (latest) - Drippy logo; lit/unlit listen + on; default rate 5/s
+## 2026-10-28 (latest) - `sound` button; dev-stack effectiveness review
+
+**`sound`** is a one-shot "make it audible" action left of listen. It's a squircle with a press flash,
+deliberately unlike the round listen/on lamps, since it's an action, not a state. `soundFix`
+(`src/audio/sound.js`, pure, 3 tests) moves only the dials outside a "you'll hear it" zone
+(`SOUND_BOUNDS`) to a random spot inside it; dials already in range stay put. Examples: volume ≥ 70%,
+granular/delay mix ≥ 60/50%, rate 4–10 grains/s, repeat 35–80% (below the wash), sensitivity ≥ 30% so
+quiet rooms aren't gated out. It then drops `thru` (which mutes the grains), starts listen + on, and
+nudges the grain stream. Headless check at desktop and 390px: from volume 0 with thru on, one press →
+listening + on, volume back in range, thru off.
+
+**Stack review: what's been used on gloop since 2026-10-27, and how it did**
+
+| Tool | Runs | Cost | Real findings | Verdict |
+|---|---|---|---|---|
+| big diff, Opus, whole repo | 1 | $0.54 | 4 of 4 (grain-loop perf, push hit the wrong grains, teardown cutting grains, start race) | Best value per real bug. Use for first passes over a whole repo. |
+| big diff, Sonnet, whole repo | 1 | $0.23 | 2 of 8 (WebGL rebuild, unhandled rejection) | Mostly hedged noise; Opus found more, and sharper. |
+| big diff, Haiku, diff passes | 5 | ~$0.03 | 2 of 6 (pick lost over the breed cap; a test that didn't check what its name said) | Cheap gate; most findings were wrong or minor. Verify each one. |
+| vitest unit tests | 20 tests | free | 1 (KM color seam at the yellow wrap, visible on screen) | Paid for itself on the first run. |
+| Playwright + CDP (headless, plus real Chrome) | ~15 runs | free | perf baseline (20.5 → 9.8 ms/frame), 3 visual bugs in screenshots (invisible breed cards, unreadable logo blob, detached drips) | The most useful tool for UI work here: nothing visual would have been caught without it. |
+| jCodeMunch | 1 query (tested today) | free | missed the answer a single grep found | Not worth it at gloop's size (~3k lines). Skip unless the repo grows. |
+| Wolfram, Context Mode, Argon, Jev | 0 | — | — | No exact-math or huge-output need here. Argon/Jev bill Nic's keys (the-switch), so they're off-limits for gloop. |
+
+Gaps:
+1. **Review costs aren't tracked.** `review-haiku` moved to big diff on 10-26, and big diff doesn't write
+   to the-switch `metrics/calls.jsonl` (0 gloop rows), so these runs are invisible to `metrics.py`.
+2. **`/code-review` and `/simplify` haven't run.** Correct for `dev/v0`-only work, but they're required
+   before merging to `main`, which is now ~55 commits behind.
+3. **One bug never reproduced in any tool**: the first-spacebar `on` miss (fixed defensively on 10-27).
+   Headless and real Chrome both passed; only your browser shows it.
+
+## 2026-10-28 - Drippy logo; lit/unlit listen + on; default rate 5/s
 
 - **Logo drips.** New `DrippyLogo` component replaces the plain wordmark. An SVG goo filter (1.1px blur
   → alpha threshold ×18 −7) with the crisp text composited `atop`, so the letters stay readable and only

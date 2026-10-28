@@ -10,6 +10,8 @@ import EvolveToggle from './components/EvolveToggle'
 import BreedToggle from './components/BreedToggle'
 import BreedPanel from './components/BreedPanel'
 import DrippyLogo from './components/DrippyLogo'
+import SoundButton from './components/SoundButton'
+import { soundFix } from './audio/sound'
 import ThruToggle from './components/ThruToggle'
 import WaveformOverlay from './components/WaveformOverlay'
 import { startEvolve, stopEvolve } from './audio/evolve'
@@ -270,6 +272,23 @@ export default function App() {
     if (running) engine.perturb(1)
   }, [running])
 
+  // `sound`: pull out-of-range dials into an audible zone (see sound.js),
+  // drop thru (it mutes the grains), and make sure listen + on are going —
+  // the one press that guarantees you hear the room come back.
+  const handleSound = useCallback(async () => {
+    for (const [name, value] of Object.entries(soundFix(engine.getParams()))) {
+      engine.setParam(name, value)
+    }
+    setParams(engine.getParams())
+    if (engine.isThru()) {
+      engine.setThru(false)
+      setThru(false)
+    }
+    if (!engine.isListening() && !engine.isListenPending()) setListen(true)
+    await setPower(true).catch(console.error)
+    engine.perturb(1)
+  }, [setPower, setListen])
+
   const handleRawMicToggle = useCallback((next) => {
     engine.setRawCapture(next)
     setRawMic(next)
@@ -485,6 +504,7 @@ export default function App() {
               size={60}
             />
           </div>
+          <SoundButton onSound={handleSound} />
           <div className="listen-wrap">
             <ListenButton
               running={listening}

@@ -14,6 +14,7 @@
 
 ## Completed
 
+- [x] `sound` button: one-press reset into an audible zone + start listen/on; dev-stack effectiveness review in DEVLOG (2026-10-28)
 - [x] Drippy goo-filter logo, lit/unlit listen + on buttons, default rate 5 grains/s (2026-10-28)
 - [x] Worth-saving sweep: `breed` interactive evolution, Clouds-style repeat wash, keyboard/screen-reader knobs, LINEAGE evolution references (2026-10-28)
 - [x] Opus review pass: grain field 2× cheaper per frame, pointer push raycast onto plate, long-grain teardown cutoff, startPlaying cancel race (2026-10-27)
