@@ -9,7 +9,7 @@ export const SOUND_BOUNDS = {
   delayMix: [0.5, 1],
   // 4–10 grains/s: dense enough to hear at once, not a buzz.
   rate: [100, 250],
-  grainSizeMs: [120, 600],
+  grainSizeMs: [300, 2000],
   feedback: [0.4, 0.75],
   // Below the repeat wash threshold (85%), so grains stay legible.
   repeat: [0.35, 0.8],
@@ -22,13 +22,16 @@ export const SOUND_BOUNDS = {
   wobble: [0, 0.3],
 }
 
-// Returns just the params that need to change: { name: newValue }.
-export function soundFix(params, rng = Math.random) {
+// Returns just the params that need to change: { name: newValue }. With a
+// `target` (learn mode's learnedTarget), an out-of-range dial goes to the
+// target clamped into range instead of a random spot.
+export function soundFix(params, rng = Math.random, target = null) {
   const out = {}
   for (const [name, [lo, hi]] of Object.entries(SOUND_BOUNDS)) {
     const v = params[name]
     if (v >= lo && v <= hi) continue
-    out[name] = lo + rng() * (hi - lo)
+    const t = target?.[name]
+    out[name] = Number.isFinite(t) ? Math.min(hi, Math.max(lo, t)) : lo + rng() * (hi - lo)
   }
   return out
 }

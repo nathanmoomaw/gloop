@@ -92,7 +92,7 @@ const FITNESS_SAMPLE_MS = 120
 const FITNESS_HISTORY_LEN = Math.round(5000 / FITNESS_SAMPLE_MS)
 // Params glide to a new set over this long instead of snapping, so a
 // generation reads as the sound morphing rather than a preset jump.
-const GLIDE_MS = 1800
+export const GLIDE_MS = 1800
 const GLIDE_STEP_MS = 50
 // How much a fresh measurement of the playing host moves its stored
 // fitness (EMA). Hosts used to keep whatever score they won with forever,

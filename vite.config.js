@@ -1,9 +1,12 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import learnLogPlugin from './vite-learn-log.js'
 
 export default defineConfig({
   plugins: [
     react({ compiler: true }),
+    // Dev only: learn mode's feedback presses land in learning/feedback.jsonl.
+    learnLogPlugin(),
   ],
   server: {
     host: true,

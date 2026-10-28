@@ -1,6 +1,43 @@
 # DEVLOG
 
-## 2026-10-28 (latest) - CPPN grain field (`c`), worth-saving reference notes
+## 2026-10-28 (latest) - Learn mode (❤️ 🔊 🔇 ⭐); default size at noon
+
+**Default size 400 → 1500ms**, the size knob at 12 o'clock (linear 30–3000). The `sound` zone for
+size widened from 120–600 to 300–2000 so `sound` doesn't knock noon back out, and the shake range
+moved from 30–400 to 300–2500 (it was stale against both).
+
+**Learn mode.** New `learn` toggle (end of the toggle stack) opens 4 big buttons: ❤️ sounds good,
+🔊 working, 🔇 no sound, ⭐ dialed in. Each press pops and floats its emoji, bumps a per-kind count, and
+logs `{t, kind, params, levels: {input, output, grainsPerSec}, state: {listening, playing, thru,
+rawMic}}`.
+- **Where it lands:** localStorage (cap 2000) plus an `export` button (.jsonl download). Under
+  `npm run dev` each press is also POSTed to a dev-only Vite middleware (`vite-learn-log.js`) that
+  appends it to `learning/feedback.jsonl`, so Claude can read it directly. The deployed site is static
+  and has no backend, so on gloop-dev use export.
+- **What the app does with it:** ⭐ ×3, ❤️ ×2, 🔊 ×1 form a recency-weighted target (half-life 50 presses;
+  rate and size averaged in log space). Likes pressed while not playing or with thru on are ignored,
+  since they rated something else. `sound` now sends out-of-range dials to that target instead of a
+  random spot (`soundFix` takes an optional target). 🔇 does the same, but glides the texture dials;
+  if nothing is out of range it goes all the way to the target, or with no history turns volume,
+  mixes and sensitivity halfway up. It also starts listen + on and drops thru, like `sound`.
+- **Levels:** new `engine.getLevels()`. Output RMS is sampled every 60ms on the existing perturbation
+  timer and averaged over ~2s, so a press rates the last few seconds, not one 21ms snapshot. Headless
+  with the fake mic: input ~0.02–0.06, output 0–0.004 (the fake device beeps with gaps).
+
+**Tool data (Argon + Jev rule):** Argon wrote `learn.js`, `learn.test.js` (fast-check), `LearnPanel.jsx/.css`
+and `vite-learn-log.js` in one call: 5.8k in, 7.0k out, **$0.082**, tests passed. Its gate's Haiku found
+4: 1 real (reduced-motion left the float emoji stuck on screen), 1 minor (413 doesn't drain the
+request, dev only, skipped), 2 not relevant. I wrote the engine levels, toggle, and App wiring. Haiku
+diff review ($0.03 over 3 passes): 2 real (🔇 did nothing when every dial was in range; export revoked
+the blob URL before Safari's download started), then clean. `/code-review`: 10 findings, 6 fixed
+(knobs froze during the 🔇 glide; a double tap could drop an entry; likes while off/thru taught the
+target; 🔇 no-op when already on target; stale shake range; `learnedSoundFix` duplicated `soundFix`), 4
+skipped (thru output labelling, glide contention with evolve, save cost at 2000 entries, LAN access
+to the dev middleware). Jev: 7 of 9 flagged with a spec, 9 of 10 without on the final diff. Still no signal. Headless checks at
+1280 and 390px: no overflow, no errors, presses land in localStorage and the file. On phones the
+panel was moved up to clear the toggle stack.
+
+## 2026-10-28 - CPPN grain field (`c`), worth-saving reference notes
 
 **CPPN field.** New `src/visual/cppn.js` is a 6-node compositional pattern-producing network (Stanley
 2007). Its inputs are periodic x/y/r, a Chladni term, time and level, and its output is in (−2, 2) like

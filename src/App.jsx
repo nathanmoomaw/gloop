@@ -11,10 +11,12 @@ import BreedToggle from './components/BreedToggle'
 import BreedPanel from './components/BreedPanel'
 import DrippyLogo from './components/DrippyLogo'
 import SoundButton from './components/SoundButton'
-import { soundFix } from './audio/sound'
 import ThruToggle from './components/ThruToggle'
 import WaveformOverlay from './components/WaveformOverlay'
-import { startEvolve, stopEvolve } from './audio/evolve'
+import { EVOLVE_KEYS, GLIDE_MS, glideTo, startEvolve, stopEvolve } from './audio/evolve'
+import { appendEntry, learnedSoundFix, loadLog, makeEntry, mutedFix, saveLog, summarize, toJSONL } from './audio/learn'
+import LearnToggle from './components/LearnToggle'
+import LearnPanel from './components/LearnPanel'
 import './App.css'
 
 // Randomization ranges for the shake button — mirrors each dial's own
@@ -29,7 +31,7 @@ const SHAKE_RANGES = {
   feedback: [0, 0.9],
   repeat: [0, 1],
   sensitivity: [0, 1],
-  grainSizeMs: [30, 400],
+  grainSizeMs: [300, 2500],
   density: [0, 1],
   wow: [0, 1],
   flutter: [0, 1],
@@ -109,6 +111,11 @@ export default function App() {
   const [rawMic, setRawMic] = useState(engine.getRawCapture())
   const [evolving, setEvolving] = useState(false)
   const [breeding, setBreeding] = useState(false)
+  const [learning, setLearning] = useState(false)
+  const [learnLog, setLearnLog] = useState(loadLog)
+  // Latest log for handlers, so two presses inside one render both land.
+  const learnLogRef = useRef(learnLog)
+  const [learnLast, setLearnLast] = useState({ kind: null, pulse: 0 })
   const [thru, setThru] = useState(engine.isThru())
   const loopRef = useRef(null)
   // The first listen of a session also turns `on`, so a first-time visitor
@@ -290,9 +297,22 @@ export default function App() {
   // `sound`: pull out-of-range dials into an audible zone (see sound.js),
   // drop thru (it mutes the grains), and make sure listen + on are going —
   // the one press that guarantees you hear the room come back.
-  const handleSound = useCallback(async () => {
-    for (const [name, value] of Object.entries(soundFix(engine.getParams()))) {
-      engine.setParam(name, value)
+  // Steers toward what learn mode's ❤️/🔊/⭐ presses liked, once there are
+  // any (learnedSoundFix falls back to a random in-range spot). `glide`
+  // eases the texture dials there instead of jumping; level dials (volume,
+  // mixes, sensitivity) always jump, since those are what made it silent.
+  const handleSound = useCallback(async ({ glide = false, muted = false } = {}) => {
+    const fix = (muted ? mutedFix : learnedSoundFix)(engine.getParams(), learnLogRef.current)
+    const glided = {}
+    for (const [name, value] of Object.entries(fix)) {
+      if (glide && EVOLVE_KEYS.includes(name)) glided[name] = value
+      else engine.setParam(name, value)
+    }
+    if (Object.keys(glided).length) {
+      glideTo(glided)
+      // Keep the knobs following the glide (evolve/breed poll on their own).
+      const sync = setInterval(() => setParams(engine.getParams()), 150)
+      setTimeout(() => clearInterval(sync), GLIDE_MS + 200)
     }
     setParams(engine.getParams())
     if (engine.isThru()) {
@@ -303,6 +323,35 @@ export default function App() {
     await setPower(true).catch(console.error)
     engine.perturb(1)
   }, [setPower, setListen])
+
+  const handleFeedback = useCallback((kind) => {
+    const entry = makeEntry(kind, engine.getParams(), engine.getLevels(), {
+      listening: engine.isListening(),
+      playing: engine.isPlaying(),
+      thru: engine.isThru(),
+      rawMic: engine.getRawCapture(),
+    })
+    const next = appendEntry(learnLogRef.current, entry)
+    learnLogRef.current = next
+    setLearnLog(next)
+    saveLog(next)
+    setLearnLast((prev) => ({ kind, pulse: prev.pulse + 1 }))
+    // `npm run dev` only: vite-learn-log.js appends it to learning/feedback.jsonl.
+    if (import.meta.env.DEV) {
+      fetch('/__gloop-learn', { method: 'POST', body: JSON.stringify(entry) }).catch(() => {})
+    }
+    if (kind === 'muted') handleSound({ glide: true, muted: true })
+  }, [handleSound])
+
+  const handleLearnExport = useCallback(() => {
+    const url = URL.createObjectURL(new Blob([toJSONL(learnLog)], { type: 'application/x-ndjson' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `gloop-learn-${new Date().toISOString().slice(0, 10)}.jsonl`
+    a.click()
+    // Revoking straight away can cancel the download in Safari.
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }, [learnLog])
 
   const handleRawMicToggle = useCallback((next) => {
     engine.setRawCapture(next)
@@ -376,6 +425,16 @@ export default function App() {
       <LoopIndicator ref={loopRef} active={running} periodMs={loopPeriodFromRate(params.rate)} />
 
       {breeding && <BreedPanel onClose={() => setBreeding(false)} />}
+      {learning && (
+        <LearnPanel
+          summary={summarize(learnLog)}
+          lastKind={learnLast.kind}
+          pulse={learnLast.pulse}
+          onFeedback={handleFeedback}
+          onExport={handleLearnExport}
+          onClose={() => setLearning(false)}
+        />
+      )}
 
       <div className="controls-overlay">
         <div className="control-cluster control-cluster--top-left">
@@ -558,6 +617,7 @@ export default function App() {
             <ThruToggle active={thru} onToggle={handleThruToggle} />
             <EvolveToggle active={evolving} disabled={!running} onToggle={handleEvolveToggle} />
             <BreedToggle active={breeding} disabled={!running} onToggle={handleBreedToggle} />
+            <LearnToggle active={learning} onToggle={setLearning} />
           </div>
         </div>
       </div>

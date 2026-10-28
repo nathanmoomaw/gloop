@@ -95,7 +95,8 @@ export function getRawCapture() {
   return rawCapture
 }
 
-const GRAIN_MS_DEFAULT = 400
+// Size knob at 12 o'clock (linear 30–3000ms dial).
+const GRAIN_MS_DEFAULT = 1500
 // 5 grains/s: a first listen should hear itself fed back right away. (Was
 // 2000ms/0.5 per s from 2026-10-04 to 10-28, which read as too slow to
 // connect cause and effect.) Lower is still one knob turn away.
@@ -234,6 +235,33 @@ let wobbleDepth = null
 
 export function getAnalyser() {
   return analyser
+}
+
+// How much sound is flowing right now, for learn mode's log: smoothed mic
+// RMS, smoothed output RMS (sampleOutputLevel), and the nominal grain rate.
+let levelBuf = null
+let outputLevel = 0
+const OUTPUT_LEVEL_SMOOTHING = 0.97 // per 60ms sample, ~2s: a press rates the last few seconds
+
+function sampleOutputLevel() {
+  if (!analyser || !playing) {
+    outputLevel = 0
+    return
+  }
+  if (!levelBuf) levelBuf = new Float32Array(analyser.fftSize)
+  analyser.getFloatTimeDomainData(levelBuf)
+  let sumSq = 0
+  for (let i = 0; i < levelBuf.length; i++) sumSq += levelBuf[i] * levelBuf[i]
+  const rms = Math.sqrt(sumSq / levelBuf.length)
+  outputLevel = outputLevel * OUTPUT_LEVEL_SMOOTHING + rms * (1 - OUTPUT_LEVEL_SMOOTHING)
+}
+
+export function getLevels() {
+  return {
+    input: listening ? inputLevel : 0,
+    output: outputLevel,
+    grainsPerSec: playing ? 1000 / state.rate : 0,
+  }
 }
 
 export function setParam(name, value) {
@@ -685,6 +713,7 @@ async function buildGraph() {
     perturbation.spread *= 0.85
     perturbation.feedback *= 0.85
     perturbation.dynamics *= 0.85
+    sampleOutputLevel()
   }, 60)
 }
 
