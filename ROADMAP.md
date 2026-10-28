@@ -14,6 +14,7 @@
 
 ## Completed
 
+- [x] Worth-saving sweep: `breed` interactive evolution, Clouds-style repeat wash, keyboard/screen-reader knobs, LINEAGE evolution references (2026-10-28)
 - [x] Opus review pass: grain field 2× cheaper per frame, pointer push raycast onto plate, long-grain teardown cutoff, startPlaying cancel race (2026-10-27)
 - [x] Unit tests (vitest) + big-diff review wired in; dev-stack debug pass fixed GrainField renderer rebuild, KM color seam, unhandled rejection (2026-10-27)
 - [x] GitHub repo + local project scaffold

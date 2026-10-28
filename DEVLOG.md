@@ -1,6 +1,36 @@
 # DEVLOG
 
-## 2026-10-27 (latest) - First spacebar tap re-asserts `on`; favicon
+## 2026-10-28 (latest) - Worth-saving sweep: breed, repeat wash, accessible knobs
+
+Four items from `LIFE/worth-saving/gloop.md`:
+
+- **`breed`: interactive evolution, Karl Sims style.** New toggle beside `evolve`, opening a panel of 4
+  cards. Tap a card to hear it (glides the engine there with evolve.js's `glideTo`), heart the keepers,
+  `breed` for the next round. Round 0 is the current sound plus 3 wide mutants. Later rounds keep the
+  picks (at most 3, so there's always a new child) and fill up with NEAT crossover + mutation children
+  of them, the same `crossover`/`mutate` as `evolve`. Following the SCP caution, unpicked candidates go
+  to an 8-slot archive and come back as a second parent 15% of the time, rather than being deleted.
+  Logic is pure (`src/audio/breed.js`, 5 tests). Opening `breed` stops `evolve` and vice versa; `on`
+  off closes it. Knobs poll back in sync while breeding, same as evolving. Haiku review caught a pick
+  over the 3-keep cap vanishing (it was neither kept nor archived); now archived first.
+- **Clouds-style threshold on `repeat`.** Above 85% the dial crosses into a smeared wash (`smearAmount`,
+  smoothstep to 1 at the top): attack stretches from 15% to 50% of grain length, an extra ±7.5% pitch
+  scatter, the dry grain ducks up to 50%, and each grain sends into a shared convolver with a generated
+  2.5s stereo noise-decay IR (soft 40ms onset, no discrete reflections) that feeds `fxBus`, so `thru`
+  mutes it too. The knob label reads `NN% wash` in that zone. Not verified by ear.
+- **Knob accessibility.** `RotaryKnob` is now `role="slider"`, focusable, with aria-label, min/max/now
+  and `aria-valuetext` (the shown label). Arrows move 1% of the range, PageUp/PageDown 10%, Home/End
+  jump to the ends; focus ring on `:focus-visible` only. `touch-action: none` was already there.
+  Checked headless (Playwright, desktop + 390px): keys move the value and the screen-reader text
+  follows.
+- **LINEAGE reference sweep.** Evolution references folded into LINEAGE.md's GLOOP entry: novelty
+  search first, then MAP-Elites/NSLC, POET, Red Queen, Avida, Sims, NEAT, Baldwin, CMA-ES,
+  quasispecies, SCP. Each is tied to what shipped (`evolve`, `breed`) or what's open. LiveGrain's
+  dual-buffer idea is already the engine design (the worklet records into a rotating pool while grains
+  read from it), so it's marked covered. 18 worth-saving items checked off, 5 left (CPPN, OPFS,
+  waveguide, ICMC94, Sethares).
+
+## 2026-10-27 - First spacebar tap re-asserts `on`; favicon
 
 Reported: on gloop-dev in Chrome, the first spacebar tap turned on listen but not `on`. Didn't
 reproduce in four setups: headless Chromium against the local build (mic auto-granted, and with the

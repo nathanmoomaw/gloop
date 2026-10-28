@@ -9,3 +9,7 @@ Grains, not samples. Nothing here is a recording of a bell or a drop of water pr
 The visualization isn't decoration. Chladni plates make sound visible by letting it arrange sand into the patterns of its own standing waves. GLOOP's grain field does the same thing with color — the pattern on screen is a direct readout of what the ears would notice if they looked.
 
 This is a mirror with a delay in it, not a synthesizer.
+
+Some dials have a far end where the character flips. Push `repeat` past ~85% and the grains stop being events and smear into a wash, the move Mutable Instruments' Clouds made famous: one continuous control that crosses into a different instrument, rather than a mode switch.
+
+Still no presets to browse. `breed` is listening, not browsing: four variants of what's playing now, you keep what you like, and the next round grows from your picks. The losers aren't thrown away, only set aside, because a sound that lost one round can still carry something.

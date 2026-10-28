@@ -99,6 +99,28 @@ export const RotaryKnob = memo(function RotaryKnob({
     }
   }, [])
 
+  // Keyboard: arrows nudge 1% of the range, PageUp/PageDown 10%,
+  // Home/End jump to the ends — standard ARIA slider keys.
+  const onKeyDown = useCallback((e) => {
+    const nudge = Math.max(step, range / 100)
+    let next
+    switch (e.key) {
+      case 'ArrowUp':
+      case 'ArrowRight': next = value + nudge; break
+      case 'ArrowDown':
+      case 'ArrowLeft': next = value - nudge; break
+      case 'PageUp': next = value + nudge * 10; break
+      case 'PageDown': next = value - nudge * 10; break
+      case 'Home': next = min; break
+      case 'End': next = max; break
+      default: return
+    }
+    e.preventDefault()
+    const stepped = Math.max(min, Math.min(max, Math.round(next / step) * step))
+    applyVisuals((stepped - min) / range)
+    onChange(stepped)
+  }, [value, min, max, step, range, onChange, applyVisuals])
+
   const ghostTopPct = (1 - ratio) * 100
 
   return (
@@ -114,7 +136,15 @@ export const RotaryKnob = memo(function RotaryKnob({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
+        onKeyDown={onKeyDown}
         style={{ touchAction: 'none' }}
+        role="slider"
+        tabIndex={0}
+        aria-label={label}
+        aria-valuemin={min}
+        aria-valuemax={max}
+        aria-valuenow={value}
+        aria-valuetext={valueLabel != null ? String(valueLabel) : undefined}
       >
         {/* The rotating notch indicator */}
         <div

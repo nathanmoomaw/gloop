@@ -46,7 +46,7 @@ import { getParams, setParam, getAnalyser } from './engine'
 // Same texture-only philosophy as App.jsx's SHAKE_RANGES: master volume
 // and sensitivity are excluded so evolution reshuffles the sound's
 // character without ever drifting it toward silence or blasting output.
-const EVOLVE_RANGES = {
+export const EVOLVE_RANGES = {
   rate: [20, 4000],
   dynamics: [0, 1],
   feedback: [0, 0.9],
@@ -57,7 +57,7 @@ const EVOLVE_RANGES = {
   flutter: [0, 1],
   wobble: [0, 1],
 }
-const EVOLVE_KEYS = Object.keys(EVOLVE_RANGES)
+export const EVOLVE_KEYS = Object.keys(EVOLVE_RANGES)
 
 const SLOT_COUNT = 5
 // How much of a slot's own params a parasite jumps by, per mutated key, as
@@ -153,8 +153,9 @@ export function mutate(params, innovation, scale, rate, gen) {
 }
 
 // Glides the live engine from its current params to `params` over
-// GLIDE_MS (smoothstep), cancelling any glide still in flight.
-function applyParams(params) {
+// GLIDE_MS (smoothstep), cancelling any glide still in flight. Also how
+// breed.js auditions a candidate.
+export function glideTo(params) {
   if (glideTimer) clearInterval(glideTimer)
   const from = getParams()
   const start = performance.now()
@@ -245,7 +246,7 @@ function runGeneration() {
   }
   const parasite = mutate(base.params, base.innovation, PARASITE_MUTATION_SCALE, PARASITE_MUTATION_RATE, generation)
 
-  applyParams(parasite.params)
+  glideTo(parasite.params)
   // Score only the parasite once fully glided in.
   setTimeout(resetFitnessHistory, GLIDE_MS)
 
@@ -260,7 +261,7 @@ function runGeneration() {
       // Host resists the invasion — put its own params back (the parasite
       // was actually playing during the eval window) and reward the win
       // with a decaying resistance bump.
-      applyParams(host.params)
+      glideTo(host.params)
       host.resistance = Math.min(RESISTANCE_MAX, host.resistance + RESISTANCE_GAIN)
     }
     // Either way this slot now plays through the rest period; clear the

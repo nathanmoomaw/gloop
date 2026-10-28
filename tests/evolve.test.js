@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { crossover, mutate } from '../src/audio/evolve.js'
-import { getParams, setParam } from '../src/audio/engine.js'
+import { getParams, setParam, smearAmount } from '../src/audio/engine.js'
 
 const KEYS = ['rate', 'dynamics', 'feedback', 'repeat', 'grainSizeMs', 'density', 'wow', 'flutter', 'wobble']
 const genome = (value, gen, fitness) => ({
@@ -68,5 +68,19 @@ describe('engine param surface', () => {
   it('setParam stores known keys without a built graph', () => {
     setParam('density', 0.42)
     expect(getParams().density).toBe(0.42)
+  })
+})
+
+describe('smearAmount (Clouds-style repeat threshold)', () => {
+  it('is 0 below the threshold, 1 at the top, monotonic between', () => {
+    expect(smearAmount(0)).toBe(0)
+    expect(smearAmount(0.85)).toBe(0)
+    expect(smearAmount(1)).toBe(1)
+    let prev = 0
+    for (let r = 0.85; r <= 1; r += 0.01) {
+      const s = smearAmount(r)
+      expect(s).toBeGreaterThanOrEqual(prev)
+      prev = s
+    }
   })
 })

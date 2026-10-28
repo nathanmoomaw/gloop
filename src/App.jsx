@@ -7,6 +7,8 @@ import { LoopIndicator } from './components/LoopIndicator'
 import ShakeButton from './components/ShakeButton'
 import MicModeToggle from './components/MicModeToggle'
 import EvolveToggle from './components/EvolveToggle'
+import BreedToggle from './components/BreedToggle'
+import BreedPanel from './components/BreedPanel'
 import ThruToggle from './components/ThruToggle'
 import WaveformOverlay from './components/WaveformOverlay'
 import { startEvolve, stopEvolve } from './audio/evolve'
@@ -103,6 +105,7 @@ export default function App() {
   const [micError, setMicError] = useState(null)
   const [rawMic, setRawMic] = useState(engine.getRawCapture())
   const [evolving, setEvolving] = useState(false)
+  const [breeding, setBreeding] = useState(false)
   const [thru, setThru] = useState(engine.isThru())
   const loopRef = useRef(null)
   // The first listen of a session also turns `on`, so a first-time visitor
@@ -123,6 +126,7 @@ export default function App() {
     if (!next) {
       stopEvolve()
       setEvolving(false)
+      setBreeding(false)
       engine.stopPlaying({ trail })
       setRunning(false)
       return
@@ -281,6 +285,7 @@ export default function App() {
 
   const handleEvolveToggle = useCallback((next) => {
     if (next) {
+      setBreeding(false)
       startEvolve()
     } else {
       stopEvolve()
@@ -288,15 +293,25 @@ export default function App() {
     setEvolving(next)
   }, [])
 
-  // Evolution mutates params directly on the engine (not through
-  // updateParam), so while it's running, poll the knobs back in sync —
-  // otherwise the dials would sit frozen while the actual sound underneath
-  // them drifts, hiding the one thing this feature is meant to show.
+  // Breeding (you pick) and evolve (fitness picks) both drive the same
+  // params, so opening one stops the other.
+  const handleBreedToggle = useCallback((next) => {
+    if (next) {
+      stopEvolve()
+      setEvolving(false)
+    }
+    setBreeding(next)
+  }, [])
+
+  // Evolution and breed auditions mutate params directly on the engine (not
+  // through updateParam), so while either is going, poll the knobs back in
+  // sync — otherwise the dials would sit frozen while the actual sound
+  // underneath them drifts, hiding the one thing these features show.
   useEffect(() => {
-    if (!evolving) return
+    if (!evolving && !breeding) return
     const id = setInterval(() => setParams(engine.getParams()), 300)
     return () => clearInterval(id)
-  }, [evolving])
+  }, [evolving, breeding])
 
   const pct = (v) => `${Math.round(v * 100)}%`
 
@@ -319,6 +334,8 @@ export default function App() {
       <div className="gloop-logo" aria-hidden="true">gloop</div>
 
       <LoopIndicator ref={loopRef} active={running} periodMs={loopPeriodFromRate(params.rate)} />
+
+      {breeding && <BreedPanel onClose={() => setBreeding(false)} />}
 
       <div className="controls-overlay">
         <div className="control-cluster control-cluster--top-left">
@@ -358,7 +375,7 @@ export default function App() {
           />
           <RotaryKnob
             label="repeat"
-            valueLabel={pct(params.repeat)}
+            valueLabel={engine.smearAmount(params.repeat) > 0 ? `${pct(params.repeat)} wash` : pct(params.repeat)}
             value={params.repeat}
             min={0}
             max={1}
@@ -499,6 +516,7 @@ export default function App() {
             <MicModeToggle active={rawMic} onToggle={handleRawMicToggle} />
             <ThruToggle active={thru} onToggle={handleThruToggle} />
             <EvolveToggle active={evolving} disabled={!running} onToggle={handleEvolveToggle} />
+            <BreedToggle active={breeding} disabled={!running} onToggle={handleBreedToggle} />
           </div>
         </div>
       </div>

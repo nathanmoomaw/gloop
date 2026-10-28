@@ -65,6 +65,9 @@ let masterGain = null
 // Sits between every grain's output and masterGain, so `thru` can mute the
 // whole granular/delay path at once without touching the volume dial.
 let fxBus = null
+// Shared diffuser the top of the `repeat` dial sends grains into (see
+// smearAmount) — feeds fxBus, so `thru` mutes it with everything else.
+let smearVerb = null
 // Dry mic -> output monitor path for `thru` (see setThru).
 let thruGain = null
 let thru = false
@@ -117,6 +120,36 @@ const REPEAT_MAX_MS = 6000
 // stretches from REPEAT_MAX_MS up toward this — a much longer, more
 // persistent wash of echoes instead of the loop dying out quickly.
 const SUSTAIN_MAX_MS = 30000
+// Clouds-style threshold: past SMEAR_START on the `repeat` dial the grains
+// stop reading as discrete events and smear into a diffuse wash — rounder,
+// overlapping envelopes, wider pitch scatter, and a send into a noise-decay
+// diffuser — the qualitative "character flips" move granular instruments
+// like Mutable Instruments Clouds put at the end of a continuous control.
+const SMEAR_START = 0.85
+const SMEAR_IR_SEC = 2.5
+const SMEAR_SEND_MAX = 0.9
+
+// 0 below SMEAR_START, easing (smoothstep) to 1 at the top of the dial.
+export function smearAmount(repeat) {
+  const t = Math.max(0, Math.min(1, (repeat - SMEAR_START) / (1 - SMEAR_START)))
+  return t * t * (3 - 2 * t)
+}
+
+// Stereo exponentially-decaying noise with a soft onset: diffuse, no
+// discrete early reflections, so grains blur rather than echo.
+function makeSmearIR(context) {
+  const len = Math.floor(context.sampleRate * SMEAR_IR_SEC)
+  const onset = Math.floor(context.sampleRate * 0.04)
+  const ir = context.createBuffer(2, len, context.sampleRate)
+  for (let ch = 0; ch < 2; ch++) {
+    const data = ir.getChannelData(ch)
+    for (let i = 0; i < len; i++) {
+      const fadeIn = Math.min(1, i / onset)
+      data[i] = (Math.random() * 2 - 1) * fadeIn * Math.exp((-4 * i) / len)
+    }
+  }
+  return ir
+}
 // Must cover the largest possible per-grain delay time: SIZE_MAX_MS (the
 // base delay time tracks grainSizeMs) plus wobble's own +/- swing and a bit
 // of margin.
@@ -514,6 +547,10 @@ async function buildGraph() {
   fxBus.gain.value = thru ? 0 : 1
   fxBus.connect(masterGain)
 
+  smearVerb = ctx.createConvolver()
+  smearVerb.buffer = makeSmearIR(ctx)
+  smearVerb.connect(fxBus)
+
   // Safety limiter on the final output — with feedback up to 0.95 and long
   // silence-sustain tails (up to 30s), overlapping grain feedback loops can
   // sum into harsh digital clipping at higher feedback/volume settings.
@@ -824,15 +861,19 @@ function playGrain() {
   const buffer = ctx.createBuffer(1, grainSamples, ctx.sampleRate)
   buffer.copyToChannel(src.subarray(startAt, startAt + grainSamples), 0)
 
+  const smear = smearAmount(state.repeat)
+
   const bufSource = ctx.createBufferSource()
   bufSource.buffer = buffer
-  bufSource.playbackRate.value = 1 + (Math.random() - 0.5) * effSpread * 0.6
+  bufSource.playbackRate.value = 1 + (Math.random() - 0.5) * (effSpread * 0.6 + smear * 0.15)
   // Wow (slow/deep) + flutter (fast/shallow) additively modulate playback rate.
   wowDepth.connect(bufSource.playbackRate)
   flutterDepth.connect(bufSource.playbackRate)
 
   const grainGain = ctx.createGain()
-  const attack = state.grainSizeMs * 0.15
+  // Smear stretches the attack toward a symmetric swell, so grains blur
+  // into each other instead of starting on an edge.
+  const attack = state.grainSizeMs * (0.15 + 0.35 * smear)
   // Exponential attack/release instead of linear — a linear ramp has an
   // audible "zipper" edge at each grain boundary, especially with several
   // grains overlapping at once (default rate/grainSize overlap ~4-5x). The
@@ -878,7 +919,7 @@ function playGrain() {
   // own mix gains so the two can be balanced independently (granularMix,
   // delayMix), rather than always summing at a fixed relative level.
   const granularMixGain = ctx.createGain()
-  granularMixGain.gain.value = state.granularMix
+  granularMixGain.gain.value = state.granularMix * (1 - 0.5 * smear)
   const delayMixGain = ctx.createGain()
   // Quiet-time echo boost: `quietFactor` (already computed above for the
   // repeat/sustain ceiling) also raises the delay/feedback path's own
@@ -894,6 +935,13 @@ function playGrain() {
   panner.connect(granularMixGain)
   granularMixGain.connect(fxBus)
   panner.connect(delay)
+  let smearSend = null
+  if (smear > 0) {
+    smearSend = ctx.createGain()
+    smearSend.gain.value = smear * SMEAR_SEND_MAX * state.granularMix
+    panner.connect(smearSend)
+    smearSend.connect(smearVerb)
+  }
   delay.connect(feedbackGain)
   feedbackGain.connect(delay)
   feedbackGain.connect(delayMixGain)
@@ -919,5 +967,6 @@ function playGrain() {
     try { feedbackGain.disconnect() } catch { /* already disconnected */ }
     try { delayMixGain.disconnect() } catch { /* already disconnected */ }
     try { granularMixGain.disconnect() } catch { /* already disconnected */ }
+    try { smearSend?.disconnect() } catch { /* already disconnected */ }
   }, teardownMs)
 }
