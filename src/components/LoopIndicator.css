@@ -28,21 +28,12 @@
   width: 8px;
   height: 8px;
   margin: -4px;
-  animation: loop-indicator-travel var(--loop-duration, 1200ms) linear infinite;
+  left: 0;
+  top: 0;
 }
 
-/* Traces the four edges in even time quarters — not a constant-speed lap
-   (shorter edges get covered faster than longer ones on non-square
-   viewports), but that reads fine for ambient visual feedback and keeps
-   this to plain left/top keyframes rather than depending on `offset-path:
-   border-box` browser support. */
-@keyframes loop-indicator-travel {
-  0% { left: 0%; top: 0%; }
-  25% { left: 100%; top: 0%; }
-  50% { left: 100%; top: 100%; }
-  75% { left: 0%; top: 100%; }
-  100% { left: 0%; top: 0%; }
-}
+/* Position is set per frame from JS (lapPoint.js): four edges in even time
+   quarters, so shorter edges are covered faster on non-square viewports. */
 
 .loop-indicator__glow {
   position: absolute;

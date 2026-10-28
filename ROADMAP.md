@@ -5,15 +5,14 @@
 - [ ] Tune default grain size / feedback / spread for a good out-of-the-box first impression — grain size, rate, feedback, repeat, density, and overall output volume/gain-staging were all bumped up per explicit request (2026-08-12/13, the latter after diagnosing that the safety limiter was silently eating the first volume-boost attempt), but still needs an actual listening pass to confirm the new values land well (headless/automated testing can't judge this), unlike the other items below
 - [ ] Verify 80000-grain field on real (esp. mobile) hardware — grain loop cut 20.5 → 9.8 ms JS/frame on desktop (2026-10-27), ~40fps under headless software GL; dial back GRAIN_COUNT if it feels janky on an actual device (needs physical-device testing, can't be verified in this environment)
 - [ ] Confirm the new opt-in "raw" mic toggle (no echoCancellation/noiseSuppression/autoGainControl) actually fixes the "choppy, cuts off" recordings on real hardware — Playwright's fake mic device can only confirm the toggle is wired up, not judge real capture quality (this is the same class of item as the two above)
-- [ ] `RotaryKnob.jsx` has no keyboard or screen-reader support (no `role="slider"`, no `aria-value*`, no arrow-key handling, no `touch-action: none`) — flagged by the 2026-09-15 `/learn` session against current rotary-knob accessibility practice, not yet implemented
-- [ ] Pointer push should raycast onto the plate now that the camera moves (screen→plate mapping ignores perspective)
-- [ ] Loop ring dot jumps when its lap time changes mid-lap — drive it from JS phase instead of CSS animation duration
 - [ ] Listening pass on Kubelka-Munk palette vs HSL (`k`) and new tap-sound level — keep or revert KM default
 - [ ] Eyeball pass on inverted see-through controls (legibility over bright grain clusters) and tilt-dance intensity on device
+- [ ] Real-browser check: first spacebar press with a real mic permission prompt now ends with listen + `on` both lit
 - [ ] Confirm the 30ms grain-scheduling lookahead cleared the clicks reported 2026-10-06 (listening pass)
 
 ## Completed
 
+- [x] Loop dot driven by JS phase (no jump on rate change); spacebar lost-keyup root cause; raw toggle applies live; full-stack tool audit in DEVLOG (2026-10-28)
 - [x] `sound` button: one-press reset into an audible zone + start listen/on; dev-stack effectiveness review in DEVLOG (2026-10-28)
 - [x] Drippy goo-filter logo, lit/unlit listen + on buttons, default rate 5 grains/s (2026-10-28)
 - [x] Worth-saving sweep: `breed` interactive evolution, Clouds-style repeat wash, keyboard/screen-reader knobs, LINEAGE evolution references (2026-10-28)

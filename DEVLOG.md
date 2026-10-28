@@ -1,6 +1,44 @@
 # DEVLOG
 
-## 2026-10-28 (latest) - Logo 3× bigger, drippier
+## 2026-10-28 (latest) - Full-stack iteration + tool audit: loop dot, spacebar root cause
+
+**Changes**
+- **Loop dot no longer jumps when rate changes.** Lap period lived in a CSS `animation-duration`;
+  changing it re-mapped elapsed time onto the new keyframes mid-lap. Now a rAF loop accumulates phase
+  (`advancePhase`) and maps it to the edge path (`lapPoint`, `src/components/lapPoint.js`, 5 tests), so
+  speed follows the rate and position never jumps. Headless check while hammering the rate knob: worst
+  per-frame speed 4.7 px/ms, under the fastest legit lap (~5.5), so no jumps.
+- **Likely root cause of the "first spacebar leaves `on` off" bug** (never reproduced; fixed
+  defensively 10-27). The first press opens the mic permission prompt, which takes focus, so the keyup
+  never reaches the page: `on` latches on keyup, so it never came on, and the stuck press swallowed the
+  next one. Headless never showed it because the fake-media flag skips the prompt. Now a press lost to
+  blur while the mic is pending counts as a tap from off; any other lost press (cmd-tab mid-hold) ends
+  the hold so the mic doesn't stay open in the background. Needs a real-browser check.
+- **Raw mic toggle now applies while listening** (reopens the mic; constraints only apply on open).
+- **Knob post-drag click swallow is mouse-only.** Touch drags fire no click, so it was eating the next
+  tap on any other control within 300ms.
+- **Graph build failure:** `startListening` clears `wantListening` (was stuck "pending"), and a retry
+  closes the half-built context instead of leaking it.
+
+**Tool audit (this iteration)**
+
+| Tool | Cost | Findings → real | Notes |
+|---|---|---|---|
+| Argon, read-mode audit of `src/` (13 files, 38k in) | $0.095 | 8 → 4 real (spacebar blur, raw toggle, knob click swallow, ctx leak), 1 harmless, 3 wrong | First Argon run in gloop. Found the spacebar root cause nothing else had. Confidences (0.78–0.95) didn't separate right from wrong. |
+| Jev, with `--spec` | ~free | 0/3 flagged on the loop fix; 3/6 on the full diff | No bug data to judge against; scores track file size/complexity more than bugs. |
+| Jev, no spec | ~free | 5/6 flagged on the final diff | Same noise as the first run. Spec helps a little. |
+| big diff Haiku (×3 passes) | $0.014 | 4 → 3 real (knob swallow too wide, blur during hold, stuck `wantListening`) | Best value again: caught regressions in my own fixes each pass. |
+| `/code-review` medium | (plan) | 10 → 4 fixed (pointerType, blur vs cmd-tab, stale nodes after nulling ctx, dot freezing in fade + negative first dt) | Caught two regressions from Haiku-driven fixes. Rest were edge or style. |
+| `/simplify` | (plan) | 1 (phase ref → effect local), done inline | Its 4 parallel agents all hit the 5-hour rate limit; ran the pass by hand. |
+| vitest + build smoke | free | 0 | Guards the pure parts only. |
+| Playwright (headless) | free | verified the dot fix numerically | Can't show permission-prompt bugs: fake-media flag skips the prompt. |
+| Argon write mode | — | — | Not used: loop fix was 2 files / ~60 lines, under the 3-file/300-line rule. |
+
+Takeaways: each reviewer found something the others didn't, and each round of fixes created new
+issues the next reviewer caught. Argon read-mode is worth ~$0.10 as a periodic whole-repo audit. Jev
+still gives no usable signal on this React/JS code, with or without a spec.
+
+## 2026-10-28 - Logo 3× bigger, drippier
 
 The wordmark goes from 1.35rem to 4.05rem (3×) on desktop. Phones get 2.6rem instead: 3× there would
 run into the big rate/feedback knobs in the top corners. All drip sizes are now `em` of the wordmark,

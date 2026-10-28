@@ -533,6 +533,8 @@ function ensureGraph() {
 }
 
 async function buildGraph() {
+  // Left over from a build that failed partway (addModule rejected).
+  ctx?.close().catch(() => {})
   ctx = new (window.AudioContext || window.webkitAudioContext)()
   lastActiveTime = ctx.currentTime
 
@@ -702,7 +704,12 @@ export async function startListening() {
       'NotSupportedError',
     )
   }
-  await ensureGraph()
+  try {
+    await ensureGraph()
+  } catch (err) {
+    wantListening = false
+    throw err
+  }
   if (listening) return true
   wake()
 

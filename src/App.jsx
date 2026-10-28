@@ -239,11 +239,26 @@ export default function App() {
       // Hold: listen only while held; `on` keeps looping the capture.
       holdEnd()
     }
+    // The first press opens the mic permission prompt, which takes focus,
+    // so its keyup never reaches the page: listen was on but `on` (latched
+    // on keyup) never came on, and the stuck press swallowed the next one.
+    // A press from off lost to the prompt counts as a tap; any other press
+    // lost to blur (e.g. cmd-tab mid-hold) ends the hold, so the mic
+    // doesn't stay open in the background.
+    const handleBlur = () => {
+      const press = spaceRef.current
+      spaceRef.current = null
+      if (!press || press.doubleTap || press.wasListening) return
+      if (!press.wasActive && engine.isListenPending()) setPower(true).catch(console.error)
+      else holdEnd()
+    }
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('blur', handleBlur)
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('blur', handleBlur)
     }
   }, [holdStart, holdEnd, stopAllWithTrail, setPower])
 
@@ -292,7 +307,12 @@ export default function App() {
   const handleRawMicToggle = useCallback((next) => {
     engine.setRawCapture(next)
     setRawMic(next)
-  }, [])
+    // The constraints only apply when the mic opens, so reopen it.
+    if (engine.isListening()) {
+      setListen(false)
+      setListen(true)
+    }
+  }, [setListen])
 
   // Thru passes the mic straight out, so engaging it also opens the mic if
   // it isn't already — otherwise the button would do nothing audible.

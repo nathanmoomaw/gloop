@@ -85,15 +85,17 @@ export const RotaryKnob = memo(function RotaryKnob({
     onChange(clampedStepped)
   }, [min, max, step, range, onChange, applyVisuals])
 
-  const onPointerUp = useCallback(() => {
+  const onPointerUp = useCallback((e) => {
     const didDrag = hasDragged.current
     dragging.current = false
     hasDragged.current = false
     // Hide ghost slider
     if (ghostRef.current) ghostRef.current.classList.remove('rotary-knob__ghost--visible')
-    if (didDrag) {
-      // Swallow the synthetic click that fires after a pointer-capture drag ends
-      const suppress = (e) => e.stopImmediatePropagation()
+    // Swallow the synthetic click that fires after a pointer-capture drag
+    // ends. Mouse only: a touch drag fires no click, so the swallow would
+    // eat the next tap on anything else instead.
+    if (didDrag && e.pointerType === 'mouse') {
+      const suppress = (ev) => ev.stopImmediatePropagation()
       document.addEventListener('click', suppress, { once: true, capture: true })
       setTimeout(() => document.removeEventListener('click', suppress, true), 300)
     }
