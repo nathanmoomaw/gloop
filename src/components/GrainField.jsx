@@ -164,7 +164,7 @@ function setPaletteColor(color, useKM, phase, saturation, lightness) {
 function cameraShapeFor(p) {
   const sizeNorm = Math.max(0, Math.min(1, ((p.grainSizeMs ?? 400) - SIZE_KNOB_MIN_MS) / (SIZE_KNOB_MAX_MS - SIZE_KNOB_MIN_MS)))
   return {
-    fire: 1 - Math.max(0, Math.min(1, ((p.rate ?? 2000) - 20) / 3980)),
+    fire: 1 - Math.max(0, Math.min(1, ((p.rate ?? 200) - 20) / 3980)),
     wobble: p.wobble ?? 0,
     elev: 1 - Math.min(1, (p.feedback ?? 0.65) / 0.9),
     dist: Math.sqrt(sizeNorm),

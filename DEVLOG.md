@@ -1,6 +1,23 @@
 # DEVLOG
 
-## 2026-10-28 (latest) - Worth-saving sweep: breed, repeat wash, accessible knobs
+## 2026-10-28 (latest) - Drippy logo; lit/unlit listen + on; default rate 5/s
+
+- **Logo drips.** New `DrippyLogo` component replaces the plain wordmark. An SVG goo filter (1.1px blur
+  → alpha threshold ×18 −7) with the crisp text composited `atop`, so the letters stay readable and only
+  the joins melt. Four drip strands start just inside the letters, slowly stretch, and shed a droplet
+  each on staggered 4.6–7.4s cycles. Glow moved to a wrapper `drop-shadow`, since a text-shadow would
+  get thresholded into the shape. Static under `prefers-reduced-motion`. The first try at 1.6px blur
+  turned "gloop" into an unreadable blob; the drips also first hung detached, because `top` % counts the
+  drop padding (baseline is ~38% of the box).
+- **Listen / on state.** Both were see-through inverted discs whose on state differed only in
+  border/glow. Now off = unlit window with a dimmed label; on = solid opaque lamp (backdrop filter off)
+  with a dark bold label. ON is a green radial fill. LISTENING is a pale lit core inside a thicker (5px),
+  fully opaque spinning rainbow ring.
+- **Default rate 2000ms → 200ms (0.5/s → 5/s)**, so a first listen hears itself fed back right away.
+  This reverses the 2026-10-04 "too busy, 10× sparser" change, at the user's request. Lower is still a
+  knob turn away.
+
+## 2026-10-28 - Worth-saving sweep: breed, repeat wash, accessible knobs
 
 Four items from `LIFE/worth-saving/gloop.md`:
 

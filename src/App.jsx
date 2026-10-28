@@ -9,6 +9,7 @@ import MicModeToggle from './components/MicModeToggle'
 import EvolveToggle from './components/EvolveToggle'
 import BreedToggle from './components/BreedToggle'
 import BreedPanel from './components/BreedPanel'
+import DrippyLogo from './components/DrippyLogo'
 import ThruToggle from './components/ThruToggle'
 import WaveformOverlay from './components/WaveformOverlay'
 import { startEvolve, stopEvolve } from './audio/evolve'
@@ -331,7 +332,7 @@ export default function App() {
 
       <WaveformOverlay analyser={analyser} running={running} />
 
-      <div className="gloop-logo" aria-hidden="true">gloop</div>
+      <DrippyLogo />
 
       <LoopIndicator ref={loopRef} active={running} periodMs={loopPeriodFromRate(params.rate)} />
 

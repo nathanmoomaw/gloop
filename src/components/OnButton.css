@@ -34,15 +34,31 @@
   transform: scale(0.95);
 }
 
+/* Off reads as an unlit, see-through window; on is a solid lit lamp —
+   fill vs no fill is the cue, not just the border hue. */
+.on-button:not(.on-button--active) {
+  color: rgba(255, 255, 255, 0.4);
+  opacity: 0.8;
+}
+
 .on-button--active {
   --bevel-color: var(--color-on);
-  border-color: var(--color-on);
-  color: #fff;
-  text-shadow: 0 0 10px color-mix(in srgb, var(--color-on) 70%, transparent);
+  border-color: color-mix(in srgb, var(--color-on) 55%, #fff);
+  background: radial-gradient(
+    circle at 40% 35%,
+    color-mix(in srgb, var(--color-on) 55%, #fff) 0%,
+    var(--color-on) 55%,
+    color-mix(in srgb, var(--color-on) 65%, #000) 100%
+  );
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  color: #04260f;
+  font-weight: 700;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
   box-shadow:
     0 4px 18px rgba(0, 0, 0, 0.55),
-    0 0 20px 2px color-mix(in srgb, var(--color-on) 50%, transparent),
-    var(--bevel-inset);
+    0 0 28px 6px color-mix(in srgb, var(--color-on) 55%, transparent),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.25);
 }
 
 @media (max-width: 767px) {

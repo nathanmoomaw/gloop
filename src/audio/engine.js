@@ -96,8 +96,10 @@ export function getRawCapture() {
 }
 
 const GRAIN_MS_DEFAULT = 400
-// 200 fired grains far too busily by default — 10x sparser.
-const RATE_MS_DEFAULT = 2000
+// 5 grains/s: a first listen should hear itself fed back right away. (Was
+// 2000ms/0.5 per s from 2026-10-04 to 10-28, which read as too slow to
+// connect cause and effect.) Lower is still one knob turn away.
+const RATE_MS_DEFAULT = 200
 const POOL_SIZE = 24
 // Ceiling for the `size` (grainSizeMs) dial. Pool buffers below are sized to
 // hold exactly this much captured audio — grains longer than a pool slot
