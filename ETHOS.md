@@ -13,3 +13,7 @@ This is a mirror with a delay in it, not a synthesizer.
 Some dials have a far end where the character flips. Push `repeat` past ~85% and the grains stop being events and smear into a wash, the move Mutable Instruments' Clouds made famous: one continuous control that crosses into a different instrument, rather than a mode switch.
 
 Still no presets to browse. `breed` is listening, not browsing: four variants of what's playing now, you keep what you like, and the next round grows from your picks. The losers aren't thrown away, only set aside, because a sound that lost one round can still carry something.
+
+The plate can grow its own patterns. Chladni is the physics; `c` hands the field to a tiny evolved network (a CPPN) that still listens to the same modes but draws its own figures, and Shift+C mutates it into the next one. A visual preset is just a genome of that one network, never a new rule.
+
+Grains as genomes isn't new. The ICMC94 granular GA work and EGDE treated each grain as an individual and the delay/feedback loop as generational turnover. GLOOP's loop already behaves that way, so `evolve` and `breed` are making explicit what the echo was doing anyway.

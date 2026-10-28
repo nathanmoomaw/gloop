@@ -1,6 +1,37 @@
 # DEVLOG
 
-## 2026-10-28 (latest) - Full-stack iteration + tool audit: loop dot, spacebar root cause
+## 2026-10-28 (latest) - CPPN grain field (`c`), worth-saving reference notes
+
+**CPPN field.** New `src/visual/cppn.js` is a 6-node compositional pattern-producing network (Stanley
+2007). Its inputs are periodic x/y/r, a Chladni term, time and level, and its output is in (−2, 2) like
+Chladni. Genomes are plain JSON with mutate/crossover. `c` eases GrainField's nodal field (plate
+height and grain drift) from Chladni to the CPPN over ~3s; Shift+C mutates the genome (rate 0.35) and
+morphs old → new over ~1.7s. Default visuals are unchanged.
+- **Cost.** A first version called the CPPN for every grain and vertex (~87k calls): 13 → 32 ms/frame
+  of script, 55 while morphing. Now it's evaluated once a frame on a 96×96 LUT (one period-2 tile) and
+  sampled bilinearly: +4 ms (+5 morphing), headless software GL. 128² cost +6.4/+12, so it stays at 96.
+- **Seams and drift** (from `/code-review`): x/y inputs are `0.5·sin(π(u−0.5))`, so the field tiles
+  like Chladni. The Chladni input blends the four neighbouring integer modes (`modeChladni`), so it
+  stays periodic while n/m ease, which a plain wrap of the LUT wasn't. Time enters as `sin(t·0.05)`, so
+  nodes can't saturate over a long session.
+- **Looks:** the first preset reads as a cousin of Chladni lines. One Shift+C in the test run jumped to
+  a smooth, saturated color field, a big step for one mutation. Needs an eyeball pass (ROADMAP).
+
+**Tool data (Argon + Jev rule):** Argon wrote `cppn.js` + `cppn.test.js` with fast-check properties
+(new devDependency) in one call: 3.6k in, 4.3k out, **$0.050**, tests passed first try. Its gate's
+Haiku flagged 2 (both about my spec's loose budget/seed wording, not bugs). Wiring, LUT, and fixes were
+done by hand. Jev with spec: all 3 files flagged (0.39–0.60), still no signal. Haiku diff review: 3
+real (Shift+C mid-morph snapped, key repeat re-toggled, seam comment overstated), then clean
+($0.015 total). `/code-review`: 10 findings, 5 fixed (seam, time saturation, wasted Chladni at full
+blend, duplicated Chladni formula, docs), 5 skipped (per-frame easing matches the rest of GrainField;
+the morph guard is enough for now; crossover kept for a later breed hookup; test limit constants;
+LUT resolution, where 128 measured too costly).
+
+**Worth-saving, reference only** (now in CLAUDE.md "Reference notes" / ETHOS): Sethares dissonance
+constants, waveguide + EA-fitting bridge, OPFS for saved genomes/grain pools, ICMC94/EGDE grains-as-
+genomes lineage.
+
+## 2026-10-28 - Full-stack iteration + tool audit: loop dot, spacebar root cause
 
 **Changes**
 - **Loop dot no longer jumps when rate changes.** Lap period lived in a CSS `animation-duration`;

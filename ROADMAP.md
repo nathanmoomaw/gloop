@@ -7,11 +7,13 @@
 - [ ] Confirm the new opt-in "raw" mic toggle (no echoCancellation/noiseSuppression/autoGainControl) actually fixes the "choppy, cuts off" recordings on real hardware — Playwright's fake mic device can only confirm the toggle is wired up, not judge real capture quality (this is the same class of item as the two above)
 - [ ] Listening pass on Kubelka-Munk palette vs HSL (`k`) and new tap-sound level — keep or revert KM default
 - [ ] Eyeball pass on inverted see-through controls (legibility over bright grain clusters) and tilt-dance intensity on device
+- [ ] Eyeball pass on the CPPN field (`c`): keep or tune mutation rate 0.35 (one Shift+C jumped to a very different look), and whether it should get a UI control or hook into `breed`
 - [ ] Real-browser check: first spacebar press with a real mic permission prompt now ends with listen + `on` both lit
 - [ ] Confirm the 30ms grain-scheduling lookahead cleared the clicks reported 2026-10-06 (listening pass)
 
 ## Completed
 
+- [x] CPPN grain field (`c` / Shift+C, LUT-evaluated) + worth-saving reference notes (Sethares, waveguide, OPFS, ICMC94) (2026-10-28)
 - [x] Loop dot driven by JS phase (no jump on rate change); spacebar lost-keyup root cause; raw toggle applies live; full-stack tool audit in DEVLOG (2026-10-28)
 - [x] `sound` button: one-press reset into an audible zone + start listen/on; dev-stack effectiveness review in DEVLOG (2026-10-28)
 - [x] Drippy goo-filter logo, lit/unlit listen + on buttons, default rate 5 grains/s (2026-10-28)

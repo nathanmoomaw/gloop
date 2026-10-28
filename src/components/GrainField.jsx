@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { pigmentAt } from '../color/kubelkaMunk'
+import { LUT_SIZE, chladniValue, compileGenome, fillLUT, mutateGenome, randomGenome, sampleLUT } from '../visual/cppn'
 
 // Renders rainbow "sand" grains settling into Chladni-plate-style nodal
 // patterns driven by the dominant frequency of the live audio analyser —
@@ -113,19 +114,13 @@ function pointSizeForGrainMs(ms) {
   return GRAIN_POINT_SIZE_MIN + t * (GRAIN_POINT_SIZE_MAX - GRAIN_POINT_SIZE_MIN)
 }
 
-// Same Chladni nodal function used to drift grains toward nodal lines and,
-// now, to shape the plate surface itself — the plate's topology and the
-// grains' resting pattern are the same physics, not two separate effects.
-function nodalValue(n, m, u, v) {
-  return (
-    Math.sin(n * Math.PI * u) * Math.sin(m * Math.PI * v) -
-    Math.sin(m * Math.PI * u) * Math.sin(n * Math.PI * v)
-  )
-}
-
-function surfaceHeight(n, m, u, v, amplitude, t) {
-  return surfaceHeightFromNodal(nodalValue(n, m, u, v), u, v, amplitude, t)
-}
+// One nodal field drifts grains toward nodal lines and shapes the plate
+// surface itself — the plate's topology and the grains' resting pattern are
+// the same physics, not two separate effects. Chladni by default; `c` eases
+// over to an evolved CPPN field (visual/cppn.js), Shift+C mutates it.
+const CPPN_BLEND_EASE = 0.02 // per frame, ~3s to mostly cross over at 60fps
+const CPPN_MORPH_STEP = 0.01 // per frame, ~1.7s at 60fps from old preset to mutated one
+const CPPN_MUTATION_RATE = 0.35
 
 function surfaceHeightFromNodal(nodal, u, v, amplitude, t) {
   // Ambient liquid motion — present even with no audio, so the plate never
@@ -217,9 +212,36 @@ export default function GrainField({ analyser, running, onInteract, grainSizeMs 
   const grainSizeRef = useRef(grainSizeMs)
   // Read live in the draw loop, same reason as grainSizeRef.
   const kmRef = useRef(KM_DEFAULT)
+  // CPPN field state, also read live: blend eases toward target (0 = pure
+  // Chladni), and a mutation morphs from `prev` to `cur` so neither snaps.
+  // Evaluated once a frame on a LUT grid (two, while morphing) rather than
+  // per grain: ~9k CPPN calls instead of ~87k.
+  const cppnRef = useRef({
+    target: 0, blend: 0, genome: null, cur: null, prev: null, morph: 1,
+    lut: new Float32Array(LUT_SIZE * LUT_SIZE),
+    prevLut: new Float32Array(LUT_SIZE * LUT_SIZE),
+  })
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'k' && !e.metaKey && !e.ctrlKey && !e.altKey) kmRef.current = !kmRef.current
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      if (e.key === 'k') kmRef.current = !kmRef.current
+      if ((e.key === 'c' || e.key === 'C') && !e.repeat) {
+        const c = cppnRef.current
+        // Mid-morph the displayed field is a mix of prev and cur; mutating
+        // now would snap it, so let the morph finish first.
+        if (e.shiftKey && c.morph < 1) return
+        if (!c.genome) {
+          c.genome = randomGenome()
+          c.cur = compileGenome(c.genome)
+        } else if (e.shiftKey) {
+          c.genome = mutateGenome(c.genome, CPPN_MUTATION_RATE)
+          c.prev = c.cur
+          c.cur = compileGenome(c.genome)
+          c.morph = 0
+        }
+        if (!e.shiftKey) c.target = c.target ? 0 : 1
+        else c.target = 1
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -352,6 +374,26 @@ export default function GrainField({ analyser, running, onInteract, grainSizeMs 
       grainMat.size = pointSizeForGrainMs(grainSizeRef.current)
       const useKM = kmRef.current
 
+      const cppn = cppnRef.current
+      cppn.blend += (cppn.target - cppn.blend) * CPPN_BLEND_EASE
+      if (cppn.morph < 1) cppn.morph = Math.min(1, cppn.morph + CPPN_MORPH_STEP)
+      const blend = cppn.blend > 0.001 ? cppn.blend : 0
+      const { lut, prevLut, morph } = cppn
+      if (blend) {
+        fillLUT(lut, LUT_SIZE, cppn.cur, n, m, t, amplitude)
+        if (morph < 1) {
+          fillLUT(prevLut, LUT_SIZE, cppn.prev, n, m, t, amplitude)
+          for (let i = 0; i < lut.length; i++) lut[i] = prevLut[i] + (lut[i] - prevLut[i]) * morph
+        }
+      }
+      const field = (u, v) => {
+        if (!blend) return chladniValue(n, m, u, v)
+        const evolved = sampleLUT(lut, LUT_SIZE, u, v)
+        if (blend > 0.999) return evolved
+        const chladni = chladniValue(n, m, u, v)
+        return chladni + (evolved - chladni) * blend
+      }
+
       // Pointer push: decays on its own each frame, independent of audio state.
       const pointer = pointerRef.current
       const pushActive = pointer.strength > 0.002
@@ -390,7 +432,7 @@ export default function GrainField({ analyser, running, onInteract, grainSizeMs 
         const dv = rawV - 0.5
         const u = 0.5 + du * spinCos - dv * spinSin
         const v = 0.5 + du * spinSin + dv * spinCos
-        const h = surfaceHeight(n, m, u, v, amplitude, t)
+        const h = surfaceHeightFromNodal(field(u, v), u, v, amplitude, t)
         posAttr.setY(i, h)
         // Hue sweeps across the plate by position (not just time), so the
         // surface itself reads as a genuine rainbow gradient rather than a
@@ -469,7 +511,7 @@ export default function GrainField({ analyser, running, onInteract, grainSizeMs 
         const dv = g.y - Math.floor(g.y) + panV - 0.5
         const u = 0.5 + du * spinCos - dv * spinSin
         const v = 0.5 + du * spinSin + dv * spinCos
-        const local = nodalValue(n, m, u, v)
+        const local = field(u, v)
         grainNodal[i] = local
         const j = i * 3
         grainPositions[j] = (g.x / GRAIN_SPAN - 0.5) * PLATE_MESH_SIZE
