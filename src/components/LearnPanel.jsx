@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { FEEDBACK, FEEDBACK_BY_ID } from '../audio/learn'
 import './LearnPanel.css'
 
@@ -16,7 +17,10 @@ export default function LearnPanel({
   fileName,
   fileError,
   onPickFile,
+  remote,
+  onPair,
 }) {
+  const [pairing, setPairing] = useState(false)
   const total = summary?.total ?? 0
   const byKind = summary?.byKind ?? { heart: 0, sound: 0, muted: 0, star: 0 }
   const lastFeedback = lastKind ? FEEDBACK_BY_ID[lastKind] : null
@@ -88,6 +92,42 @@ export default function LearnPanel({
             {fileName ? 'change file' : 'auto-save to file'}
           </button>
         </p>
+      )}
+      {remote?.available && (
+        <div className={`learn-panel__file ${remote.error ? 'learn-panel__file--error' : ''}`}>
+          {pairing ? (
+            <form
+              className="learn-panel__pair"
+              onSubmit={(e) => {
+                e.preventDefault()
+                onPair(new FormData(e.currentTarget).get('key') || '')
+                setPairing(false)
+              }}
+            >
+              <input
+                name="key"
+                type="password"
+                className="learn-panel__key"
+                placeholder="pairing key"
+                aria-label="Pairing key"
+                autoComplete="off"
+                autoFocus
+              />
+              <button type="submit" className="learn-panel__action">pair</button>
+              <button type="button" className="learn-panel__action" onClick={() => setPairing(false)}>cancel</button>
+            </form>
+          ) : remote.paired ? (
+            <>
+              sending to LIFE
+              <button type="button" className="learn-panel__action" onClick={() => onPair('')}>unpair</button>
+            </>
+          ) : (
+            <>
+              {remote.error ?? 'not sending'}
+              <button type="button" className="learn-panel__action" onClick={() => setPairing(true)}>pair device</button>
+            </>
+          )}
+        </div>
       )}
     </div>
   )

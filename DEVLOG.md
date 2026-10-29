@@ -1,6 +1,49 @@
 # DEVLOG
 
-## 2026-10-29 (latest) - Logo glitches; learn log in IndexedDB + auto-save file
+## 2026-10-29 (latest) - Learn presses from any device → LIFE
+
+Presses from a phone or Safari now reach Claude too, through a new `POST /learn` route on the capture
+Lambda (the Telegram/email one), which appends them to `LIFE/learn/gloop/<date>.jsonl`. `/dump` already
+pulls LIFE.
+- **Client (`learnRemote.js`):** each press gets an `id` and goes into a localStorage outbox, which
+  survives reloads and offline use. Batches (≤48KB) go out after 15s of quiet, or by `sendBeacon` when
+  the page is hidden. The body is text/plain JSON, so there's no CORS preflight and beacons work.
+  Several tabs share the outbox: it's re-read on every change, entries are removed by id after a
+  success, and flushes take a Web Lock. If storage is blocked or full, the sender runs from memory
+  for the session. Only production builds with the `LEARN_URL` secret, on a paired device, send;
+  dev keeps `learning/`.
+- **Pairing, not a bundled key:** the first version baked the key into the build. That was blocked at
+  commit as a leak (anything in the bundle is readable), so the build now carries only the URL. Each
+  device pastes the key once into the learn panel ("pair device"), and it's kept in localStorage
+  (`gloop.learn.key`). Unpaired devices queue nothing, so other users' presses stay in their
+  browsers, which fits learn becoming a user feature. A 401 unpairs the device and the panel says
+  "key rejected, pair again"; the presses stay in the outbox for the next pairing (Haiku caught the
+  first version dropping them; its other finding, 400 dropping a whole batch, skipped: entries are
+  built with valid kinds only, so a resend can't help). Headless check against a stub server: unpaired sends nothing, a bad
+  key unpairs after one 401, a good key sends, the outbox empties across a reload, and no key
+  appears in the bundle.
+- **Lambda (capture `index.mjs`):** checked before the Telegram path, which is unchanged. It checks
+  the key, then re-serializes only known fields (kind from the 4, numeric params/levels, boolean
+  state, `id`, `t`, plus the sending `host`), so arbitrary text never reaches the repo. Caps: 200
+  entries and 64KB per batch, 900KB per day file (GitHub's contents API stops returning content at
+  1MB, so a bigger cap could have overwritten the day), then 429. It skips ids already in the day's
+  file, so resends are harmless; that's what lets beacons leave their batch in the outbox. A
+  conflicting PUT (409/422) re-reads and retries. CORS is answered only for the gloop origins.
+- **Not live yet:** writing the key and GitHub secrets was blocked as a secret-store write, so
+  `capture/scripts/setup-learn.sh` does it: generates the key into `.env`, sets gloop's `LEARN_URL`
+  secret, deploys the Lambda, re-runs the gloop-dev deploy, and copies the key to the clipboard for
+  pairing. Nathan runs it once.
+
+**Tool data:** written by hand (one new 160-line module plus edits to an existing Lambda; Argon is for
+bulk new files). Mocked Lambda test: preflight, bad key, bad kind, too many, CORS, 409 retry, day full,
+dedupe, and the Telegram path unaffected. Haiku on capture: 0 findings, twice. `/code-review` on the
+client: 10 findings, 8 fixed (blocked localStorage white-screened the app; tabs clobbering each
+other's outbox; beacon batches lost on server failure; no reschedule after a rejected batch; trims
+dropping unsent entries; count-based batch size near 64KB; outbox stringify cost; no timer dispose), 2
+accepted (public key, dev presses sharing the files). Haiku on gloop then caught that the
+memory fallback was never read back, and that my test had baked that in. Fixed. Jev: 3 of 3 flagged.
+
+## 2026-10-29 - Logo glitches; learn log in IndexedDB + auto-save file
 
 **Logo glitches.** Every 4–16s (20% chance of a quick second one right after) the wordmark does one
 of 12 glitches, never the same twice in a row: rgb split, slice, jitter, skew, invert, flicker, CRT

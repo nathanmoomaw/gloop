@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { appendEntry, loadLog, saveLog, summarize, toJSONL } from './learn'
 import { addEntry, getAllEntries, getMeta, loadLearnStore, saveFallbackEntry, setMeta } from './learnStore'
 import { createAppender, ensurePermission, pickLearnFile, writeAll } from './learnFile'
+import { createRemoteSender, loadPairKey, remoteUrl, savePairKey } from './learnRemote'
 
 // Learn mode's storage, behind one hook: the in-memory log (what the panel
 // counts and the learned target reads), IndexedDB (every press), the
@@ -37,7 +38,7 @@ const LEARN_MEMORY_CAP = 20000
 const LEARN_TARGET_WINDOW = 500
 
 
-/** Learn-mode log + persistence: { summary, file, record, recent, exportLog, pickFile }. */
+/** Learn-mode log + persistence: { summary, file, remote, record, recent, exportLog, pickFile, pair }. */
 export function useLearnLog() {
   const [learnLog, setLearnLog] = useState([])
   // Latest log for handlers, so two presses inside one render both land.
@@ -79,6 +80,43 @@ export function useLearnLog() {
     return () => { cancelled = true }
   }, [])
 
+  // Production builds with the capture URL, on a paired device: every press
+  // also goes to LIFE via the capture Lambda (learnRemote.js). The sender
+  // follows the key; a rejected key unpairs the device.
+  const learnUrl = remoteUrl()
+  const [pairKey, setPairKey] = useState(() => (learnUrl ? loadPairKey() : ''))
+  const [remoteError, setRemoteError] = useState(null)
+  const remoteRef = useRef(null)
+  useEffect(() => {
+    if (!learnUrl || !pairKey) return
+    const remote = createRemoteSender({
+      url: learnUrl,
+      key: pairKey,
+      onRejected: () => {
+        savePairKey('')
+        setPairKey('')
+        setRemoteError('key rejected, pair again')
+      },
+    })
+    remoteRef.current = remote
+    remote.flush() // whatever an earlier visit left in the outbox
+    const onHide = () => document.visibilityState === 'hidden' && remote.flush({ beacon: true })
+    document.addEventListener('visibilitychange', onHide)
+    return () => {
+      document.removeEventListener('visibilitychange', onHide)
+      remote.dispose()
+      if (remoteRef.current === remote) remoteRef.current = null
+    }
+  }, [learnUrl, pairKey])
+
+  // '' unpairs.
+  const pair = useCallback((key) => {
+    const trimmed = key.trim()
+    if (!savePairKey(trimmed)) return setRemoteError('this browser blocks storage')
+    setRemoteError(null)
+    setPairKey(trimmed)
+  }, [])
+
   const record = useCallback((entry) => {
     const next = appendEntry(learnLogRef.current, entry, LEARN_MEMORY_CAP)
     learnLogRef.current = next
@@ -107,6 +145,7 @@ export function useLearnLog() {
     if (import.meta.env.DEV) {
       fetch('/__gloop-learn', { method: 'POST', body: JSON.stringify(entry) }).catch(() => {})
     }
+    remoteRef.current?.add(entry)
   }, [])
 
   // The recent presses the learned target is computed from.
@@ -153,9 +192,11 @@ export function useLearnLog() {
   return {
     summary: learnSummary,
     file: learnFile,
+    remote: { available: !!learnUrl, paired: !!pairKey, error: remoteError },
     record,
     recent,
     exportLog: handleLearnExport,
     pickFile: handlePickLearnFile,
+    pair,
   }
 }
