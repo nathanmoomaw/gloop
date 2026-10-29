@@ -141,6 +141,28 @@
   text-align: center;
 }
 
+/* Auto-save status (File System Access browsers only). */
+.learn-panel__file {
+  margin: 0.45rem 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  font-size: 0.62rem;
+  color: rgba(255, 255, 255, 0.55);
+  text-align: center;
+}
+
+.learn-panel__file strong {
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 600;
+}
+
+.learn-panel__file--error {
+  color: var(--rainbow-1);
+}
+
 .learn-panel button:focus-visible {
   outline: 2px solid var(--color-repeat, #4ecdc4);
   outline-offset: 2px;

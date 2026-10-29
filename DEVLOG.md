@@ -1,6 +1,45 @@
 # DEVLOG
 
-## 2026-10-28 (latest) - Learn mode (❤️ 🔊 🔇 ⭐); default size at noon
+## 2026-10-29 (latest) - Logo glitches; learn log in IndexedDB + auto-save file
+
+**Logo glitches.** Every 4–16s (20% chance of a quick second one right after) the wordmark does one
+of 12 glitches, never the same twice in a row: rgb split, slice, jitter, skew, invert, flicker, CRT
+scan, melt, mirror, rainbow color, blur pop, color tear. They're CSS classes on a new
+`.gloop-logo__glitch` layer, so they don't fight the logo's centering transform. rgb and tear use two
+colored ghost copies of the text. The wordmark font size moved up onto that layer so `em` offsets mean
+wordmark size (at first jitter moved by 1.3px). Off under reduced motion. Checked all 12 in
+screenshots: four looked unchanged at first only because the screenshots landed after those short
+animations ended. In a headless 40s run it fired 6 different glitches.
+
+**Learn storage.**
+- **Local db:** presses go to IndexedDB (`learnStore.js`) instead of localStorage, with no 2000 cap.
+  The old localStorage log migrates once, in one transaction with a migrated flag. A press whose db
+  write fails is parked under `gloop.learn.fallback` and imported on the next load. With no IndexedDB
+  (private mode) localStorage stays the store. The in-memory log keeps the last 20k presses for the
+  panel; the learned target reads the last 500.
+- **Automatic export (Chrome/Edge desktop):** "auto-save to file" in the panel (`learnFile.js`, File
+  System Access API). Pick a file once and every press appends a line. The handle is kept in the db,
+  and permission is re-asked on a press after reload. An empty file first gets the whole history from
+  the db; a file with data is left as is. Failed appends wait in a backlog and go out with the next
+  press. Safari, iOS and Firefox don't have the API, so they keep export.
+- Storage moved out of App into `useLearnLog` (161 lines).
+- Headless (stubbed picker): 2 old localStorage entries migrated and the key was removed; the file
+  got old1, old2, then each new press; all 4 survived a reload; the dev middleware still logs.
+
+**Tool data:** Argon wrote `learnStore.js`, `learnFile.js` and both test files (fake-indexeddb, new
+devDependency, plus fast-check): 6.9k in, 4.6k out, **$0.060**, tests passed. Its gate's Haiku found 5:
+1 small real one (migration count included skipped junk), the rest minor or about tests. The logo work
+and App wiring were by hand. Haiku diff reviews (~$0.05 over 6 passes) found 9 real issues, all fixed,
+mostly in my wiring: presses before load counted twice; picking a non-empty file truncated it; the
+private-mode fallback ignored saved presses; StrictMode ran the migration twice; picking before load;
+export capped at memory; history `id` fields; a sync throw; a stale handle overwriting a new pick. The
+last pass only found millisecond-window races, so I stopped there. `/code-review`: 10 findings, 6
+fixed (fallback presses never re-imported, read failure after migration, failed appends never
+retried, mixed `id` shapes, user activation lost before the picker, summary recomputed per render), 4
+skipped (onblocked for a future schema bump, private-mode stringify cost, count past 20k, docs).
+Jev: 7 of 8 flagged.
+
+## 2026-10-28 - Learn mode (❤️ 🔊 🔇 ⭐); default size at noon
 
 **Default size 400 → 1500ms**, the size knob at 12 o'clock (linear 30–3000). The `sound` zone for
 size widened from 120–600 to 300–2000 so `sound` doesn't knock noon back out, and the shake range

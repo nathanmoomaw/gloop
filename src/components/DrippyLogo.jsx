@@ -1,4 +1,29 @@
+import { useEffect, useState } from 'react'
 import './DrippyLogo.css'
+
+// Glitches the wordmark sometimes does: name → length in ms. Each is a
+// `gloop-logo--<name>` class (DrippyLogo.css) on the glitch layer for that
+// long. rgb and tear also show the two colored ghost copies of the text.
+const GLITCHES = {
+  rgb: 520,
+  slice: 420,
+  jitter: 360,
+  skew: 300,
+  invert: 260,
+  flicker: 480,
+  scan: 380,
+  melt: 900,
+  mirror: 220,
+  color: 700,
+  blur: 340,
+  tear: 460,
+}
+const GLITCH_NAMES = Object.keys(GLITCHES)
+const GAP_MIN_MS = 4000
+const GAP_MAX_MS = 16000
+// Chance a glitch is followed straight away by another, so they sometimes
+// come in a stutter rather than always alone.
+const BURST_CHANCE = 0.2
 
 // Drip strands hanging off the wordmark: x position (% of width), start
 // (% of the box height, which includes the drop room below — the letters'
@@ -20,6 +45,29 @@ const DRIPS = [
  * strand stretches out of the letter like liquid and sheds a droplet.
  */
 export default function DrippyLogo() {
+  const [glitch, setGlitch] = useState(null)
+
+  useEffect(() => {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+    let timer
+    let last = null
+    const schedule = (gap) => {
+      timer = setTimeout(() => {
+        let next
+        do next = GLITCH_NAMES[Math.floor(Math.random() * GLITCH_NAMES.length)]
+        while (next === last)
+        last = next
+        setGlitch(next)
+        timer = setTimeout(() => {
+          setGlitch(null)
+          schedule(Math.random() < BURST_CHANCE ? 80 + Math.random() * 300 : GAP_MIN_MS + Math.random() * (GAP_MAX_MS - GAP_MIN_MS))
+        }, GLITCHES[next])
+      }, gap)
+    }
+    schedule(GAP_MIN_MS + Math.random() * (GAP_MAX_MS - GAP_MIN_MS))
+    return () => clearTimeout(timer)
+  }, [])
+
   return (
     <div className="gloop-logo" aria-hidden="true">
       <svg className="gloop-logo__defs" width="0" height="0">
@@ -40,17 +88,23 @@ export default function DrippyLogo() {
           </filter>
         </defs>
       </svg>
-      <div className="gloop-logo__goo">
-        <span className="gloop-logo__text">gloop</span>
-        {DRIPS.map((d) => (
-          <span
-            key={d.x}
-            className="gloop-logo__drip"
-            style={{ left: `${d.x}%`, top: `${d.top}%`, '--dur': `${d.dur}s`, '--delay': `${d.delay}s` }}
-          >
-            <span className="gloop-logo__drop" />
-          </span>
-        ))}
+      <div className={`gloop-logo__glitch ${glitch ? `gloop-logo--${glitch}` : ''}`}>
+        <div className="gloop-logo__ghosts">
+          <span className="gloop-logo__ghost gloop-logo__ghost--a">gloop</span>
+          <span className="gloop-logo__ghost gloop-logo__ghost--b">gloop</span>
+        </div>
+        <div className="gloop-logo__goo">
+          <span className="gloop-logo__text">gloop</span>
+          {DRIPS.map((d) => (
+            <span
+              key={d.x}
+              className="gloop-logo__drip"
+              style={{ left: `${d.x}%`, top: `${d.top}%`, '--dur': `${d.dur}s`, '--delay': `${d.delay}s` }}
+            >
+              <span className="gloop-logo__drop" />
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   )

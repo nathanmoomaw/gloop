@@ -7,6 +7,7 @@
 - [ ] Confirm the new opt-in "raw" mic toggle (no echoCancellation/noiseSuppression/autoGainControl) actually fixes the "choppy, cuts off" recordings on real hardware — Playwright's fake mic device can only confirm the toggle is wired up, not judge real capture quality (this is the same class of item as the two above)
 - [ ] Listening pass on Kubelka-Munk palette vs HSL (`k`) and new tap-sound level — keep or revert KM default
 - [ ] Eyeball pass on inverted see-through controls (legibility over bright grain clusters) and tilt-dance intensity on device
+- [ ] Learn sync from any device (phone, Safari) needs a backend: e.g. a POST route on the capture Lambda that appends to LIFE. Waiting on Nathan's call
 - [ ] Use learn mode for a while, then have Claude read `learning/feedback.jsonl` (dev) or an export and retune defaults / `SOUND_BOUNDS` from it
 - [ ] Eyeball pass on the CPPN field (`c`): keep or tune mutation rate 0.35 (one Shift+C jumped to a very different look), and whether it should get a UI control or hook into `breed`
 - [ ] Real-browser check: first spacebar press with a real mic permission prompt now ends with listen + `on` both lit
@@ -14,6 +15,7 @@
 
 ## Completed
 
+- [x] Logo glitches (12, random); learn log in IndexedDB + auto-save to a picked file (2026-10-29)
 - [x] Learn mode (❤️ 🔊 🔇 ⭐ feedback log + learned target for `sound`/🔇); default size 1500ms (knob noon) (2026-10-28)
 - [x] CPPN grain field (`c` / Shift+C, LUT-evaluated) + worth-saving reference notes (Sethares, waveguide, OPFS, ICMC94) (2026-10-28)
 - [x] Loop dot driven by JS phase (no jump on rate change); spacebar lost-keyup root cause; raw toggle applies live; full-stack tool audit in DEVLOG (2026-10-28)

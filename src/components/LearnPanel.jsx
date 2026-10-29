@@ -5,7 +5,18 @@ import './LearnPanel.css'
  * Floating feedback bar for learn mode: four thumb-friendly buttons log how
  * the current settings sound and steer the `sound` reset toward what worked.
  */
-export default function LearnPanel({ summary, lastKind, pulse, onFeedback, onExport, onClose }) {
+export default function LearnPanel({
+  summary,
+  lastKind,
+  pulse,
+  onFeedback,
+  onExport,
+  onClose,
+  fileSupported,
+  fileName,
+  fileError,
+  onPickFile,
+}) {
   const total = summary?.total ?? 0
   const byKind = summary?.byKind ?? { heart: 0, sound: 0, muted: 0, star: 0 }
   const lastFeedback = lastKind ? FEEDBACK_BY_ID[lastKind] : null
@@ -63,6 +74,21 @@ export default function LearnPanel({ summary, lastKind, pulse, onFeedback, onExp
         })}
       </div>
       <p className="learn-panel__hint">🔇 also nudges the dials back toward what you liked</p>
+      {fileSupported && (
+        <p className={`learn-panel__file ${fileError ? 'learn-panel__file--error' : ''}`}>
+          {fileName ? (
+            <>
+              auto-saving to <strong>{fileName}</strong>
+              {fileError && <> · {fileError}</>}
+            </>
+          ) : (
+            'saved in this browser'
+          )}
+          <button type="button" className="learn-panel__action" onClick={onPickFile}>
+            {fileName ? 'change file' : 'auto-save to file'}
+          </button>
+        </p>
+      )}
     </div>
   )
 }
