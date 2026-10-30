@@ -11,7 +11,8 @@
     "test": "npm run test:unit && node tests/smoke.mjs",
     "test:unit": "vitest run",
     "review:haiku": "review-haiku",
-    "learn:pull": "node scripts/learn-pull.mjs"
+    "learn:pull": "node scripts/learn-pull.mjs",
+    "evolve:cycle": "node scripts/evolve-cycle.mjs"
   },
   "dependencies": {
     "react": "^19.2.0",

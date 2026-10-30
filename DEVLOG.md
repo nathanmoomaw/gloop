@@ -1,6 +1,46 @@
 # DEVLOG
 
-## 2026-10-30 (latest) - Learn entries get their own store: gloop-learn Lambda + DynamoDB
+## 2026-10-30 (latest) - Self-evolving engine, prototype: predict in-app, cycle offline
+
+DUMP: "gloop as a prototype of a self evolving engine utilizing this stack to evaluate and predict".
+Nathan chose both halves, in-app first.
+- **Predict (`src/audio/predict.js`):** a Nadaraya-Watson kernel regression over the learn log.
+  - Features: the 9 evolvable dials plus volume, the mixes and sensitivity, normalized to [0,1]
+    (log scale for rate and size).
+  - Labels: heart/star 1, pick .9, linger .85, sound .75, settle .65, rescue .1, muted 0.
+  - Weighting: recency half-life 200; Gaussian bandwidth 0.15 on mean squared distance; a 0.5 prior
+    weighted 1, so unexplored settings come back as 0.5 at low confidence.
+  - Entries made with the grains silent (off, or thru on) are skipped, as in `learnedTarget`.
+- **In-app use:** App refits the model on every new entry.
+  - Evolve mutates 4 parasites each generation and auditions only the best-predicted one.
+  - Breed builds each new card as the best of 3 tries and shows the model's guess on it, faint when
+    it has little evidence nearby, so its judging can itself be judged.
+  - The live FFT fitness and the listener's picks still decide; the model only chooses what gets
+    tried.
+- **Offline cycle:** `npm run evolve:cycle` refits on everything under `learning/`. It then
+  random-searches `SOUND_BOUNDS` (seeded) for defaults the model rates at least 0.05 better where
+  it has evidence (confidence ≥ 0.3), and writes `learning/cycle/<date>.md` and `.json`.
+  `/evolve-cycle` is the stack turn: pull → predict → read the data → edit engine defaults (Edit, or
+  `/argon` for anything bulk) → tests, Jev, Haiku → commit on dev/v0 so it deploys to gloop-dev,
+  never main → Nathan listens, and his presses feed the next cycle. Today it reports 0 entries: the
+  table isn't live yet and `learning/` is empty.
+
+**Tool data:**
+- Argon: 3 files (predict 133, evolve-cycle 245, tests 229 lines). 9,848 in (0 cached), 6,774
+  out + 0 thinking, $0.0874.
+- Gate: Jev 0.22 / 0.49 / 0.77; 106/107 tests passed.
+- Haiku: 2 findings, $0.0050, both real.
+  - The failing `proposeDefaults` test put "current" right next to the hearts, so nothing could
+    beat it by 0.05: a test bug. Fixed by hand by moving current far away and the hearts'
+    sensitivity inside the bounds.
+  - NaN from bad CLI flags: now falls back to the defaults.
+- By hand: `logSpan` renamed to `span` (it also held the linear span); evolve, breed, BreedPanel
+  and App wiring; 2 screening tests; the command; the npm script.
+- Whole-diff Haiku: 0 findings, $0.0094. Jev on all 8 files: flagged 0.34–0.72, no line-level
+  signal.
+- 109 tests; lint and build clean.
+
+## 2026-10-30 - Learn entries get their own store: gloop-learn Lambda + DynamoDB
 
 Nathan: "why life? learn savings should live in a suitable gloop based db." Right: LIFE meant a git
 commit per batch, a 900KB/day cap (GitHub's contents API), and gloop data inside capture's

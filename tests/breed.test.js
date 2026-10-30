@@ -58,3 +58,34 @@ describe('seedPopulation with evolve slots', () => {
     expect(pop.candidates[3].params.rate).not.toBe(3)
   })
 })
+
+describe('predictor screening', () => {
+  it('a predictor that likes fast rates pulls new cards toward them', () => {
+    const current = getParams()
+    const likesFast = (p) => ({ score: 1 - p.rate / 4000, confidence: 1 })
+    const meanRate = (predict) => {
+      let sum = 0
+      let n = 0
+      for (let i = 0; i < 200; i++) {
+        for (const c of seedPopulation(current, [], predict).candidates.slice(1)) {
+          sum += c.params.rate
+          n++
+        }
+      }
+      return sum / n
+    }
+    expect(meanRate(likesFast)).toBeLessThan(meanRate(null))
+  })
+
+  it('nextGeneration children are screened too', () => {
+    const pop = seedPopulation(getParams())
+    const likesDense = (p) => ({ score: p.density, confidence: 1 })
+    let screened = 0
+    let plain = 0
+    for (let i = 0; i < 200; i++) {
+      screened += nextGeneration(pop, [0], Math.random, likesDense).candidates.slice(1).reduce((a, c) => a + c.params.density, 0)
+      plain += nextGeneration(pop, [0]).candidates.slice(1).reduce((a, c) => a + c.params.density, 0)
+    }
+    expect(screened).toBeGreaterThan(plain)
+  })
+})

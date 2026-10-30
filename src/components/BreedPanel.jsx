@@ -25,8 +25,8 @@ const LETTERS = 'ABCD'
  * only while open, so each opening seeds from whatever is playing now plus
  * evolve's fittest slots; every pick also goes back to evolve.
  */
-export default function BreedPanel({ onPick, onClose }) {
-  const [pop, setPop] = useState(() => seedPopulation(engine.getParams(), fittestParams(BREED_SIZE)))
+export default function BreedPanel({ predict, onPick, onClose }) {
+  const [pop, setPop] = useState(() => seedPopulation(engine.getParams(), fittestParams(BREED_SIZE), predict))
   const [active, setActive] = useState(0)
   const [picks, setPicks] = useState([])
 
@@ -45,12 +45,24 @@ export default function BreedPanel({ onPick, onClose }) {
     const picked = picks.map((i) => pop.candidates[i].params)
     adoptPicks(picked)
     picked.forEach((params) => onPick?.(params))
-    const next = nextGeneration(pop, picks)
+    const next = nextGeneration(pop, picks, Math.random, predict)
     setPop(next)
     setPicks([])
     // Land on the first new child — the thing there is to hear next.
     audition(Math.min(picks.length, next.candidates.length - 1), next.candidates)
-  }, [pop, picks, audition, onPick])
+  }, [pop, picks, audition, onPick, predict])
+
+  // The model's guess per card, so its judging can be judged; faint while
+  // it has little evidence nearby.
+  const guess = (params) => {
+    if (!predict) return null
+    const { score, confidence } = predict(params)
+    return (
+      <span className="breed-card__guess" style={{ opacity: 0.35 + confidence * 0.65 }} title="predicted from what you've liked">
+        {Math.round(score * 100)}%
+      </span>
+    )
+  }
 
   return (
     <div className="breed-panel" role="dialog" aria-label="Breed sounds">
@@ -68,6 +80,7 @@ export default function BreedPanel({ onPick, onClose }) {
               aria-pressed={i === active}
             >
               <span className="breed-card__letter">{LETTERS[i]}</span>
+              {guess(c.params)}
               <span className="breed-card__bars" aria-hidden="true">
                 {EVOLVE_KEYS.map((k) => {
                   const [lo, hi] = EVOLVE_RANGES[k]

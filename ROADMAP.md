@@ -10,6 +10,8 @@
 - [ ] Run `bash infra/learn/setup.sh` once (DynamoDB table + Lambda + LEARN_URL + gloop-dev rerun), then redeploy capture (`bash ~/Sites/capture/scripts/deploy.sh`) to drop its old `/learn`; check a phone entry shows up via `npm run learn:pull`
 - [ ] If gloop goes public with per-interaction analytics: add an S3/Firehose events stream next to `gloop-learn` (DynamoDB stays for learn signals)
 - [ ] Before gloop has real users: add a one-line notice that settings + sound levels are shared anonymously to improve it, and restore the GPC/DNT opt-out (removed 2026-10-30 so all input is saved). Not needed while it's just Nathan
+- [ ] First real `/evolve-cycle` once gloop-learn is live and has ~50+ entries: check the model's breed-card guesses against your picks, tune `bandwidth`/`LABELS` in predict.js if they disagree
+- [ ] Optionally schedule `/evolve-cycle` (e.g. weekly via /schedule) once one manual cycle has gone well
 - [ ] Listening pass on evolve ↔ breed sharing (does a resumed evolve keep what you picked?) and the implicit settle/linger thresholds (20s/90s)
 - [ ] Use learn mode for a while, then have Claude read `learning/feedback.jsonl` (dev) or an export and retune defaults / `SOUND_BOUNDS` from it
 - [ ] Eyeball pass on the CPPN field (`c`): keep or tune mutation rate 0.35 (one Shift+C jumped to a very different look), and whether it should get a UI control or hook into `breed`
@@ -18,6 +20,7 @@
 
 ## Completed
 
+- [x] Self-evolving engine prototype: in-app preference model screens evolve/breed; offline `npm run evolve:cycle` + `/evolve-cycle` (2026-10-30)
 - [x] Learn store moved off LIFE to gloop's own `gloop-learn` Lambda + DynamoDB, with `npm run learn:pull` (built; needs setup.sh run) (2026-10-30)
 - [x] All input saved from every device, no pairing (2026-10-30)
 - [x] setup-learn.sh run; capture `/learn` live, gloop-dev bundle has the URL, anonymous path verified end to end (2026-10-30)

@@ -15,6 +15,7 @@
 // so the UI decides when to audition (glideTo) and this stays testable.
 
 import { crossover, mutate, EVOLVE_KEYS } from './evolve'
+import { bestOf } from './predict'
 
 export const BREED_SIZE = 4
 const ARCHIVE_MAX = 8
@@ -25,6 +26,15 @@ const SEED_SCALE = 0.25
 const SEED_RATE = 0.6
 const CHILD_SCALE = 0.1
 const CHILD_RATE = 0.35
+// With a predictor, each new card is the best-rated of this many tries, so
+// a round shows the model's likeliest winners (your picks still decide).
+const TRIES = 3
+
+// Best-rated of TRIES makes of `make()`, or one make without a predictor.
+function screened(make, predict) {
+  if (!predict) return make()
+  return bestOf({ predict }, Array.from({ length: TRIES }, make), (m) => m.params)
+}
 
 let nextId = 1
 
@@ -38,8 +48,9 @@ function pick(list, rng) {
 
 // Round 0: the current sound as-is, then `evolved` (evolve's fittest
 // slots, so breed starts from what evolution found), then mutants of the
-// current sound to fill the round.
-export function seedPopulation(current, evolved = []) {
+// current sound to fill the round. `predict` (optional, predict.js) screens
+// the mutants.
+export function seedPopulation(current, evolved = [], predict = null) {
   const params = Object.fromEntries(EVOLVE_KEYS.map((k) => [k, current[k]]))
   const innovation = Object.fromEntries(EVOLVE_KEYS.map((k) => [k, 0]))
   const candidates = [candidate(params, innovation)]
@@ -50,7 +61,7 @@ export function seedPopulation(current, evolved = []) {
     candidates.push(candidate(Object.fromEntries(EVOLVE_KEYS.map((k) => [k, e[k]])), { ...innovation }))
   }
   while (candidates.length < BREED_SIZE) {
-    const m = mutate(params, innovation, SEED_SCALE, SEED_RATE, 1)
+    const m = screened(() => mutate(params, innovation, SEED_SCALE, SEED_RATE, 1), predict)
     candidates.push(candidate(m.params, m.innovation))
   }
   return { generation: 1, candidates, archive: [] }
@@ -59,7 +70,7 @@ export function seedPopulation(current, evolved = []) {
 // Next round from the picked indexes (at least one). Picks carry over
 // unchanged — capped so there's always at least one new child — and the
 // rest of the round is their offspring.
-export function nextGeneration(pop, pickedIdx, rng = Math.random) {
+export function nextGeneration(pop, pickedIdx, rng = Math.random, predict = null) {
   const keptIdx = pickedIdx.slice(0, BREED_SIZE - 1)
   const picked = keptIdx.map((i) => pop.candidates[i])
   if (picked.length === 0) return pop
@@ -75,10 +86,12 @@ export function nextGeneration(pop, pickedIdx, rng = Math.random) {
   const parents = picked.map((c) => ({ ...c, fitness: 1 }))
   const candidates = [...picked]
   while (candidates.length < BREED_SIZE) {
-    const a = pick(parents, rng)
-    const b = archive.length && rng() < ARCHIVE_PARENT_CHANCE ? pick(archive, rng) : pick(parents, rng)
-    const x = crossover(a, b)
-    const m = mutate(x.params, x.innovation, CHILD_SCALE, CHILD_RATE, gen)
+    const m = screened(() => {
+      const a = pick(parents, rng)
+      const b = archive.length && rng() < ARCHIVE_PARENT_CHANCE ? pick(archive, rng) : pick(parents, rng)
+      const x = crossover(a, b)
+      return mutate(x.params, x.innovation, CHILD_SCALE, CHILD_RATE, gen)
+    }, predict)
     candidates.push(candidate(m.params, m.innovation))
   }
   return { generation: gen, candidates, archive }

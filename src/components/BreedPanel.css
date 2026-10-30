@@ -53,6 +53,12 @@
   opacity: 0.8;
 }
 
+.breed-card__guess {
+  font-size: 0.6rem;
+  text-align: left;
+  color: rgba(255, 255, 255, 0.85);
+}
+
 .breed-card__bars {
   display: flex;
   align-items: flex-end;

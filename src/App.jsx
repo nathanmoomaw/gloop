@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as engine from './audio/engine'
 import { RotaryKnob } from './components/RotaryKnob'
 import ListenButton from './components/ListenButton'
@@ -13,9 +13,10 @@ import DrippyLogo from './components/DrippyLogo'
 import SoundButton from './components/SoundButton'
 import ThruToggle from './components/ThruToggle'
 import WaveformOverlay from './components/WaveformOverlay'
-import { EVOLVE_KEYS, GLIDE_MS, glideTo, startEvolve, stopEvolve } from './audio/evolve'
+import { EVOLVE_KEYS, GLIDE_MS, glideTo, setPredictor, startEvolve, stopEvolve } from './audio/evolve'
 import { learnedSoundFix, makeEntry, mutedFix } from './audio/learn'
 import { createImplicitLearner } from './audio/implicit'
+import { createPredictor } from './audio/predict'
 import { fileSaveSupported } from './audio/learnFile'
 import { useLearnLog } from './audio/useLearnLog'
 import LearnToggle from './components/LearnToggle'
@@ -128,6 +129,16 @@ export default function App() {
       rawMic: engine.getRawCapture(),
     }))
   }, [recordLearn])
+  // The learned preference model (predict.js), refit on every new entry.
+  // Candidates only carry the texture dials, so the live level dials fill
+  // in the rest. Evolve screens parasites with it; breed screens children
+  // and shows its guess on each card.
+  const predict = useMemo(() => {
+    const model = createPredictor(recentLearn())
+    return model.size ? (params) => model.predict({ ...engine.getParams(), ...params }) : null
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [learn.summary])
+  useEffect(() => setPredictor(predict), [predict])
   // Implicit learning, on for everyone (implicit.js): a sound kept playing
   // untouched logs settle, then linger.
   useEffect(() => {
@@ -425,7 +436,7 @@ export default function App() {
 
       <LoopIndicator ref={loopRef} active={running} periodMs={loopPeriodFromRate(params.rate)} />
 
-      {breeding && <BreedPanel onPick={(params) => logLearn('pick', params)} onClose={() => handleBreedToggle(false)} />}
+      {breeding && <BreedPanel predict={predict} onPick={(params) => logLearn('pick', params)} onClose={() => handleBreedToggle(false)} />}
       {learning && (
         <LearnPanel
           summary={learn.summary}

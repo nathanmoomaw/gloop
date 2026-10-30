@@ -46,8 +46,14 @@
 //     the slots as a protected host, so your ear and the fitness score
 //     work on one lineage. App pauses evolve while breed is open (one
 //     thing auditions at a time) and resumes it on close.
+//   - prediction picks what to audition (predict.js): each generation
+//     mutates PARASITE_TRIES candidates and plays only the one the learned
+//     preference model rates best, so the live FFT fitness is spent on
+//     likely winners. The FFT score still decides who wins the slot; the
+//     model only screens. App keeps the model fresh via setPredictor.
 
 import { getParams, setParam, getAnalyser } from './engine'
+import { bestOf } from './predict'
 
 // Same texture-only philosophy as App.jsx's SHAKE_RANGES: master volume
 // and sensitivity are excluded so evolution reshuffles the sound's
@@ -85,6 +91,8 @@ const RESISTANCE_DECAY = 0.85
 // mutating, rather than just mutating a single slot — the rest stay plain
 // asexual parasites, same as before crossover existed.
 const CROSSOVER_PROBABILITY = 0.5
+// Parasites mutated per generation; the predictor auditions the best one.
+const PARASITE_TRIES = 4
 
 const GENERATION_INTERVAL_MS = 14000
 // How long a challenging parasite is left actually playing before its
@@ -120,6 +128,8 @@ let generation = 0
 // challenges) — gets its fitness re-measured at the next generation.
 let playingIdx = 0
 let glideTimer = null
+// predict(params) → { score, confidence } from the learn log, or null.
+let predict = null
 
 function clamp(v, lo, hi) {
   return Math.max(lo, Math.min(hi, v))
@@ -250,7 +260,10 @@ function runGeneration() {
     base = crossover(host, slots[partnerIdx])
     bred = true
   }
-  const parasite = mutate(base.params, base.innovation, PARASITE_MUTATION_SCALE, PARASITE_MUTATION_RATE, generation)
+  const tries = Array.from({ length: predict ? PARASITE_TRIES : 1 }, () =>
+    mutate(base.params, base.innovation, PARASITE_MUTATION_SCALE, PARASITE_MUTATION_RATE, generation),
+  )
+  const parasite = predict ? bestOf({ predict }, tries, (t) => t.params) : tries[0]
 
   glideTo(parasite.params)
   // Score only the parasite once fully glided in.
@@ -293,6 +306,12 @@ function runGeneration() {
 // Fires with { hostIdx, bred, won, fitness } after each generation's
 // outcome — purely informational (e.g. for a UI pulse), evolution runs the
 // same without a listener.
+// Sets the learned preference model evolve screens parasites with (see the
+// header); null turns screening off.
+export function setPredictor(fn) {
+  predict = fn
+}
+
 export function onEvolveTick(callback) {
   onTickCallback = callback
 }
