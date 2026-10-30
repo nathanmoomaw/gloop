@@ -6,7 +6,8 @@ import { createRemoteSender, remoteUrl } from './learnRemote'
 
 // Learn mode's storage, behind one hook: the in-memory log (what the panel
 // counts and the learned target reads), IndexedDB (every press), the
-// optional auto-save file, and the dev-server log. App only makes entries.
+// optional auto-save file (only in builds without the gloop learn store),
+// and the dev-server log. App only makes entries.
 
 // Loaded once per page: StrictMode's double-mounted effect would otherwise
 // run the localStorage migration twice in parallel.
@@ -49,6 +50,9 @@ export function useLearnLog() {
   // Presses made before the store finished loading, saved once it has.
   const learnPendingRef = useRef([])
   const learnLoadedRef = useRef(false)
+  // Builds with the store URL send every entry to the gloop learn store
+  // (learnRemote.js), so they skip the auto-save file.
+  const learnUrl = remoteUrl()
   // Auto-save file (learnFile.js, Chrome/Edge desktop): picked once, kept in
   // the db, appended on every press.
   const learnFileRef = useRef(null)
@@ -69,7 +73,7 @@ export function useLearnLog() {
       const merged = [...stored, ...learnLogRef.current].slice(-LEARN_MEMORY_CAP)
       learnLogRef.current = merged
       setLearnLog(merged)
-      const handle = db && (await getMeta(db, 'file').catch(() => null))
+      const handle = db && !learnUrl && (await getMeta(db, 'file').catch(() => null))
       // Skip if a file was already picked while this was loading.
       if (handle && !cancelled && !learnFileRef.current) {
         // Presses from the load window go out with the next one.
@@ -78,12 +82,10 @@ export function useLearnLog() {
       }
     })
     return () => { cancelled = true }
-  }, [])
+  }, [learnUrl])
 
-  // Production builds with the capture URL: every entry, from any device,
-  // also goes to LIFE via the capture Lambda (learnRemote.js). No key or
-  // pairing for now, so it lands in LIFE/learn/gloop/anon/.
-  const learnUrl = remoteUrl()
+  // Production builds with the store URL: every entry, from any device,
+  // also goes to the gloop-learn table (learnRemote.js, infra/learn/).
   const remoteRef = useRef(null)
   useEffect(() => {
     if (!learnUrl) return

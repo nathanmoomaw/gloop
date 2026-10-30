@@ -444,7 +444,7 @@ export default function App() {
           pulse={learnLast.pulse}
           onFeedback={handleFeedback}
           onExport={learn.exportLog}
-          fileSupported={fileSaveSupported()}
+          fileSupported={!learn.remote && fileSaveSupported()}
           fileName={learn.file.name}
           fileError={learn.file.error}
           onPickFile={learn.pickFile}
