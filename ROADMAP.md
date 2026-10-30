@@ -20,6 +20,7 @@
 
 ## Completed
 
+- [x] Learn store builds drop the auto-save file option (2026-10-30)
 - [x] gloop-learn live and tested end to end: API checks, real-browser heart + implicit settle → DynamoDB, breed guesses, learn:pull (2026-10-30)
 - [x] Self-evolving engine prototype: in-app preference model screens evolve/breed; offline `npm run evolve:cycle` + `/evolve-cycle` (2026-10-30)
 - [x] Learn store moved off LIFE to gloop's own `gloop-learn` Lambda + DynamoDB, with `npm run learn:pull` (built; needs setup.sh run) (2026-10-30)

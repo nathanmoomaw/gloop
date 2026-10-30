@@ -1,6 +1,19 @@
 # DEVLOG
 
-## 2026-10-30 (latest) - Tested live: learn store end to end
+## 2026-10-30 (latest) - No auto-save file when the learn store is on
+
+DUMP: "no need for file saving style if the gloop store is active". Builds with `VITE_LEARN_URL`
+(prod and gloop-dev) no longer offer "auto-save to file": `LearnPanel` hides it, and `useLearnLog`
+neither restores a saved file handle nor appends to one. Every entry already goes to the gloop-learn
+table. `npm run dev` (no store URL) keeps the file option. Also rewrote the `learnRemote.js` header,
+which still described the capture/LIFE route.
+- **Jev:** flagged all 3 files (0.43–0.58), with no line-level signal, same as before.
+- **Haiku:** 1 finding, in older code: the legacy-outbox fold deleted the old key even when the
+  write failed, and a malformed value pushed the tab to memory-only storage. Real. Fixed: the old
+  key is removed only after a successful write (or if it's unreadable).
+- 109 tests pass, lint clean.
+
+## 2026-10-30 - Tested live: learn store end to end
 
 Nathan ran `infra/learn/setup.sh`: the table is ACTIVE, the Lambda is live, `LEARN_URL` is set, and
 gloop-dev was rebuilt afterwards.
