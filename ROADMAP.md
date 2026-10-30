@@ -7,8 +7,8 @@
 - [ ] Confirm the new opt-in "raw" mic toggle (no echoCancellation/noiseSuppression/autoGainControl) actually fixes the "choppy, cuts off" recordings on real hardware — Playwright's fake mic device can only confirm the toggle is wired up, not judge real capture quality (this is the same class of item as the two above)
 - [ ] Listening pass on Kubelka-Munk palette vs HSL (`k`) and new tap-sound level — keep or revert KM default
 - [ ] Eyeball pass on inverted see-through controls (legibility over bright grain clusters) and tilt-dance intensity on device
-- [ ] Check a phone press lands in `LIFE/learn/gloop/anon/` (no pairing needed)
-- [ ] Watch `LIFE/learn/gloop/anon/` volume; move anon to S3 if commits get noisy
+- [ ] Run `bash infra/learn/setup.sh` once (DynamoDB table + Lambda + LEARN_URL + gloop-dev rerun), then redeploy capture (`bash ~/Sites/capture/scripts/deploy.sh`) to drop its old `/learn`; check a phone entry shows up via `npm run learn:pull`
+- [ ] If gloop goes public with per-interaction analytics: add an S3/Firehose events stream next to `gloop-learn` (DynamoDB stays for learn signals)
 - [ ] Before gloop has real users: add a one-line notice that settings + sound levels are shared anonymously to improve it, and restore the GPC/DNT opt-out (removed 2026-10-30 so all input is saved). Not needed while it's just Nathan
 - [ ] Listening pass on evolve ↔ breed sharing (does a resumed evolve keep what you picked?) and the implicit settle/linger thresholds (20s/90s)
 - [ ] Use learn mode for a while, then have Claude read `learning/feedback.jsonl` (dev) or an export and retune defaults / `SOUND_BOUNDS` from it
@@ -18,6 +18,7 @@
 
 ## Completed
 
+- [x] Learn store moved off LIFE to gloop's own `gloop-learn` Lambda + DynamoDB, with `npm run learn:pull` (built; needs setup.sh run) (2026-10-30)
 - [x] All input saved from every device, no pairing (2026-10-30)
 - [x] setup-learn.sh run; capture `/learn` live, gloop-dev bundle has the URL, anonymous path verified end to end (2026-10-30)
 - [x] Evolve and breed share one population (breed seeds from evolve's fittest, picks join evolve; evolve pauses while breed is open) (2026-10-30)

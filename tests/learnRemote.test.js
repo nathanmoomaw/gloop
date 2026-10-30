@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { ANON_OUTBOX_KEY, OUTBOX_KEY, createRemoteSender, remoteUrl } from '../src/audio/learnRemote.js'
+import { OUTBOX_KEY, createRemoteSender, remoteUrl } from '../src/audio/learnRemote.js'
 
 function fakeStorage(init = {}) {
   const map = new Map(Object.entries(init))
@@ -41,7 +41,7 @@ describe('createRemoteSender', () => {
     const calls = []
     const timers = fakeTimers()
     const storage = fakeStorage()
-    const s = createRemoteSender({ url: 'U', key: 'K', host: 'h', storage, ...timers, fetchImpl: async (u, o) => (calls.push([u, o]), { ok: true }) })
+    const s = createRemoteSender({ url: 'U', host: 'h', storage, ...timers, fetchImpl: async (u, o) => (calls.push([u, o]), { ok: true }) })
     s.add(entry('a'))
     s.add(entry('b'))
     expect(calls).toHaveLength(0)
@@ -50,17 +50,17 @@ describe('createRemoteSender', () => {
     expect(calls).toHaveLength(1)
     expect(calls[0][1].headers['Content-Type']).toBe('text/plain')
     const sent = JSON.parse(calls[0][1].body)
-    expect(sent.key).toBe('K')
+    expect('key' in sent).toBe(false)
     expect(sent.host).toBe('h')
     expect(sent.entries.map(({ id, ...e }) => (expect(id).toMatch(/^[a-z0-9]+$/), e))).toEqual([entry('a'), entry('b')])
     expect(s.pending()).toBe(0)
     expect(storage.getItem(OUTBOX_KEY)).toBeNull()
   })
 
-  it('keeps the outbox and retries on 5xx, 429 and network errors', async () => {
-    for (const fail of [async () => ({ ok: false, status: 502 }), async () => ({ ok: false, status: 429 }), async () => { throw new Error('offline') }]) {
+  it('keeps the outbox and retries on 5xx, 429, 403 and network errors', async () => {
+    for (const fail of [async () => ({ ok: false, status: 502 }), async () => ({ ok: false, status: 429 }), async () => ({ ok: false, status: 403 }), async () => { throw new Error('offline') }]) {
       const timers = fakeTimers()
-      const s = createRemoteSender({ url: 'U', key: 'K', storage: fakeStorage(), ...timers, fetchImpl: fail })
+      const s = createRemoteSender({ url: 'U', storage: fakeStorage(), ...timers, fetchImpl: fail })
       s.add(entry('a'))
       await timers.run()
       expect(s.pending()).toBe(1)
@@ -70,29 +70,16 @@ describe('createRemoteSender', () => {
 
   it('drops a batch the server rejects for good (400/413)', async () => {
     const timers = fakeTimers()
-    const s = createRemoteSender({ url: 'U', key: 'K', storage: fakeStorage(), ...timers, fetchImpl: async () => ({ ok: false, status: 413 }) })
+    const s = createRemoteSender({ url: 'U', storage: fakeStorage(), ...timers, fetchImpl: async () => ({ ok: false, status: 413 }) })
     s.add(entry('a'))
     await timers.run()
     expect(s.pending()).toBe(0)
   })
 
-  it('reports a rejected key (401), stops sending and keeps the presses', async () => {
-    let rejected = 0
-    let sends = 0
-    const timers = fakeTimers()
-    const s = createRemoteSender({ url: 'U', key: 'bad', storage: fakeStorage(), ...timers, onRejected: () => rejected++, fetchImpl: async () => (sends++, { ok: false, status: 401 }) })
-    for (let i = 0; i < 3; i++) s.add(entry(String(i)))
-    await timers.run()
-    expect(rejected).toBe(1)
-    expect(sends).toBe(1)
-    expect(timers.scheduled()).toBe(false)
-    expect(s.pending()).toBe(3)
-  })
-
   it('picks up an outbox left by an earlier page load', async () => {
     const calls = []
     const storage = fakeStorage({ [OUTBOX_KEY]: JSON.stringify([{ ...entry('old'), id: 'x1' }]) })
-    const s = createRemoteSender({ url: 'U', key: 'K', storage, ...fakeTimers(), fetchImpl: async (u, o) => (calls.push(o), { ok: true }) })
+    const s = createRemoteSender({ url: 'U', storage, ...fakeTimers(), fetchImpl: async (u, o) => (calls.push(o), { ok: true }) })
     expect(s.pending()).toBe(1)
     await s.flush()
     expect(JSON.parse(calls[0].body).entries).toEqual([{ ...entry('old'), id: 'x1' }])
@@ -101,7 +88,7 @@ describe('createRemoteSender', () => {
   it('caps each request at ~48KB and chains the rest', async () => {
     const sizes = []
     const timers = fakeTimers()
-    const s = createRemoteSender({ url: 'U', key: 'K', storage: fakeStorage(), ...timers, fetchImpl: async (u, o) => (sizes.push(o.body.length), { ok: true }) })
+    const s = createRemoteSender({ url: 'U', storage: fakeStorage(), ...timers, fetchImpl: async (u, o) => (sizes.push(o.body.length), { ok: true }) })
     const big = (t) => ({ ...entry(t), params: { pad: 'x'.repeat(1000) } })
     for (let i = 0; i < 80; i++) s.add(big(String(i)))
     await timers.run()
@@ -113,7 +100,7 @@ describe('createRemoteSender', () => {
 
   it('a beacon flush leaves the batch for the next visit to resend', async () => {
     let sent = null
-    const s = createRemoteSender({ url: 'U', key: 'K', storage: fakeStorage(), ...fakeTimers(), beacon: (u, blob) => ((sent = blob), true) })
+    const s = createRemoteSender({ url: 'U', storage: fakeStorage(), ...fakeTimers(), beacon: (u, blob) => ((sent = blob), true) })
     s.add(entry('a'))
     await s.flush({ beacon: true })
     expect(sent).toBeInstanceOf(Blob)
@@ -124,8 +111,8 @@ describe('createRemoteSender', () => {
     const storage = fakeStorage()
     const bodies = []
     const fetchImpl = async (u, o) => (bodies.push(JSON.parse(o.body).entries.map((e) => e.t)), { ok: true })
-    const a = createRemoteSender({ url: 'U', key: 'K', storage, ...fakeTimers(), fetchImpl })
-    const b = createRemoteSender({ url: 'U', key: 'K', storage, ...fakeTimers(), fetchImpl })
+    const a = createRemoteSender({ url: 'U', storage, ...fakeTimers(), fetchImpl })
+    const b = createRemoteSender({ url: 'U', storage, ...fakeTimers(), fetchImpl })
     a.add(entry('a1'))
     b.add(entry('b1'))
     a.add(entry('a2'))
@@ -139,7 +126,7 @@ describe('createRemoteSender', () => {
   it('keeps an entry added while a send was in flight', async () => {
     const storage = fakeStorage()
     let release
-    const s = createRemoteSender({ url: 'U', key: 'K', storage, ...fakeTimers(), fetchImpl: () => new Promise((r) => (release = () => r({ ok: true }))) })
+    const s = createRemoteSender({ url: 'U', storage, ...fakeTimers(), fetchImpl: () => new Promise((r) => (release = () => r({ ok: true }))) })
     s.add(entry('a'))
     const flushing = s.flush()
     await Promise.resolve()
@@ -152,7 +139,7 @@ describe('createRemoteSender', () => {
   it('works (in memory) when localStorage throws', async () => {
     const throwing = { getItem: () => { throw new Error('blocked') }, setItem: () => { throw new Error('blocked') }, removeItem: () => { throw new Error('blocked') } }
     const calls = []
-    const s = createRemoteSender({ url: 'U', key: 'K', storage: throwing, ...fakeTimers(), fetchImpl: async (u, o) => (calls.push(o), { ok: true }) })
+    const s = createRemoteSender({ url: 'U', storage: throwing, ...fakeTimers(), fetchImpl: async (u, o) => (calls.push(o), { ok: true }) })
     s.add(entry('a'))
     expect(s.pending()).toBe(1)
     await s.flush()
@@ -164,7 +151,7 @@ describe('createRemoteSender', () => {
     const storage = fakeStorage()
     storage.setItem = () => { throw new Error('quota') }
     const calls = []
-    const s = createRemoteSender({ url: 'U', key: 'K', storage, ...fakeTimers(), fetchImpl: async (u, o) => (calls.push(o), { ok: true }) })
+    const s = createRemoteSender({ url: 'U', storage, ...fakeTimers(), fetchImpl: async (u, o) => (calls.push(o), { ok: true }) })
     s.add(entry('a'))
     s.add(entry('b'))
     expect(s.pending()).toBe(2)
@@ -175,37 +162,16 @@ describe('createRemoteSender', () => {
   it('caps each request at 50 entries and chains the rest', async () => {
     const counts = []
     const timers = fakeTimers()
-    const s = createRemoteSender({ url: 'U', key: '', storage: fakeStorage(), ...timers, fetchImpl: async (u, o) => (counts.push(JSON.parse(o.body).entries.length), { ok: true }) })
+    const s = createRemoteSender({ url: 'U', storage: fakeStorage(), ...timers, fetchImpl: async (u, o) => (counts.push(JSON.parse(o.body).entries.length), { ok: true }) })
     for (let i = 0; i < 120; i++) s.add(entry(String(i)))
     for (let i = 0; i < 3; i++) await timers.run()
     expect(counts).toEqual([50, 50, 20])
   })
 
-  it('a rejected key never sends its queue anonymously', async () => {
-    const storage = fakeStorage()
-    const timers = fakeTimers()
-    const paired = createRemoteSender({ url: 'U', key: 'bad', storage, ...timers, fetchImpl: async () => ({ ok: false, status: 401 }) })
-    paired.add(entry('p'))
-    await timers.run()
-    const bodies = []
-    const anon = createRemoteSender({ url: 'U', key: '', storage, ...fakeTimers(), fetchImpl: async (u, o) => (bodies.push(o.body), { ok: true }) })
-    await anon.flush()
-    expect(bodies).toEqual([])
-    expect(JSON.parse(storage.getItem(OUTBOX_KEY))).toHaveLength(1)
-    anon.add(entry('a'))
-    await anon.flush()
-    expect(JSON.parse(bodies[0]).entries.map((e) => e.t)).toEqual(['a'])
-    expect(storage.getItem(ANON_OUTBOX_KEY)).toBeNull()
-  })
-
-  it('sends anonymously (no key field) when unpaired', async () => {
-    const calls = []
-    const s = createRemoteSender({ url: 'U', key: '', host: 'h', storage: fakeStorage(), ...fakeTimers(), fetchImpl: async (u, o) => (calls.push(o), { ok: true }) })
-    s.add(entry('a'))
-    await s.flush()
-    const body = JSON.parse(calls[0].body)
-    expect('key' in body).toBe(false)
-    expect(body.host).toBe('h')
-    expect(body.entries).toHaveLength(1)
+  it('folds the capture-era outbox in once', () => {
+    const storage = fakeStorage({ 'gloop.learn.outbox.anon': JSON.stringify([{ ...entry('old'), id: 'legacy1' }]) })
+    const s = createRemoteSender({ url: 'U', storage, ...fakeTimers() })
+    expect(s.pending()).toBe(1)
+    expect(storage.getItem('gloop.learn.outbox.anon')).toBeNull()
   })
 })

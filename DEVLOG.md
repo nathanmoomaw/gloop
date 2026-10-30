@@ -1,6 +1,43 @@
 # DEVLOG
 
-## 2026-10-30 (latest) - All input saved, no pairing
+## 2026-10-30 (latest) - Learn entries get their own store: gloop-learn Lambda + DynamoDB
+
+Nathan: "why life? learn savings should live in a suitable gloop based db." Right: LIFE meant a git
+commit per batch, a 900KB/day cap (GitHub's contents API), and gloop data inside capture's
+Telegram/email Lambda. Copied puddle's preset-store pattern instead: DynamoDB table `gloop-learn`
+(on-demand, pk `day`, sk `id`; a resend overwrites the same row, so dedupe is free) behind a
+`gloop-learn` Lambda with a public Function URL. Cost estimate (from memory of us-east-1 pricing, not
+a live check): about $0 for Nathan alone, about $0.65/month at 1M entries; storage stays in the 25GB
+free tier for years.
+- `infra/learn/handler.mjs`: pure, tested. Origin allowlist (403 for others, since CORS only binds
+  browsers), 64KB body, at most 50 entries, kind set, numeric-only params/levels, boolean state,
+  cleaned host; an invalid id gets a generated one.
+- `infra/learn/index.mjs`: BatchWriteItem in 25s, retries unprocessed items with backoff.
+- `infra/learn/setup.sh`: table, least-privilege role (BatchWriteItem/PutItem on the one table),
+  function, reserved concurrency 10, Function URL with both public permissions, the `LEARN_URL`
+  secret, and a gloop-dev rerun.
+- `npm run learn:pull`: last N days → `learning/remote/<day>.jsonl` via the aws CLI (no SDK dep).
+- Client: no key and one outbox; a 403 is retried, since it means an origin is missing from the allowlist.
+- capture's `/learn` route, setup-learn.sh and docs reverted to their pre-learn state (all four
+  learn commits only touched those files).
+
+**Tool data:**
+- Argon: 5 files (handler 127, index 43, setup.sh 144, learn-pull 85, tests 250 lines). 11,734 in
+  (0 cached), 7,582 out + 0 thinking, $0.0993.
+- Jev: handler 0.23 (skipped Haiku), learn-pull 0.81, tests 0.49. Tests passed first try.
+- Haiku: 2 findings, $0.0036, both real-ish. A failed `gh run rerun` was swallowed by `|| true`;
+  now it warns. `toEntry` crashes on null; moot, because `toEntry` was rewritten by hand to take
+  plain rows only (it had been guessing between raw DynamoDB JSON and plain objects).
+- Second Haiku pass on the whole diff: 3 findings, $0.0065.
+  - Real: a 403 dropped batches (a missing allowlist origin would discard everything); now it
+    retries.
+  - Real: the capture-era outbox key would have been orphaned; now folded in once on start.
+  - False: "learn:pull ignores LastEvaluatedKey". The aws CLI paginates `query` itself.
+- Jev on the hand-edited files: all flagged, 0.38–0.62, no line-level signal.
+- By hand: the client sender (key, 401 and anonymous-outbox removal; 403 retry; legacy fold), the
+  `learn:pull` npm script, docs. 95 tests.
+
+## 2026-10-30 - All input saved, no pairing
 
 Nathan: "no devices need pairing for now, want all user input saved." The pairing UI, the stored key
 (`loadPairKey`/`savePairKey`) and the GPC/DNT opt-out are gone. Every device sends every entry without

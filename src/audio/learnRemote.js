@@ -13,18 +13,16 @@
 // change, entries leave it only by id once a send succeeds, and flushes are
 // serialized across tabs with the Web Locks API where it exists.
 //
-// The build carries only the URL. For now every device sends without a
-// key, so the Lambda files it all under LIFE/learn/gloop/anon/. The sender
-// still takes a `key` (the Lambda's keyed path → the main log) for when
-// pairing comes back.
+// The build carries only the URL: gloop's own learn Lambda
+// (infra/learn/), which stores every entry in the gloop-learn DynamoDB
+// table. No key; the Lambda checks the origin and the fields.
 
 export const OUTBOX_KEY = 'gloop.learn.outbox'
-// Anonymous entries queue apart, so a revoked key never sends paired
-// entries anonymously (or the reverse after pairing).
-export const ANON_OUTBOX_KEY = 'gloop.learn.outbox.anon'
+// Where the keyless capture-era build queued entries; folded in on start.
+const LEGACY_OUTBOX_KEY = 'gloop.learn.outbox.anon'
 const OUTBOX_CAP = 500
 // Under the Lambda's 64KB body cap and sendBeacon's 64KB limit, and its
-// 50-entry cap on anonymous batches.
+// 50-entry cap per batch.
 const MAX_BATCH_BYTES = 48 * 1024
 const MAX_BATCH_ENTRIES = 50
 const DELAY_MS = 15000
@@ -39,19 +37,19 @@ function defaultStorage() {
   }
 }
 
-function readOutbox(storage, outboxKey) {
+function readOutbox(storage) {
   try {
-    const parsed = JSON.parse(storage?.getItem(outboxKey) || '[]')
+    const parsed = JSON.parse(storage?.getItem(OUTBOX_KEY) || '[]')
     return Array.isArray(parsed) ? parsed : []
   } catch {
     return []
   }
 }
 
-function writeOutbox(storage, outboxKey, outbox) {
+function writeOutbox(storage, outbox) {
   try {
-    if (outbox.length) storage.setItem(outboxKey, JSON.stringify(outbox))
-    else storage.removeItem(outboxKey)
+    if (outbox.length) storage.setItem(OUTBOX_KEY, JSON.stringify(outbox))
+    else storage.removeItem(OUTBOX_KEY)
     return true
   } catch {
     return false
@@ -69,14 +67,10 @@ export function remoteUrl(env = import.meta.env) {
 
 /**
  * Batching sender: { add(entry), flush({ beacon }), pending(), dispose() }.
- * `onRejected` fires on a 401 (wrong or revoked key); the outbox is kept. Deps are injectable
- * for tests.
+ * Deps are injectable for tests.
  */
 export function createRemoteSender({
   url,
-  key,
-  outboxKey = key ? OUTBOX_KEY : ANON_OUTBOX_KEY,
-  onRejected = () => {},
   host = globalThis.location?.host ?? 'unknown',
   storage = defaultStorage(),
   fetchImpl = (...args) => globalThis.fetch(...args),
@@ -91,7 +85,12 @@ export function createRemoteSender({
   // write; then this tab keeps its outbox in memory for the session.
   let storageOk = !!storage
   try {
-    storage?.getItem(outboxKey)
+    storage?.getItem(OUTBOX_KEY)
+    const legacy = storage?.getItem(LEGACY_OUTBOX_KEY)
+    if (legacy) {
+      writeOutbox(storage, [...readOutbox(storage), ...JSON.parse(legacy)].slice(-OUTBOX_CAP))
+      storage.removeItem(LEGACY_OUTBOX_KEY)
+    }
   } catch {
     storageOk = false
   }
@@ -99,9 +98,9 @@ export function createRemoteSender({
   let timer = null
   let inFlight = false
 
-  const load = () => (storageOk ? readOutbox(storage, outboxKey) : memory)
+  const load = () => (storageOk ? readOutbox(storage) : memory)
   const save = (outbox) => {
-    if (storageOk && writeOutbox(storage, outboxKey, outbox)) return
+    if (storageOk && writeOutbox(storage, outbox)) return
     storageOk = false
     memory = outbox
   }
@@ -127,8 +126,7 @@ export function createRemoteSender({
     return batch
   }
 
-  // No key: an anonymous batch.
-  const body = (batch) => JSON.stringify(key ? { key, host, entries: batch } : { host, entries: batch })
+  const body = (batch) => JSON.stringify({ host, entries: batch })
 
   const remove = (batch) => {
     const sent = new Set(batch.map((e) => e.id))
@@ -156,15 +154,12 @@ export function createRemoteSender({
           schedule(retryMs) // offline
           return
         }
-        if (resp.status === 401) {
-          // Wrong or revoked key: keep the presses for the next pairing.
-          onRejected()
-        } else if (resp.ok || resp.status === 400 || resp.status === 413) {
+        if (resp.ok || resp.status === 400 || resp.status === 413) {
           // Sent, or never going to be accepted as is: either way, out.
           remove(batch)
           if (load().length) schedule(0)
         } else {
-          schedule(retryMs) // 429 (day full) / 5xx: try again later
+          schedule(retryMs) // 403 (origin not allowed yet), 429, 5xx: try again later
         }
       })
     } finally {
