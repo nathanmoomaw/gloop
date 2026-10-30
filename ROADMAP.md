@@ -9,6 +9,7 @@
 - [ ] Eyeball pass on inverted see-through controls (legibility over bright grain clusters) and tilt-dance intensity on device
 - [ ] Run `bash ~/Sites/capture/scripts/setup-learn.sh` once (key + gloop `LEARN_URL` secret + Lambda deploy + gloop-dev rebuild, key copied to clipboard), pair each device in the learn panel, then check a phone press lands in `LIFE/learn/gloop/`
 - [ ] Redeploy capture (`bash ~/Sites/capture/scripts/deploy.sh`, or setup-learn.sh if not yet run) so `/learn` takes anonymous and implicit entries; then watch `LIFE/learn/gloop/anon/` volume. Move anon to S3 if commits get noisy
+- [ ] Before gloop has real users: add a one-line notice that settings + sound levels are shared anonymously to improve it (GPC/DNT already opt out). Not needed while it's just Nathan
 - [ ] Listening pass on evolve ↔ breed sharing (does a resumed evolve keep what you picked?) and the implicit settle/linger thresholds (20s/90s)
 - [ ] Use learn mode for a while, then have Claude read `learning/feedback.jsonl` (dev) or an export and retune defaults / `SOUND_BOUNDS` from it
 - [ ] Eyeball pass on the CPPN field (`c`): keep or tune mutation rate 0.35 (one Shift+C jumped to a very different look), and whether it should get a UI control or hook into `breed`
