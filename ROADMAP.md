@@ -7,7 +7,7 @@
 - [ ] Confirm the new opt-in "raw" mic toggle (no echoCancellation/noiseSuppression/autoGainControl) actually fixes the "choppy, cuts off" recordings on real hardware — Playwright's fake mic device can only confirm the toggle is wired up, not judge real capture quality (this is the same class of item as the two above)
 - [ ] Listening pass on Kubelka-Munk palette vs HSL (`k`) and new tap-sound level — keep or revert KM default
 - [ ] Eyeball pass on inverted see-through controls (legibility over bright grain clusters) and tilt-dance intensity on device
-- [ ] Run `bash infra/learn/setup.sh` once (DynamoDB table + Lambda + LEARN_URL + gloop-dev rerun), then redeploy capture (`bash ~/Sites/capture/scripts/deploy.sh`) to drop its old `/learn`; check a phone entry shows up via `npm run learn:pull`
+- [ ] Redeploy capture (`bash ~/Sites/capture/scripts/deploy.sh`) to drop its unused `/learn` route
 - [ ] If gloop goes public with per-interaction analytics: add an S3/Firehose events stream next to `gloop-learn` (DynamoDB stays for learn signals)
 - [ ] Before gloop has real users: add a one-line notice that settings + sound levels are shared anonymously to improve it, and restore the GPC/DNT opt-out (removed 2026-10-30 so all input is saved). Not needed while it's just Nathan
 - [ ] First real `/evolve-cycle` once gloop-learn is live and has ~50+ entries: check the model's breed-card guesses against your picks, tune `bandwidth`/`LABELS` in predict.js if they disagree
@@ -20,6 +20,7 @@
 
 ## Completed
 
+- [x] gloop-learn live and tested end to end: API checks, real-browser heart + implicit settle → DynamoDB, breed guesses, learn:pull (2026-10-30)
 - [x] Self-evolving engine prototype: in-app preference model screens evolve/breed; offline `npm run evolve:cycle` + `/evolve-cycle` (2026-10-30)
 - [x] Learn store moved off LIFE to gloop's own `gloop-learn` Lambda + DynamoDB, with `npm run learn:pull` (built; needs setup.sh run) (2026-10-30)
 - [x] All input saved from every device, no pairing (2026-10-30)

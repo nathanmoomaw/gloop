@@ -90,7 +90,7 @@ export default function LearnPanel({
           </button>
         </p>
       )}
-      {remote && <p className="learn-panel__file">also saving to LIFE</p>}
+      {remote && <p className="learn-panel__file">also saved to the gloop learn store</p>}
     </div>
   )
 }

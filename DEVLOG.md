@@ -1,6 +1,22 @@
 # DEVLOG
 
-## 2026-10-30 (latest) - Self-evolving engine, prototype: predict in-app, cycle offline
+## 2026-10-30 (latest) - Tested live: learn store end to end
+
+Nathan ran `infra/learn/setup.sh`: the table is ACTIVE, the Lambda is live, `LEARN_URL` is set, and
+gloop-dev was rebuilt afterwards.
+- **API:** the gloop-dev bundle carries the new URL. Preflight 204. POST 204, landing as one row with
+  the unknown param stripped. A resend of the same id is still one row. Foreign origin and no origin
+  both 403.
+- **Real browser** (headless Chromium on gloop-dev, fake mic): listen started play; the ❤️ press
+  sent 204. With dials untouched, implicit `settle` fired after 20s and sent 204 after the batch
+  delay. Breed cards showed the model's guess (70–72% after one heart). No page errors.
+- `npm run learn:pull` queries the real table. My 3 test rows were deleted afterwards, so the table
+  starts clean.
+- Fix: the learn panel still said "also saving to LIFE"; it now says "also saved to the gloop learn
+  store".
+- Still open: redeploy capture so its old `/learn` goes away. Nothing calls it anymore.
+
+## 2026-10-30 - Self-evolving engine, prototype: predict in-app, cycle offline
 
 DUMP: "gloop as a prototype of a self evolving engine utilizing this stack to evaluate and predict".
 Nathan chose both halves, in-app first.
