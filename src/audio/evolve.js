@@ -40,6 +40,12 @@
 //     random); disagreeing means one lineage innovated there and the other
 //     didn't (a "disjoint" gene, NEAT: inherit from the fitter parent) —
 //     the actual crossover rule, not just flavor text.
+//   - evolve and breed (breed.js) share this population instead of
+//     competing for the dials: the slots outlive a stop, breed opens with
+//     the fittest slots among its candidates, and every breed pick joins
+//     the slots as a protected host, so your ear and the fitness score
+//     work on one lineage. App pauses evolve while breed is open (one
+//     thing auditions at a time) and resumes it on close.
 
 import { getParams, setParam, getAnalyser } from './engine'
 
@@ -295,28 +301,38 @@ export function startEvolve() {
   if (running) return
   if (!getAnalyser()) return // needs a live listening session to measure fitness against
   running = true
-  generation = 0
-  playingIdx = 0
 
   const seed = getParams()
-  // All slots start identical, so their innovation numbers all agree (0) —
-  // every key reads as "matching" until a mutation actually diverges a
-  // lineage, exactly the NEAT starting condition (a homogeneous initial
-  // population with nothing yet to be disjoint about).
-  const seedInnovation = Object.fromEntries(EVOLVE_KEYS.map((k) => [k, 0]))
-  slots = Array.from({ length: SLOT_COUNT }, () => ({
-    params: { ...seed },
-    innovation: { ...seedInnovation },
-    fitness: 0,
-    resistance: 0,
-  }))
-  dominantBinHistory = []
-  levelHistory = []
+  if (slots.length === 0) {
+    generation = 0
+    // All slots start identical, so their innovation numbers all agree (0) —
+    // every key reads as "matching" until a mutation actually diverges a
+    // lineage, exactly the NEAT starting condition (a homogeneous initial
+    // population with nothing yet to be disjoint about).
+    const seedInnovation = Object.fromEntries(EVOLVE_KEYS.map((k) => [k, 0]))
+    slots = Array.from({ length: SLOT_COUNT }, () => ({
+      params: { ...seed },
+      innovation: { ...seedInnovation },
+      fitness: 0,
+      resistance: 0,
+    }))
+    playingIdx = 0
+  } else {
+    // Resuming a kept population: whatever is playing now (hand-turned
+    // dials, a breed audition) takes the weakest slot, so evolution picks
+    // up from what you hear rather than jumping back to an old sound.
+    // A population seeded only by a few breed picks grows by one instead.
+    if (slots.length < SLOT_COUNT) slots.push(emptySlot())
+    playingIdx = adoptSlot(seed, 0)
+  }
+  resetFitnessHistory()
 
   fitnessTimer = setInterval(sampleFitness, FITNESS_SAMPLE_MS)
   genTimer = setTimeout(runGeneration, GENERATION_INTERVAL_MS - EVAL_DELAY_MS)
 }
 
+// Stops the loop and any glide; the population is kept for the next start
+// and for breed.
 export function stopEvolve() {
   running = false
   if (genTimer) clearTimeout(genTimer)
@@ -325,7 +341,57 @@ export function stopEvolve() {
   fitnessTimer = null
   if (glideTimer) clearInterval(glideTimer)
   glideTimer = null
+}
+
+// A placeholder that adoptSlot always picks as the weakest.
+function emptySlot() {
+  return { params: {}, innovation: {}, fitness: -1, resistance: 0 }
+}
+
+// Replaces the weakest slot (outside `keep`) with `params` as a fresh
+// lineage: every key stamped with a new innovation number, fitness at the
+// population's best so it isn't invaded before it has been heard, plus a
+// resistance bump on top. Its real fitness is measured once it plays.
+function adoptSlot(params, resistance, keep = new Set()) {
+  generation++
+  let weakest = -1
+  for (let i = 0; i < slots.length; i++) {
+    if (keep.has(i)) continue
+    if (weakest < 0 || slots[i].fitness * (1 + slots[i].resistance) < slots[weakest].fitness * (1 + slots[weakest].resistance)) weakest = i
+  }
+  const best = Math.max(0, ...slots.map((slot) => slot.fitness))
+  slots[weakest] = {
+    params: Object.fromEntries(EVOLVE_KEYS.map((k) => [k, params[k]])),
+    innovation: Object.fromEntries(EVOLVE_KEYS.map((k) => [k, generation])),
+    fitness: best,
+    resistance,
+  }
+  return weakest
+}
+
+// Breed → evolve: each picked param set joins the population as a host,
+// with a head start of resistance. When evolve has never run, the picks
+// are the population.
+export function adoptPicks(paramsList) {
+  const kept = new Set()
+  for (const params of paramsList.slice(0, SLOT_COUNT)) {
+    if (slots.length < SLOT_COUNT) slots.push(emptySlot())
+    kept.add(adoptSlot(params, RESISTANCE_GAIN, kept))
+  }
+}
+
+// Evolve → breed: the `n` fittest slots' params, best first.
+export function fittestParams(n) {
+  return [...slots]
+    .sort((a, b) => b.fitness * (1 + b.resistance) - a.fitness * (1 + a.resistance))
+    .slice(0, n)
+    .map((slot) => ({ ...slot.params }))
+}
+
+/** For tests: empties the population. */
+export function resetEvolvePopulation() {
   slots = []
+  generation = 0
 }
 
 export function isEvolving() {

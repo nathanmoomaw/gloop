@@ -38,7 +38,7 @@
   border-radius: 50%;
   --bevel-color: var(--knob-color, var(--rainbow-1));
   background: var(--bevel-bg);
-  border: 2px solid var(--bevel-border);
+  border: 2px solid transparent;
   box-shadow:
     0 2px 8px rgba(0, 0, 0, 0.5),
     0 0 0 1px rgba(0, 0, 0, 0.3),
@@ -51,7 +51,6 @@
 }
 
 .rotary-knob__body:hover {
-  border-color: var(--knob-color, var(--rainbow-1));
   box-shadow:
     0 2px 8px rgba(0, 0, 0, 0.5),
     0 0 8px color-mix(in srgb, var(--knob-color, var(--rainbow-1)) 30%, transparent),

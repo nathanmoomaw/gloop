@@ -132,7 +132,7 @@
   transform: translateX(-50%);
   max-width: min(80vw, 320px);
   padding: 0.6rem 1rem;
-  border: 1px solid color-mix(in srgb, var(--color-volume, #f0a) 50%, transparent);
+  border: 1px solid transparent;
   border-radius: 999px;
   background: color-mix(in srgb, #06060e 85%, transparent);
   color: #fff;

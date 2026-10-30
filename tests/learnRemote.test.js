@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { OUTBOX_KEY, PAIR_KEY, createRemoteSender, loadPairKey, remoteUrl, savePairKey } from '../src/audio/learnRemote.js'
+import { ANON_OUTBOX_KEY, OUTBOX_KEY, PAIR_KEY, createRemoteSender, loadPairKey, optedOut, remoteUrl, savePairKey } from '../src/audio/learnRemote.js'
 
 function fakeStorage(init = {}) {
   const map = new Map(Object.entries(init))
@@ -188,5 +188,51 @@ describe('createRemoteSender', () => {
     expect(s.pending()).toBe(2)
     await s.flush()
     expect(JSON.parse(calls[0].body).entries.map((e) => e.t)).toEqual(['a', 'b'])
+  })
+
+  it('caps each request at 50 entries and chains the rest', async () => {
+    const counts = []
+    const timers = fakeTimers()
+    const s = createRemoteSender({ url: 'U', key: '', storage: fakeStorage(), ...timers, fetchImpl: async (u, o) => (counts.push(JSON.parse(o.body).entries.length), { ok: true }) })
+    for (let i = 0; i < 120; i++) s.add(entry(String(i)))
+    for (let i = 0; i < 3; i++) await timers.run()
+    expect(counts).toEqual([50, 50, 20])
+  })
+
+  it('a rejected key never sends its queue anonymously', async () => {
+    const storage = fakeStorage()
+    const timers = fakeTimers()
+    const paired = createRemoteSender({ url: 'U', key: 'bad', storage, ...timers, fetchImpl: async () => ({ ok: false, status: 401 }) })
+    paired.add(entry('p'))
+    await timers.run()
+    const bodies = []
+    const anon = createRemoteSender({ url: 'U', key: '', storage, ...fakeTimers(), fetchImpl: async (u, o) => (bodies.push(o.body), { ok: true }) })
+    await anon.flush()
+    expect(bodies).toEqual([])
+    expect(JSON.parse(storage.getItem(OUTBOX_KEY))).toHaveLength(1)
+    anon.add(entry('a'))
+    await anon.flush()
+    expect(JSON.parse(bodies[0]).entries.map((e) => e.t)).toEqual(['a'])
+    expect(storage.getItem(ANON_OUTBOX_KEY)).toBeNull()
+  })
+
+  it('sends anonymously (no key field) when unpaired', async () => {
+    const calls = []
+    const s = createRemoteSender({ url: 'U', key: '', host: 'h', storage: fakeStorage(), ...fakeTimers(), fetchImpl: async (u, o) => (calls.push(o), { ok: true }) })
+    s.add(entry('a'))
+    await s.flush()
+    const body = JSON.parse(calls[0].body)
+    expect('key' in body).toBe(false)
+    expect(body.host).toBe('h')
+    expect(body.entries).toHaveLength(1)
+  })
+})
+
+describe('optedOut', () => {
+  it('honors Global Privacy Control and Do Not Track', () => {
+    expect(optedOut({ globalPrivacyControl: true })).toBe(true)
+    expect(optedOut({ doNotTrack: '1' })).toBe(true)
+    expect(optedOut({ doNotTrack: 'unspecified' })).toBe(false)
+    expect(optedOut(undefined)).toBe(false)
   })
 })

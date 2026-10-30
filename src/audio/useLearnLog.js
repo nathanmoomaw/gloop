@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { appendEntry, loadLog, saveLog, summarize, toJSONL } from './learn'
 import { addEntry, getAllEntries, getMeta, loadLearnStore, saveFallbackEntry, setMeta } from './learnStore'
 import { createAppender, ensurePermission, pickLearnFile, writeAll } from './learnFile'
-import { createRemoteSender, loadPairKey, remoteUrl, savePairKey } from './learnRemote'
+import { createRemoteSender, loadPairKey, optedOut, remoteUrl, savePairKey } from './learnRemote'
 
 // Learn mode's storage, behind one hook: the in-memory log (what the panel
 // counts and the learned target reads), IndexedDB (every press), the
@@ -36,6 +36,8 @@ function persistLearnEntry(db, entry) {
 // many recent ones the learned target is computed from.
 const LEARN_MEMORY_CAP = 20000
 const LEARN_TARGET_WINDOW = 500
+// Anonymous batches wait for a longer quiet spell: fewer Lambda commits.
+const ANON_DELAY_MS = 60000
 
 
 /** Learn-mode log + persistence: { summary, file, remote, record, recent, exportLog, pickFile, pair }. */
@@ -80,18 +82,21 @@ export function useLearnLog() {
     return () => { cancelled = true }
   }, [])
 
-  // Production builds with the capture URL, on a paired device: every press
-  // also goes to LIFE via the capture Lambda (learnRemote.js). The sender
-  // follows the key; a rejected key unpairs the device.
+  // Production builds with the capture URL: every entry also goes to LIFE
+  // via the capture Lambda (learnRemote.js). Paired devices send with the
+  // key; everyone else anonymously (in slower batches), unless the browser
+  // opts out of tracking. The sender follows the key; a rejected key
+  // unpairs the device, which then carries on anonymously.
   const learnUrl = remoteUrl()
   const [pairKey, setPairKey] = useState(() => (learnUrl ? loadPairKey() : ''))
   const [remoteError, setRemoteError] = useState(null)
   const remoteRef = useRef(null)
   useEffect(() => {
-    if (!learnUrl || !pairKey) return
+    if (!learnUrl || (!pairKey && optedOut())) return
     const remote = createRemoteSender({
       url: learnUrl,
       key: pairKey,
+      delayMs: pairKey ? undefined : ANON_DELAY_MS,
       onRejected: () => {
         savePairKey('')
         setPairKey('')
@@ -192,7 +197,7 @@ export function useLearnLog() {
   return {
     summary: learnSummary,
     file: learnFile,
-    remote: { available: !!learnUrl, paired: !!pairKey, error: remoteError },
+    remote: { available: !!learnUrl, paired: !!pairKey, anonymous: !pairKey && !optedOut(), error: remoteError },
     record,
     recent,
     exportLog: handleLearnExport,

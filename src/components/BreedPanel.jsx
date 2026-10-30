@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import * as engine from '../audio/engine'
-import { glideTo, EVOLVE_KEYS, EVOLVE_RANGES } from '../audio/evolve'
-import { nextGeneration, seedPopulation } from '../audio/breed'
+import { adoptPicks, fittestParams, glideTo, EVOLVE_KEYS, EVOLVE_RANGES } from '../audio/evolve'
+import { BREED_SIZE, nextGeneration, seedPopulation } from '../audio/breed'
 import './BreedPanel.css'
 
 // Bar colors follow each param's own knob hue (index.css tokens).
@@ -22,10 +22,11 @@ const LETTERS = 'ABCD'
 /**
  * Interactive evolution (see src/audio/breed.js): tap a card to hear it,
  * heart the ones worth keeping, breed the next round from those. Mounted
- * only while open, so each opening seeds from whatever is playing now.
+ * only while open, so each opening seeds from whatever is playing now plus
+ * evolve's fittest slots; every pick also goes back to evolve.
  */
-export default function BreedPanel({ onClose }) {
-  const [pop, setPop] = useState(() => seedPopulation(engine.getParams()))
+export default function BreedPanel({ onPick, onClose }) {
+  const [pop, setPop] = useState(() => seedPopulation(engine.getParams(), fittestParams(BREED_SIZE)))
   const [active, setActive] = useState(0)
   const [picks, setPicks] = useState([])
 
@@ -39,12 +40,17 @@ export default function BreedPanel({ onClose }) {
   }, [])
 
   const breed = useCallback(() => {
+    // Picks join evolve's population too (see evolve.js adoptPicks), and
+    // each is logged for learning.
+    const picked = picks.map((i) => pop.candidates[i].params)
+    adoptPicks(picked)
+    picked.forEach((params) => onPick?.(params))
     const next = nextGeneration(pop, picks)
     setPop(next)
     setPicks([])
     // Land on the first new child — the thing there is to hear next.
     audition(Math.min(picks.length, next.candidates.length - 1), next.candidates)
-  }, [pop, picks, audition])
+  }, [pop, picks, audition, onPick])
 
   return (
     <div className="breed-panel" role="dialog" aria-label="Breed sounds">

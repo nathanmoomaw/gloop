@@ -8,12 +8,18 @@
 - [ ] Listening pass on Kubelka-Munk palette vs HSL (`k`) and new tap-sound level — keep or revert KM default
 - [ ] Eyeball pass on inverted see-through controls (legibility over bright grain clusters) and tilt-dance intensity on device
 - [ ] Run `bash ~/Sites/capture/scripts/setup-learn.sh` once (key + gloop `LEARN_URL` secret + Lambda deploy + gloop-dev rebuild, key copied to clipboard), pair each device in the learn panel, then check a phone press lands in `LIFE/learn/gloop/`
+- [ ] Redeploy capture (`bash ~/Sites/capture/scripts/deploy.sh`, or setup-learn.sh if not yet run) so `/learn` takes anonymous and implicit entries; then watch `LIFE/learn/gloop/anon/` volume. Move anon to S3 if commits get noisy
+- [ ] Listening pass on evolve ↔ breed sharing (does a resumed evolve keep what you picked?) and the implicit settle/linger thresholds (20s/90s)
 - [ ] Use learn mode for a while, then have Claude read `learning/feedback.jsonl` (dev) or an export and retune defaults / `SOUND_BOUNDS` from it
 - [ ] Eyeball pass on the CPPN field (`c`): keep or tune mutation rate 0.35 (one Shift+C jumped to a very different look), and whether it should get a UI control or hook into `breed`
 - [ ] Real-browser check: first spacebar press with a real mic permission prompt now ends with listen + `on` both lit
 - [ ] Confirm the 30ms grain-scheduling lookahead cleared the clicks reported 2026-10-06 (listening pass)
 
 ## Completed
+
+- [x] Evolve and breed share one population (breed seeds from evolve's fittest, picks join evolve; evolve pauses while breed is open) (2026-10-30)
+- [x] No outlines on controls/panels (borders transparent, focus rings kept) (2026-10-30)
+- [x] Implicit learning for every listener (settle/linger/rescue/pick) + anonymous sending to capture `anon/` (2026-10-30)
 
 - [x] Learn presses from any device → capture Lambda `/learn` → `LIFE/learn/gloop/` (built; needs setup-learn.sh run) (2026-10-29)
 - [x] Logo glitches (12, random); learn log in IndexedDB + auto-save to a picked file (2026-10-29)

@@ -45,3 +45,16 @@ describe('nextGeneration', () => {
     expect(pop.archive.length).toBeLessThanOrEqual(8)
   })
 })
+
+describe('seedPopulation with evolve slots', () => {
+  it('includes distinct evolved sounds after the current one and keeps a mutant', () => {
+    const current = getParams()
+    const evolved = [1, 2, 3].map((v) => Object.fromEntries(EVOLVE_KEYS.map((k) => [k, v])))
+    const pop = seedPopulation(current, [{ ...current }, ...evolved])
+    expect(pop.candidates).toHaveLength(BREED_SIZE)
+    expect(pop.candidates[1].params.rate).toBe(1)
+    expect(pop.candidates[2].params.rate).toBe(2)
+    // the last slot is a mutant of the current sound, not evolved #3
+    expect(pop.candidates[3].params.rate).not.toBe(3)
+  })
+})

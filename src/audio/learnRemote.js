@@ -13,15 +13,23 @@
 // change, entries leave it only by id once a send succeeds, and flushes are
 // serialized across tabs with the Web Locks API where it exists.
 //
-// The build carries only the URL. The key is pasted into the learn panel
-// once per device and kept in that browser, so only paired devices send:
-// it never ships in the bundle, and other people's presses stay local.
+// The build carries only the URL. Anyone's presses and implicit signals
+// (implicit.js) go out without a key, which the Lambda files separately as
+// anonymous; a browser asking not to be tracked (Global Privacy Control or
+// Do Not Track) sends nothing. A paired device (the key pasted into the
+// learn panel, kept in that browser, never in the bundle) sends with the
+// key and lands in the main log.
 
 export const OUTBOX_KEY = 'gloop.learn.outbox'
+// Anonymous entries queue apart, so a revoked key never sends paired
+// entries anonymously (or the reverse after pairing).
+export const ANON_OUTBOX_KEY = 'gloop.learn.outbox.anon'
 export const PAIR_KEY = 'gloop.learn.key'
 const OUTBOX_CAP = 500
-// Under the Lambda's 64KB body cap and sendBeacon's 64KB limit.
+// Under the Lambda's 64KB body cap and sendBeacon's 64KB limit, and its
+// 50-entry cap on anonymous batches.
 const MAX_BATCH_BYTES = 48 * 1024
+const MAX_BATCH_ENTRIES = 50
 const DELAY_MS = 15000
 const RETRY_MS = 60000
 const LOCK_NAME = 'gloop-learn-outbox'
@@ -34,19 +42,19 @@ function defaultStorage() {
   }
 }
 
-function readOutbox(storage) {
+function readOutbox(storage, outboxKey) {
   try {
-    const parsed = JSON.parse(storage?.getItem(OUTBOX_KEY) || '[]')
+    const parsed = JSON.parse(storage?.getItem(outboxKey) || '[]')
     return Array.isArray(parsed) ? parsed : []
   } catch {
     return []
   }
 }
 
-function writeOutbox(storage, outbox) {
+function writeOutbox(storage, outboxKey, outbox) {
   try {
-    if (outbox.length) storage.setItem(OUTBOX_KEY, JSON.stringify(outbox))
-    else storage.removeItem(OUTBOX_KEY)
+    if (outbox.length) storage.setItem(outboxKey, JSON.stringify(outbox))
+    else storage.removeItem(outboxKey)
     return true
   } catch {
     return false
@@ -60,6 +68,11 @@ function newId() {
 /** The capture URL, or null when this build has no remote (dev, or unset secret). */
 export function remoteUrl(env = import.meta.env) {
   return env.PROD && env.VITE_LEARN_URL ? env.VITE_LEARN_URL : null
+}
+
+/** True when the browser asks not to be tracked: no anonymous sending. */
+export function optedOut(nav = globalThis.navigator) {
+  return nav?.globalPrivacyControl === true || nav?.doNotTrack === '1'
 }
 
 /** This device's pairing key, or '' when it isn't paired. */
@@ -90,6 +103,7 @@ export function savePairKey(key, storage = defaultStorage()) {
 export function createRemoteSender({
   url,
   key,
+  outboxKey = key ? OUTBOX_KEY : ANON_OUTBOX_KEY,
   onRejected = () => {},
   host = globalThis.location?.host ?? 'unknown',
   storage = defaultStorage(),
@@ -105,7 +119,7 @@ export function createRemoteSender({
   // write; then this tab keeps its outbox in memory for the session.
   let storageOk = !!storage
   try {
-    storage?.getItem(OUTBOX_KEY)
+    storage?.getItem(outboxKey)
   } catch {
     storageOk = false
   }
@@ -113,9 +127,9 @@ export function createRemoteSender({
   let timer = null
   let inFlight = false
 
-  const load = () => (storageOk ? readOutbox(storage) : memory)
+  const load = () => (storageOk ? readOutbox(storage, outboxKey) : memory)
   const save = (outbox) => {
-    if (storageOk && writeOutbox(storage, outbox)) return
+    if (storageOk && writeOutbox(storage, outboxKey, outbox)) return
     storageOk = false
     memory = outbox
   }
@@ -128,11 +142,11 @@ export function createRemoteSender({
     }, ms)
   }
 
-  // Oldest entries, up to MAX_BATCH_BYTES of body.
+  // Oldest entries, up to MAX_BATCH_BYTES of body or MAX_BATCH_ENTRIES.
   const takeBatch = (outbox) => {
     const batch = []
     let bytes = 64
-    for (const entry of outbox) {
+    for (const entry of outbox.slice(0, MAX_BATCH_ENTRIES)) {
       const size = JSON.stringify(entry).length + 1
       if (batch.length && bytes + size > MAX_BATCH_BYTES) break
       batch.push(entry)
@@ -141,7 +155,8 @@ export function createRemoteSender({
     return batch
   }
 
-  const body = (batch) => JSON.stringify({ key, host, entries: batch })
+  // No key: an anonymous batch.
+  const body = (batch) => JSON.stringify(key ? { key, host, entries: batch } : { host, entries: batch })
 
   const remove = (batch) => {
     const sent = new Set(batch.map((e) => e.id))

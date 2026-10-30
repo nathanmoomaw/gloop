@@ -1,6 +1,53 @@
 # DEVLOG
 
-## 2026-10-29 (latest) - Learn presses from any device → LIFE
+## 2026-10-30 (latest) - Evolve + breed in harmony, no outlines, learning from anyone
+
+- **Evolve and breed share one population** (`evolve.js`). They used to compete: opening one stopped
+  the other and threw its work away. Now evolve's slots outlive a stop. Breed opens with the current
+  sound, then evolve's fittest distinct slots (`fittestParams`), then mutants, always keeping at least
+  one fresh mutant. Every breed pick joins evolve's slots (`adoptPicks`) as a new lineage: the weakest
+  slot is replaced, fitness is set to the population's best so a pick isn't invaded before it's been
+  heard, and it gets a resistance head start. Evolve pauses while breed is open (one thing auditions
+  at a time) and resumes on close. Turning evolve on while breed is open queues it for when breed
+  closes. A resumed evolve slots what's playing now into the weakest slot, so it doesn't jump back to
+  an old sound. Picks with no evolve history become the population.
+- **No outlines:** every control and panel border is now transparent (same width, so nothing moves),
+  border-color state rules are gone, and the unused `--bevel-border` token was removed. On/off still
+  reads by fill and glow. Keyboard focus rings (`:focus-visible`) stay for accessibility.
+- **Learning from anyone, by default** (`implicit.js`). No buttons needed. Once a second App ticks
+  a detector with the live params, levels and state:
+  - `settle` (weight 0.5): dials left alone for 20s of actual sound.
+  - `linger` (weight 1): the same sound held for 90s.
+  - `rescue` (weight 0): the `sound` button pressed, so the state before it wasn't working.
+  - `pick` (weight 2): a breed pick, logged with the picked candidate's params.
+
+  Only time with sound counts: playing, thru off, output RMS above 0.005. Any param change restarts
+  the count, and a backgrounded tab's gap doesn't count. They log like presses (db, file, dev log,
+  remote) and feed `learnedTarget` at their weights; the buttons stay as the explicit layer.
+- **Anonymous sending:** unpaired browsers now send too, without a key. The Lambda files these under
+  `LIFE/learn/gloop/anon/<date>.jsonl`, with batches capped at 50 entries (the client caps every batch
+  at 50 to match) and a 60s quiet delay to cut commits. A wrong key is still a 401. Browsers with
+  Global Privacy Control or Do Not Track send nothing anonymously. Paired and anonymous entries queue
+  in separate outboxes.
+
+**Tool data:**
+- Written by hand: one 60-line module plus edits; well under Argon's bulk threshold.
+- 88 unit tests (+13: shared population, seeding from evolve, implicit signals, anonymous body, 50-entry
+  cap, outbox separation, opt-out); lint and build smoke pass.
+- Mocked Lambda run:
+  - anonymous → `anon/`, keyed → main;
+  - wrong or empty key → 401;
+  - 51 anonymous → 400, 51 keyed → 204;
+  - unknown kind → 400, unknown param stripped;
+  - Telegram unchanged.
+- Haiku: 2 findings.
+  - Fixed: a revoked key's queue would have gone out anonymously; the fix was the separate outboxes.
+  - Skipped: breed opening mid-glide seeds a half-glided sound. Candidate A is "what's playing now"
+    by design.
+- Jev: flagged all 13 files (0.31–0.74), still without line-level signal. evolve.js, its top score,
+  re-read by hand: nothing found.
+
+## 2026-10-29 - Learn presses from any device → LIFE
 
 Presses from a phone or Safari now reach Claude too, through a new `POST /learn` route on the capture
 Lambda (the Telegram/email one), which appends them to `LIFE/learn/gloop/<date>.jsonl`. `/dump` already

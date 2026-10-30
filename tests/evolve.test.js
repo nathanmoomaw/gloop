@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { crossover, mutate } from '../src/audio/evolve.js'
+import { EVOLVE_KEYS, adoptPicks, crossover, fittestParams, mutate, resetEvolvePopulation } from '../src/audio/evolve.js'
 import { getParams, setParam, smearAmount } from '../src/audio/engine.js'
 
 const KEYS = ['rate', 'dynamics', 'feedback', 'repeat', 'grainSizeMs', 'density', 'wow', 'flutter', 'wobble']
@@ -82,5 +82,41 @@ describe('smearAmount (Clouds-style repeat threshold)', () => {
       expect(s).toBeGreaterThanOrEqual(prev)
       prev = s
     }
+  })
+})
+
+describe('shared population (breed ↔ evolve)', () => {
+  const params = (v) => Object.fromEntries(EVOLVE_KEYS.map((k) => [k, v]))
+
+  it('breed picks seed the population when evolve has never run', () => {
+    resetEvolvePopulation()
+    adoptPicks([params(0.1), params(0.2)])
+    const fittest = fittestParams(5)
+    expect(fittest).toHaveLength(2)
+    expect(fittest.map((p) => p.rate).sort()).toEqual([0.1, 0.2])
+  })
+
+  it('more picks than slots keeps only five, never duplicating a slot', () => {
+    resetEvolvePopulation()
+    adoptPicks([1, 2, 3, 4, 5, 6, 7].map(params))
+    expect(fittestParams(10).map((p) => p.rate).sort()).toEqual([1, 2, 3, 4, 5])
+  })
+
+  it('later picks replace the weakest slots, not the ones just adopted', () => {
+    resetEvolvePopulation()
+    adoptPicks([1, 2, 3, 4, 5].map(params))
+    adoptPicks([8, 9].map(params))
+    const rates = fittestParams(10).map((p) => p.rate)
+    expect(rates).toHaveLength(5)
+    expect(rates).toEqual(expect.arrayContaining([8, 9]))
+  })
+
+  it('fittestParams returns copies, evolvable keys only', () => {
+    resetEvolvePopulation()
+    adoptPicks([{ ...params(0.3), volume: 1 }])
+    const [p] = fittestParams(1)
+    expect(Object.keys(p).sort()).toEqual([...EVOLVE_KEYS].sort())
+    p.rate = 99
+    expect(fittestParams(1)[0].rate).toBe(0.3)
   })
 })

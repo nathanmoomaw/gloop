@@ -19,7 +19,7 @@
 .loop-indicator__track {
   position: absolute;
   inset: 0;
-  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border: 1px solid transparent;
   border-radius: 18px;
 }
 

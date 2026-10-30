@@ -2,7 +2,9 @@
 // fitness function. Each round shows BREED_SIZE candidate parameter sets;
 // the user auditions them, hearts the ones they like, and the next round is
 // bred from those picks with the same NEAT crossover + mutation evolve.js
-// uses for its automatic host/parasite loop.
+// uses for its automatic host/parasite loop. The two share a population:
+// a round opens with evolve's fittest slots, and picks go back to evolve
+// (adoptPicks, called from BreedPanel).
 //
 // Unpicked candidates aren't deleted, only deprioritized: they go to a
 // small archive and occasionally come back as a second parent — a sound
@@ -34,11 +36,19 @@ function pick(list, rng) {
   return list[Math.floor(rng() * list.length)]
 }
 
-// Round 0: the current sound as-is, plus mutants of it.
-export function seedPopulation(current) {
+// Round 0: the current sound as-is, then `evolved` (evolve's fittest
+// slots, so breed starts from what evolution found), then mutants of the
+// current sound to fill the round.
+export function seedPopulation(current, evolved = []) {
   const params = Object.fromEntries(EVOLVE_KEYS.map((k) => [k, current[k]]))
   const innovation = Object.fromEntries(EVOLVE_KEYS.map((k) => [k, 0]))
   const candidates = [candidate(params, innovation)]
+  const same = (a, b) => EVOLVE_KEYS.every((k) => a[k] === b[k])
+  for (const e of evolved) {
+    if (candidates.length >= BREED_SIZE - 1) break // keep one fresh mutant
+    if (candidates.some((c) => same(c.params, e))) continue
+    candidates.push(candidate(Object.fromEntries(EVOLVE_KEYS.map((k) => [k, e[k]])), { ...innovation }))
+  }
   while (candidates.length < BREED_SIZE) {
     const m = mutate(params, innovation, SEED_SCALE, SEED_RATE, 1)
     candidates.push(candidate(m.params, m.innovation))

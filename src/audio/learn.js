@@ -3,6 +3,8 @@ import { SOUND_BOUNDS, soundFix } from './sound.js'
 // Learn mode: four quick feedback buttons log the current parameters and
 // audio levels, while positive feedback steers the `sound` reset toward
 // whatever settings actually worked for the listener's room and gear.
+// Implicit signals (implicit.js: settled, lingered, rescued, picked) are
+// logged the same way for every listener, buttons or not, at lower weight.
 
 /** Feedback button definitions in display order. */
 export const FEEDBACK = [
@@ -14,6 +16,17 @@ export const FEEDBACK = [
 
 /** Lookup table mapping feedback id to its definition. */
 export const FEEDBACK_BY_ID = Object.fromEntries(FEEDBACK.map((f) => [f.id, f]))
+
+/** Signals read from use rather than pressed (see implicit.js). */
+export const IMPLICIT = [
+  { id: 'settle', weight: 0.5 },
+  { id: 'linger', weight: 1 },
+  { id: 'rescue', weight: 0 },
+  { id: 'pick', weight: 2 },
+]
+
+/** Every loggable kind, buttons and implicit. */
+export const KIND_BY_ID = Object.fromEntries([...FEEDBACK, ...IMPLICIT].map((f) => [f.id, f]))
 
 /** localStorage key for persisted learn entries. */
 export const LOG_KEY = 'gloop.learn.v1'
@@ -29,7 +42,7 @@ function round4(x) {
 
 /** Build a clean, rounded, deep-copied log entry for a feedback press. */
 export function makeEntry(kind, params = {}, levels = {}, state = {}, now = Date.now()) {
-  if (!Object.prototype.hasOwnProperty.call(FEEDBACK_BY_ID, kind)) {
+  if (!Object.prototype.hasOwnProperty.call(KIND_BY_ID, kind)) {
     throw new Error(`Unknown feedback kind: ${kind}`)
   }
   const cleanParams = {}
@@ -62,7 +75,7 @@ export function learnedTarget(entries, halfLife = 50) {
   const weighted = []
   for (let i = 0; i < n; i++) {
     const e = entries[i]
-    const spec = e && FEEDBACK_BY_ID[e.kind]
+    const spec = e && KIND_BY_ID[e.kind]
     if (!spec || spec.weight <= 0) continue
     // A like while the grains weren't sounding (off, or muted by thru)
     // rated something else, so it doesn't teach the target.
@@ -137,9 +150,9 @@ export function toJSONL(log) {
   return log.map((e) => JSON.stringify(e)).join('\n') + '\n'
 }
 
-/** Count total and per-kind feedback entries. */
+/** Count total and per-kind entries, buttons and implicit. */
 export function summarize(log) {
-  const byKind = { heart: 0, sound: 0, muted: 0, star: 0 }
+  const byKind = Object.fromEntries(Object.keys(KIND_BY_ID).map((id) => [id, 0]))
   let total = 0
   if (Array.isArray(log)) {
     for (const e of log) {

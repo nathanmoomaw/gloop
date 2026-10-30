@@ -123,7 +123,7 @@ export default function LearnPanel({
             </>
           ) : (
             <>
-              {remote.error ?? 'not sending'}
+              {remote.error ?? (remote.anonymous ? 'shared anonymously' : 'not sending')}
               <button type="button" className="learn-panel__action" onClick={() => setPairing(true)}>pair device</button>
             </>
           )}

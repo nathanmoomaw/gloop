@@ -5,7 +5,7 @@
   flex-shrink: 0;
   /* Squircle, not a circle: an action, not a state lamp. */
   border-radius: 22px;
-  border: 2px solid color-mix(in srgb, var(--sound-color) 70%, #fff);
+  border: 2px solid transparent;
   background: linear-gradient(
     150deg,
     color-mix(in srgb, var(--sound-color) 40%, transparent) 0%,

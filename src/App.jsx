@@ -15,6 +15,7 @@ import ThruToggle from './components/ThruToggle'
 import WaveformOverlay from './components/WaveformOverlay'
 import { EVOLVE_KEYS, GLIDE_MS, glideTo, startEvolve, stopEvolve } from './audio/evolve'
 import { learnedSoundFix, makeEntry, mutedFix } from './audio/learn'
+import { createImplicitLearner } from './audio/implicit'
 import { fileSaveSupported } from './audio/learnFile'
 import { useLearnLog } from './audio/useLearnLog'
 import LearnToggle from './components/LearnToggle'
@@ -117,6 +118,30 @@ export default function App() {
   const learn = useLearnLog()
   const { record: recordLearn, recent: recentLearn } = learn
   const [learnLast, setLearnLast] = useState({ kind: null, pulse: 0 })
+  // Logs the current params (or `params` over them), levels and state as
+  // one learn entry of `kind`: a button press, or an implicit signal.
+  const logLearn = useCallback((kind, params) => {
+    recordLearn(makeEntry(kind, { ...engine.getParams(), ...params }, engine.getLevels(), {
+      listening: engine.isListening(),
+      playing: engine.isPlaying(),
+      thru: engine.isThru(),
+      rawMic: engine.getRawCapture(),
+    }))
+  }, [recordLearn])
+  // Implicit learning, on for everyone (implicit.js): a sound kept playing
+  // untouched logs settle, then linger.
+  useEffect(() => {
+    const learner = createImplicitLearner()
+    const id = setInterval(() => {
+      const kinds = learner.tick({
+        params: engine.getParams(),
+        levels: engine.getLevels(),
+        state: { playing: engine.isPlaying(), thru: engine.isThru() },
+      })
+      for (const kind of kinds) logLearn(kind)
+    }, 1000)
+    return () => clearInterval(id)
+  }, [logLearn])
   const [thru, setThru] = useState(engine.isThru())
   const loopRef = useRef(null)
   // The first listen of a session also turns `on`, so a first-time visitor
@@ -303,6 +328,8 @@ export default function App() {
   // eases the texture dials there instead of jumping; level dials (volume,
   // mixes, sensitivity) always jump, since those are what made it silent.
   const handleSound = useCallback(async ({ glide = false, muted = false } = {}) => {
+    // What it rescues from wasn't working (🔇 already logged its own entry).
+    if (!muted) logLearn('rescue')
     // Recent presses only: the half-life (50) makes older ones ~0 anyway.
     const fix = (muted ? mutedFix : learnedSoundFix)(engine.getParams(), recentLearn())
     const glided = {}
@@ -324,19 +351,13 @@ export default function App() {
     if (!engine.isListening() && !engine.isListenPending()) setListen(true)
     await setPower(true).catch(console.error)
     engine.perturb(1)
-  }, [setPower, setListen, recentLearn])
+  }, [setPower, setListen, recentLearn, logLearn])
 
   const handleFeedback = useCallback((kind) => {
-    const entry = makeEntry(kind, engine.getParams(), engine.getLevels(), {
-      listening: engine.isListening(),
-      playing: engine.isPlaying(),
-      thru: engine.isThru(),
-      rawMic: engine.getRawCapture(),
-    })
-    recordLearn(entry)
+    logLearn(kind)
     setLearnLast((prev) => ({ kind, pulse: prev.pulse + 1 }))
     if (kind === 'muted') handleSound({ glide: true, muted: true })
-  }, [handleSound, recordLearn])
+  }, [handleSound, logLearn])
 
   const handleRawMicToggle = useCallback((next) => {
     engine.setRawCapture(next)
@@ -357,25 +378,20 @@ export default function App() {
     if (next && !engine.isListening()) setListen(true)
   }, [setListen])
 
+  // Evolve and breed share one population (evolve.js): breed opens with
+  // evolve's fittest, and its picks go back in. Only one auditions at a
+  // time, so evolve pauses while breed is open and resumes when it closes.
   const handleEvolveToggle = useCallback((next) => {
-    if (next) {
-      setBreeding(false)
-      startEvolve()
-    } else {
-      stopEvolve()
-    }
+    if (next && !breeding) startEvolve()
+    else if (!next) stopEvolve()
     setEvolving(next)
-  }, [])
+  }, [breeding])
 
-  // Breeding (you pick) and evolve (fitness picks) both drive the same
-  // params, so opening one stops the other.
   const handleBreedToggle = useCallback((next) => {
-    if (next) {
-      stopEvolve()
-      setEvolving(false)
-    }
+    if (next) stopEvolve()
+    else if (evolving) startEvolve()
     setBreeding(next)
-  }, [])
+  }, [evolving])
 
   // Evolution and breed auditions mutate params directly on the engine (not
   // through updateParam), so while either is going, poll the knobs back in
@@ -409,7 +425,7 @@ export default function App() {
 
       <LoopIndicator ref={loopRef} active={running} periodMs={loopPeriodFromRate(params.rate)} />
 
-      {breeding && <BreedPanel onClose={() => setBreeding(false)} />}
+      {breeding && <BreedPanel onPick={(params) => logLearn('pick', params)} onClose={() => handleBreedToggle(false)} />}
       {learning && (
         <LearnPanel
           summary={learn.summary}

@@ -5,7 +5,7 @@
   height: var(--on-size, 76px);
   flex-shrink: 0;
   border-radius: 50%;
-  border: 2px solid var(--bevel-border);
+  border: 2px solid transparent;
   background: var(--bevel-bg);
   box-shadow:
     0 4px 16px rgba(0, 0, 0, 0.5),
@@ -43,7 +43,6 @@
 
 .on-button--active {
   --bevel-color: var(--color-on);
-  border-color: color-mix(in srgb, var(--color-on) 55%, #fff);
   background: radial-gradient(
     circle at 40% 35%,
     color-mix(in srgb, var(--color-on) 55%, #fff) 0%,
