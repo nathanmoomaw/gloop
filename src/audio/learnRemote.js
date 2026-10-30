@@ -13,18 +13,15 @@
 // change, entries leave it only by id once a send succeeds, and flushes are
 // serialized across tabs with the Web Locks API where it exists.
 //
-// The build carries only the URL. Anyone's presses and implicit signals
-// (implicit.js) go out without a key, which the Lambda files separately as
-// anonymous; a browser asking not to be tracked (Global Privacy Control or
-// Do Not Track) sends nothing. A paired device (the key pasted into the
-// learn panel, kept in that browser, never in the bundle) sends with the
-// key and lands in the main log.
+// The build carries only the URL. For now every device sends without a
+// key, so the Lambda files it all under LIFE/learn/gloop/anon/. The sender
+// still takes a `key` (the Lambda's keyed path → the main log) for when
+// pairing comes back.
 
 export const OUTBOX_KEY = 'gloop.learn.outbox'
 // Anonymous entries queue apart, so a revoked key never sends paired
 // entries anonymously (or the reverse after pairing).
 export const ANON_OUTBOX_KEY = 'gloop.learn.outbox.anon'
-export const PAIR_KEY = 'gloop.learn.key'
 const OUTBOX_CAP = 500
 // Under the Lambda's 64KB body cap and sendBeacon's 64KB limit, and its
 // 50-entry cap on anonymous batches.
@@ -68,31 +65,6 @@ function newId() {
 /** The capture URL, or null when this build has no remote (dev, or unset secret). */
 export function remoteUrl(env = import.meta.env) {
   return env.PROD && env.VITE_LEARN_URL ? env.VITE_LEARN_URL : null
-}
-
-/** True when the browser asks not to be tracked: no anonymous sending. */
-export function optedOut(nav = globalThis.navigator) {
-  return nav?.globalPrivacyControl === true || nav?.doNotTrack === '1'
-}
-
-/** This device's pairing key, or '' when it isn't paired. */
-export function loadPairKey(storage = defaultStorage()) {
-  try {
-    return storage?.getItem(PAIR_KEY) || ''
-  } catch {
-    return ''
-  }
-}
-
-/** Saves (or, with '', clears) the pairing key. False if storage refused it. */
-export function savePairKey(key, storage = defaultStorage()) {
-  try {
-    if (key) storage.setItem(PAIR_KEY, key)
-    else storage.removeItem(PAIR_KEY)
-    return true
-  } catch {
-    return false
-  }
 }
 
 /**

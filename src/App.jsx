@@ -438,7 +438,6 @@ export default function App() {
           fileError={learn.file.error}
           onPickFile={learn.pickFile}
           remote={learn.remote}
-          onPair={learn.pair}
           onClose={() => setLearning(false)}
         />
       )}

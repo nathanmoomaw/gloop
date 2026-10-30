@@ -1,6 +1,16 @@
 # DEVLOG
 
-## 2026-10-30 (latest) - Evolve + breed in harmony, no outlines, learning from anyone
+## 2026-10-30 (latest) - All input saved, no pairing
+
+Nathan: "no devices need pairing for now, want all user input saved." The pairing UI, the stored key
+(`loadPairKey`/`savePairKey`) and the GPC/DNT opt-out are gone. Every device sends every entry without
+a key, at the normal 15s batch delay instead of 60s, and the Lambda files it all under
+`LIFE/learn/gloop/anon/`. That needed no Lambda change or deploy. The panel just says "also saving to
+LIFE". The sender keeps its `key` option and keyed outbox, and the Lambda its keyed path, for when
+pairing comes back. The end-to-end check before this change still holds (gloop-dev bundle has the URL,
+preflight 204, anonymous POST 204 and landed in LIFE, test line removed). 85 tests.
+
+## 2026-10-30 - Evolve + breed in harmony, no outlines, learning from anyone
 
 - **Evolve and breed share one population** (`evolve.js`). They used to compete: opening one stopped
   the other and threw its work away. Now evolve's slots outlive a stop. Breed opens with the current

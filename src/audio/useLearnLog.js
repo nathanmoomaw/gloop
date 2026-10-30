@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { appendEntry, loadLog, saveLog, summarize, toJSONL } from './learn'
 import { addEntry, getAllEntries, getMeta, loadLearnStore, saveFallbackEntry, setMeta } from './learnStore'
 import { createAppender, ensurePermission, pickLearnFile, writeAll } from './learnFile'
-import { createRemoteSender, loadPairKey, optedOut, remoteUrl, savePairKey } from './learnRemote'
+import { createRemoteSender, remoteUrl } from './learnRemote'
 
 // Learn mode's storage, behind one hook: the in-memory log (what the panel
 // counts and the learned target reads), IndexedDB (every press), the
@@ -36,11 +36,9 @@ function persistLearnEntry(db, entry) {
 // many recent ones the learned target is computed from.
 const LEARN_MEMORY_CAP = 20000
 const LEARN_TARGET_WINDOW = 500
-// Anonymous batches wait for a longer quiet spell: fewer Lambda commits.
-const ANON_DELAY_MS = 60000
 
 
-/** Learn-mode log + persistence: { summary, file, remote, record, recent, exportLog, pickFile, pair }. */
+/** Learn-mode log + persistence: { summary, file, remote, record, recent, exportLog, pickFile }. */
 export function useLearnLog() {
   const [learnLog, setLearnLog] = useState([])
   // Latest log for handlers, so two presses inside one render both land.
@@ -82,27 +80,14 @@ export function useLearnLog() {
     return () => { cancelled = true }
   }, [])
 
-  // Production builds with the capture URL: every entry also goes to LIFE
-  // via the capture Lambda (learnRemote.js). Paired devices send with the
-  // key; everyone else anonymously (in slower batches), unless the browser
-  // opts out of tracking. The sender follows the key; a rejected key
-  // unpairs the device, which then carries on anonymously.
+  // Production builds with the capture URL: every entry, from any device,
+  // also goes to LIFE via the capture Lambda (learnRemote.js). No key or
+  // pairing for now, so it lands in LIFE/learn/gloop/anon/.
   const learnUrl = remoteUrl()
-  const [pairKey, setPairKey] = useState(() => (learnUrl ? loadPairKey() : ''))
-  const [remoteError, setRemoteError] = useState(null)
   const remoteRef = useRef(null)
   useEffect(() => {
-    if (!learnUrl || (!pairKey && optedOut())) return
-    const remote = createRemoteSender({
-      url: learnUrl,
-      key: pairKey,
-      delayMs: pairKey ? undefined : ANON_DELAY_MS,
-      onRejected: () => {
-        savePairKey('')
-        setPairKey('')
-        setRemoteError('key rejected, pair again')
-      },
-    })
+    if (!learnUrl) return
+    const remote = createRemoteSender({ url: learnUrl })
     remoteRef.current = remote
     remote.flush() // whatever an earlier visit left in the outbox
     const onHide = () => document.visibilityState === 'hidden' && remote.flush({ beacon: true })
@@ -112,15 +97,7 @@ export function useLearnLog() {
       remote.dispose()
       if (remoteRef.current === remote) remoteRef.current = null
     }
-  }, [learnUrl, pairKey])
-
-  // '' unpairs.
-  const pair = useCallback((key) => {
-    const trimmed = key.trim()
-    if (!savePairKey(trimmed)) return setRemoteError('this browser blocks storage')
-    setRemoteError(null)
-    setPairKey(trimmed)
-  }, [])
+  }, [learnUrl])
 
   const record = useCallback((entry) => {
     const next = appendEntry(learnLogRef.current, entry, LEARN_MEMORY_CAP)
@@ -197,11 +174,10 @@ export function useLearnLog() {
   return {
     summary: learnSummary,
     file: learnFile,
-    remote: { available: !!learnUrl, paired: !!pairKey, anonymous: !pairKey && !optedOut(), error: remoteError },
+    remote: !!learnUrl,
     record,
     recent,
     exportLog: handleLearnExport,
     pickFile: handlePickLearnFile,
-    pair,
   }
 }

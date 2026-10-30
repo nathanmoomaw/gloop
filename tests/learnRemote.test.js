@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { ANON_OUTBOX_KEY, OUTBOX_KEY, PAIR_KEY, createRemoteSender, loadPairKey, optedOut, remoteUrl, savePairKey } from '../src/audio/learnRemote.js'
+import { ANON_OUTBOX_KEY, OUTBOX_KEY, createRemoteSender, remoteUrl } from '../src/audio/learnRemote.js'
 
 function fakeStorage(init = {}) {
   const map = new Map(Object.entries(init))
@@ -33,24 +33,6 @@ describe('remoteUrl', () => {
     expect(remoteUrl({ PROD: false, VITE_LEARN_URL: 'u' })).toBeNull()
     expect(remoteUrl({ PROD: true })).toBeNull()
     expect(remoteUrl({ PROD: true, VITE_LEARN_URL: 'u' })).toBe('u')
-  })
-})
-
-describe('pairing key', () => {
-  it('saves, loads and clears per device', () => {
-    const storage = fakeStorage()
-    expect(loadPairKey(storage)).toBe('')
-    expect(savePairKey('abc', storage)).toBe(true)
-    expect(storage.getItem(PAIR_KEY)).toBe('abc')
-    expect(loadPairKey(storage)).toBe('abc')
-    savePairKey('', storage)
-    expect(loadPairKey(storage)).toBe('')
-  })
-
-  it('survives storage that throws', () => {
-    const throwing = { getItem: () => { throw new Error('blocked') }, setItem: () => { throw new Error('blocked') } }
-    expect(loadPairKey(throwing)).toBe('')
-    expect(savePairKey('abc', throwing)).toBe(false)
   })
 })
 
@@ -225,14 +207,5 @@ describe('createRemoteSender', () => {
     expect('key' in body).toBe(false)
     expect(body.host).toBe('h')
     expect(body.entries).toHaveLength(1)
-  })
-})
-
-describe('optedOut', () => {
-  it('honors Global Privacy Control and Do Not Track', () => {
-    expect(optedOut({ globalPrivacyControl: true })).toBe(true)
-    expect(optedOut({ doNotTrack: '1' })).toBe(true)
-    expect(optedOut({ doNotTrack: 'unspecified' })).toBe(false)
-    expect(optedOut(undefined)).toBe(false)
   })
 })

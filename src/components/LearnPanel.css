@@ -158,24 +158,6 @@
   font-weight: 600;
 }
 
-.learn-panel__pair {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.learn-panel__key {
-  width: 9rem;
-  padding: 0.2rem 0.4rem;
-  font: inherit;
-  /* 16px stops iOS zooming into the field. */
-  font-size: 16px;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid transparent;
-  border-radius: 6px;
-}
-
 .learn-panel__file--error {
   color: var(--rainbow-1);
 }
