@@ -1,0 +1,24 @@
+/* Sits between the grain-field canvas (z-index: auto/0) and the
+   controls-overlay (z-index: 2) — a translucent trace layered over the
+   plate, 50vh tall and vertically centered in the viewport. */
+.waveform-overlay {
+  position: fixed;
+  left: 0;
+  top: 25vh;
+  width: 100vw;
+  height: 50vh;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease-out;
+}
+
+.waveform-overlay--active {
+  opacity: 0.55;
+}
+
+.waveform-overlay__canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}

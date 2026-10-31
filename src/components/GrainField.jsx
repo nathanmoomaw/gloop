@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
+import { pigmentAt } from '../color/kubelkaMunk'
+import { LUT_SIZE, chladniValue, compileGenome, fillLUT, mutateGenome, randomGenome, sampleLUT } from '../visual/cppn'
 
 // Renders rainbow "sand" grains settling into Chladni-plate-style nodal
 // patterns driven by the dominant frequency of the live audio analyser —
@@ -22,23 +24,105 @@ const GRAIN_AREA_SIZE = 2
 const PLATE_MESH_SIZE = 10
 const GRAIN_SPAN = PLATE_MESH_SIZE / GRAIN_AREA_SIZE
 const GRAIN_COUNT = 800 * GRAIN_SPAN * 20
+// Grain colors are looked up per frame from this many hue steps — matches
+// the KM pigment LUT's resolution, so KM mode loses nothing.
+const GRAIN_HUE_STEPS = 512
+// Pointer push radius as a fraction of the view's height at the touch
+// point, and per-frame push distance per unit radius (the old screen-space
+// push: 0.19 radius, 0.006 step).
+const PUSH_RADIUS_FRAC = 0.19
+const PUSH_STEP = 0.006 / 0.19
 const PLANE_SEGMENTS = 80
 const HOVER_HEIGHT = 0.002
 const NODAL_HEIGHT_SCALE = 0.018
 const RIPPLE_HEIGHT_SCALE = 0.005
 
-// Same Chladni nodal function used to drift grains toward nodal lines and,
-// now, to shape the plate surface itself — the plate's topology and the
-// grains' resting pattern are the same physics, not two separate effects.
-function nodalValue(n, m, u, v) {
-  return (
-    Math.sin(n * Math.PI * u) * Math.sin(m * Math.PI * v) -
-    Math.sin(m * Math.PI * u) * Math.sin(n * Math.PI * v)
-  )
+// Ambient background motion (rad/sec, tile-units/sec) — always active, slow
+// enough that a full cycle takes minutes rather than reading as spinning.
+const AMBIENT_SPIN_SPEED = 0.006
+const AMBIENT_PAN_SPEED_U = 0.008
+const AMBIENT_PAN_SPEED_V = 0.005
+// Per-frame multiplicative decay on touch-imparted spin/pan velocity — a
+// drag leaves the pattern drifting/turning for roughly a second afterward
+// instead of snapping back, the "physics from the last touches" part.
+// Total displacement from a drag is roughly GAIN * decay/(1-decay), so
+// these two are tuned together — a fast decay alone isn't enough to keep a
+// long drag (many pointermove events) from integrating into a huge jump.
+const DRIFT_VELOCITY_DECAY = 0.95
+const DRIFT_PAN_TOUCH_GAIN = 0.01
+const DRIFT_SPIN_TOUCH_GAIN = 0.01
+
+// Camera wander: the view over the plate drifts in every dimension at once
+// (orbit, elevation, distance, roll, look-at target), each on its own
+// sine sum with mutually irrational frequency ratios so the motion never
+// visibly loops. It only moves while `on` — off, it eases to a stop and
+// holds. While on, both its timing and its shape come from the output:
+//   clock speed — live level + onsets, how fast grains fire (rate), wobble
+//   elevation   — feedback: hotter loop tilts the view lower, more dramatic
+//   distance    — size: bigger grains pull the camera back
+//   orbit width — density: drawing from more of the pool swings wider
+//   roll        — wow + flutter: tape wobble tips the horizon
+//   aim drift   — dynamics: delay-time jitter wanders the look-at point
+// Every param-driven value is eased, so knob turns (and evolve's glides)
+// morph the motion rather than jump it.
+const CAM_BASE_RATE = 0.04 // phase units/sec while on, before params/level
+const CAM_LEVEL_RATE = 0.6 // extra at full amplitude
+const CAM_ONSET_RATE = 2.5 // extra per unit of amplitude jump above its slow average
+const CAM_FIRE_RATE = 0.25 // extra at the fastest grain rate (20ms)
+const CAM_WOBBLE_RATE = 0.2 // extra at full wobble
+const CAM_RATE_SMOOTHING = 0.02 // per-frame easing of the clock rate, no jerks
+const CAM_SHAPE_SMOOTHING = 0.02 // per-frame easing of param-driven shape
+const CAM_ACTIVE_SMOOTHING = 0.03 // per-frame easing of the on/off gate
+const CAM_AZIMUTH_RANGE = 0.75 // rad, +/- around the front view
+const CAM_ELEV_MIN = 0.72 // rad (~41°) — lower and the plate's far edge shows
+const CAM_ELEV_MAX = 1.12 // rad (~64°)
+const CAM_DIST_MIN = 1.8
+const CAM_DIST_MAX = 2.4
+const CAM_ROLL_RANGE = 0.07 // rad
+const CAM_TARGET_RANGE = 0.18 // look-at drift across the plate
+// Tilt dance: on top of the wander, the view slowly nods forward/backward
+// — pitching toward the plate and drifting in, then easing back up and
+// away — like a head bob or a hovering helicopter, not a pant. Two
+// incommensurate slow sines (periods ~8–14s and ~1.7x that) so it never loops;
+// tempo and depth follow a level averaged over several seconds, so loud
+// passages deepen and quicken the nod without making it twitch on
+// transients. Gated by `on` like the rest of the camera.
+const TILT_RANGE = 0.12 // rad, nod depth at full level
+const TILT_BASE_HZ = 0.07 // nod tempo at silence (~14s period)
+const TILT_LEVEL_HZ = 0.06 // extra tempo at full level
+const TILT_LEVEL_SMOOTHING = 0.004 // per-frame easing of the level it follows (~4s)
+const TILT_DOLLY = 0.9 // forward push (world units) per rad of tilt
+// Random per page load so each session opens on a different view.
+const CAM_START_PHASE = Math.random() * 100
+// Sum of two sines at incommensurate rates, normalized to [-1, 1].
+function wander(phase, f1, f2, offset) {
+  return (Math.sin(phase * f1 + offset) + Math.sin(phase * f2 * Math.SQRT2 + offset * 1.7)) / 2
 }
 
-function surfaceHeight(n, m, u, v, amplitude, t) {
-  const nodal = nodalValue(n, m, u, v)
+// Rendered sand-particle size scales with the `size` (grainSizeMs) dial —
+// mirrors its min/max in App.jsx. sqrt curve gives more visible change at
+// the low end and tapers off at the high end, instead of 3s grains
+// rendering literally 100x bigger than 30ms ones.
+const SIZE_KNOB_MIN_MS = 30
+const SIZE_KNOB_MAX_MS = 3000
+const GRAIN_POINT_SIZE_MIN = 0.01
+const GRAIN_POINT_SIZE_MAX = 0.045
+function pointSizeForGrainMs(ms) {
+  const t = Math.sqrt(
+    Math.max(0, Math.min(1, (ms - SIZE_KNOB_MIN_MS) / (SIZE_KNOB_MAX_MS - SIZE_KNOB_MIN_MS))),
+  )
+  return GRAIN_POINT_SIZE_MIN + t * (GRAIN_POINT_SIZE_MAX - GRAIN_POINT_SIZE_MIN)
+}
+
+// One nodal field drifts grains toward nodal lines and shapes the plate
+// surface itself — the plate's topology and the grains' resting pattern are
+// the same physics, not two separate effects. Chladni by default; `c` eases
+// over to an evolved CPPN field (visual/cppn.js), Shift+C mutates it.
+const CPPN_BLEND_EASE = 0.02 // per frame, ~3s to mostly cross over at 60fps
+const CPPN_MORPH_STEP = 0.01 // per frame, ~1.7s at 60fps from old preset to mutated one
+const CPPN_MUTATION_RATE = 0.35
+
+function surfaceHeightFromNodal(nodal, u, v, amplitude, t) {
   // Ambient liquid motion — present even with no audio, so the plate never
   // looks static, scaled up when the resonance amplitude is higher.
   const ripple = Math.sin(u * 8 + t * 0.1) * Math.cos(v * 8 - t * 0.08)
@@ -47,10 +131,127 @@ function surfaceHeight(n, m, u, v, amplitude, t) {
   )
 }
 
-export default function GrainField({ analyser, running, onInteract }) {
+// Kubelka-Munk pigment palette (see color/kubelkaMunk.js) vs. the original
+// HSL rainbow — on by default, `k` flips between them live for A/B.
+const KM_DEFAULT = true
+
+// Shared color writer for plate and grains: `phase` around the color wheel,
+// `lightness` on the same 0-1 HSL scale the rainbow mode already uses.
+const pigmentScratch = [0, 0, 0]
+function setPaletteColor(color, useKM, phase, saturation, lightness) {
+  if (!useKM) {
+    color.setHSL(phase, saturation, lightness)
+    return
+  }
+  const [r, g, b] = pigmentAt(phase, pigmentScratch)
+  if (lightness <= 0.5) {
+    // Darker than a full tint: scale the pigment down (HSL l=0.5 ~ full).
+    const k = lightness * 2
+    color.setRGB(r * k, g * k, b * k, THREE.SRGBColorSpace)
+  } else {
+    // Lighter: wash toward white, like adding titanium white to the paint.
+    const w = (lightness - 0.5) * 2
+    color.setRGB(r + (1 - r) * w, g + (1 - g) * w, b + (1 - b) * w, THREE.SRGBColorSpace)
+  }
+}
+
+// Param-driven camera shape targets (see CAM_* comment), all 0-1-ish.
+function cameraShapeFor(p) {
+  const sizeNorm = Math.max(0, Math.min(1, ((p.grainSizeMs ?? 400) - SIZE_KNOB_MIN_MS) / (SIZE_KNOB_MAX_MS - SIZE_KNOB_MIN_MS)))
+  return {
+    fire: 1 - Math.max(0, Math.min(1, ((p.rate ?? 200) - 20) / 3980)),
+    wobble: p.wobble ?? 0,
+    elev: 1 - Math.min(1, (p.feedback ?? 0.65) / 0.9),
+    dist: Math.sqrt(sizeNorm),
+    orbit: 0.3 + 0.7 * (p.density ?? 0.6),
+    roll: Math.min(2, 0.2 + (p.wow ?? 0) + (p.flutter ?? 0) * 0.5),
+    aim: 0.3 + (p.dynamics ?? 0.15),
+  }
+}
+
+export default function GrainField({ analyser, running, onInteract, params }) {
   const containerRef = useRef(null)
   const grainsRef = useRef([])
   const pointerRef = useRef({ x: 0.5, y: 0.5, strength: 0, lastX: 0.5, lastY: 0.5 })
+  // Slow background spin/pan, partly ambient and partly nudged by touch
+  // velocity (see DRIFT_* constants) — panU/panV/spin are the accumulated
+  // position, velU/velV/spinVel the decaying momentum from recent drags.
+  const driftRef = useRef({ panU: 0, panV: 0, velU: 0, velV: 0, spin: 0, spinVel: 0 })
+  // Camera clock (see CAM_* constants) and the slow amplitude average its
+  // onset detection compares against — in a ref so a remount (e.g. dev
+  // StrictMode) doesn't jump the view back to a new start point.
+  // Built once, not on every render (App re-renders this several times a
+  // second while evolve, breed or a glide moves the dials).
+  const camRef = useRef(null)
+  if (camRef.current === null) {
+    camRef.current = {
+      phase: CAM_START_PHASE,
+      rate: 0,
+      slowAmplitude: 0.3,
+      active: 0,
+      reach: 0.9,
+      shape: cameraShapeFor({}),
+      tiltPhase: 0,
+      tiltLevel: 0,
+      tiltDepth: 0,
+    }
+  }
+  // Latest output params (the size dial included), read live in the draw
+  // loop rather than as effect dependencies: they change on every drag
+  // tick, and rebuilding the three.js scene that often would be wasteful
+  // and visibly jarring. They also steer the camera.
+  const paramsRef = useRef(params ?? {})
+  useEffect(() => {
+    paramsRef.current = params ?? {}
+  }, [params])
+  // Read live in the draw loop so toggling `on` (or the analyser first
+  // appearing) doesn't tear down and rebuild the WebGL renderer — each
+  // rebuild opened a fresh GL context and snapped the smoothed pattern.
+  const runningRef = useRef(running)
+  const analyserRef = useRef(analyser)
+  useEffect(() => {
+    runningRef.current = running
+    analyserRef.current = analyser
+  }, [running, analyser])
+  // Read live in the draw loop, same reason as paramsRef.
+  const kmRef = useRef(KM_DEFAULT)
+  // CPPN field state, also read live: blend eases toward target (0 = pure
+  // Chladni), and a mutation morphs from `prev` to `cur` so neither snaps.
+  // Evaluated once a frame on a LUT grid (two, while morphing) rather than
+  // per grain: ~9k CPPN calls instead of ~87k.
+  const cppnRef = useRef(null)
+  if (cppnRef.current === null) {
+    cppnRef.current = {
+      target: 0, blend: 0, genome: null, cur: null, prev: null, morph: 1,
+      lut: new Float32Array(LUT_SIZE * LUT_SIZE),
+      prevLut: new Float32Array(LUT_SIZE * LUT_SIZE),
+    }
+  }
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      if (e.key === 'k') kmRef.current = !kmRef.current
+      if ((e.key === 'c' || e.key === 'C') && !e.repeat) {
+        const c = cppnRef.current
+        // Mid-morph the displayed field is a mix of prev and cur; mutating
+        // now would snap it, so let the morph finish first.
+        if (e.shiftKey && c.morph < 1) return
+        if (!c.genome) {
+          c.genome = randomGenome()
+          c.cur = compileGenome(c.genome)
+        } else if (e.shiftKey) {
+          c.genome = mutateGenome(c.genome, CPPN_MUTATION_RATE)
+          c.prev = c.cur
+          c.cur = compileGenome(c.genome)
+          c.morph = 0
+        }
+        if (!e.shiftKey) c.target = c.target ? 0 : 1
+        else c.target = 1
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   useEffect(() => {
     const container = containerRef.current
@@ -100,7 +301,7 @@ export default function GrainField({ analyser, running, onInteract }) {
     grainGeo.setAttribute('position', new THREE.BufferAttribute(grainPositions, 3))
     grainGeo.setAttribute('color', new THREE.BufferAttribute(grainColors, 3))
     const grainMat = new THREE.PointsMaterial({
-      size: 0.016,
+      size: pointSizeForGrainMs(paramsRef.current.grainSizeMs ?? 400),
       vertexColors: true,
       sizeAttenuation: true,
       transparent: true,
@@ -114,8 +315,14 @@ export default function GrainField({ analyser, running, onInteract }) {
     resize()
     window.addEventListener('resize', resize)
 
-    const freqData = analyser ? new Uint8Array(analyser.frequencyBinCount) : null
+    let freqData = null
     const tmpColor = new THREE.Color()
+    const grainHueLUT = new Float32Array(GRAIN_HUE_STEPS * 3)
+    const grainNodal = new Float32Array(GRAIN_COUNT)
+    const raycaster = new THREE.Raycaster()
+    const pushNdc = new THREE.Vector2()
+    const pushHit = new THREE.Vector3()
+    const platePlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
     const startTime = performance.now()
     let raf
     // Smoothed mode numbers/amplitude — the raw dominant FFT bin is noisy
@@ -129,6 +336,8 @@ export default function GrainField({ analyser, running, onInteract }) {
     let smoothN = 3
     let smoothM = 4
     let smoothAmplitude = 0.3
+    const cam = camRef.current
+    let lastFrame = performance.now()
 
     const draw = () => {
       raf = requestAnimationFrame(draw)
@@ -138,7 +347,12 @@ export default function GrainField({ analyser, running, onInteract }) {
       let targetM = 4
       let targetAmplitude = 0.3
 
-      if (running && freqData) {
+      const running = runningRef.current
+      const analyser = analyserRef.current
+      if (analyser && freqData?.length !== analyser.frequencyBinCount) {
+        freqData = new Uint8Array(analyser.frequencyBinCount)
+      }
+      if (running && analyser) {
         analyser.getByteFrequencyData(freqData)
         let maxBin = 0
         let maxVal = 0
@@ -160,18 +374,68 @@ export default function GrainField({ analyser, running, onInteract }) {
       const m = smoothM
       const amplitude = smoothAmplitude
 
+      grainMat.size = pointSizeForGrainMs(paramsRef.current.grainSizeMs ?? 400)
+      const useKM = kmRef.current
+
+      const cppn = cppnRef.current
+      cppn.blend += (cppn.target - cppn.blend) * CPPN_BLEND_EASE
+      if (cppn.morph < 1) cppn.morph = Math.min(1, cppn.morph + CPPN_MORPH_STEP)
+      const blend = cppn.blend > 0.001 ? cppn.blend : 0
+      const { lut, prevLut, morph } = cppn
+      if (blend) {
+        fillLUT(lut, LUT_SIZE, cppn.cur, n, m, t, amplitude)
+        if (morph < 1) {
+          fillLUT(prevLut, LUT_SIZE, cppn.prev, n, m, t, amplitude)
+          for (let i = 0; i < lut.length; i++) lut[i] = prevLut[i] + (lut[i] - prevLut[i]) * morph
+        }
+      }
+      const field = (u, v) => {
+        if (!blend) return chladniValue(n, m, u, v)
+        const evolved = sampleLUT(lut, LUT_SIZE, u, v)
+        if (blend > 0.999) return evolved
+        const chladni = chladniValue(n, m, u, v)
+        return chladni + (evolved - chladni) * blend
+      }
+
       // Pointer push: decays on its own each frame, independent of audio state.
       const pointer = pointerRef.current
       const pushActive = pointer.strength > 0.002
       if (pointer.strength > 0) pointer.strength *= 0.92
 
+      // Background spin/pan: ambient drift (always on) plus decaying
+      // momentum imparted by recent drags (see driftRef init comment).
+      const drift = driftRef.current
+      drift.panU += drift.velU
+      drift.panV += drift.velV
+      drift.velU *= DRIFT_VELOCITY_DECAY
+      drift.velV *= DRIFT_VELOCITY_DECAY
+      drift.spin += drift.spinVel
+      drift.spinVel *= DRIFT_VELOCITY_DECAY
+      const panU = drift.panU + t * AMBIENT_PAN_SPEED_U
+      const panV = drift.panV + t * AMBIENT_PAN_SPEED_V
+      // Spin is applied as a rotation of the (u, v) sampling coordinates
+      // around the tile center, not as an Object3D rotation on the meshes
+      // themselves — grains' actual world positions (g.x/g.y) have to stay
+      // put for the pointer-push math below (which compares them directly
+      // against screen-space pointer coords) to keep lining up with what's
+      // rendered; only the nodal/color pattern underneath visibly turns,
+      // and grains drifting toward nodal minima follow it, which reads as
+      // the whole field spinning anyway.
+      const spinAngle = drift.spin + t * AMBIENT_SPIN_SPEED
+      const spinCos = Math.cos(spinAngle)
+      const spinSin = Math.sin(spinAngle)
+
       // Update the plate's rippling surface.
       const posAttr = planeGeo.attributes.position
       const colAttr = planeGeo.attributes.color
       for (let i = 0; i < posAttr.count; i++) {
-        const u = posAttr.getX(i) / GRAIN_AREA_SIZE + 0.5
-        const v = posAttr.getZ(i) / GRAIN_AREA_SIZE + 0.5
-        const h = surfaceHeight(n, m, u, v, amplitude, t)
+        const rawU = posAttr.getX(i) / GRAIN_AREA_SIZE + 0.5 + panU
+        const rawV = posAttr.getZ(i) / GRAIN_AREA_SIZE + 0.5 + panV
+        const du = rawU - 0.5
+        const dv = rawV - 0.5
+        const u = 0.5 + du * spinCos - dv * spinSin
+        const v = 0.5 + du * spinSin + dv * spinCos
+        const h = surfaceHeightFromNodal(field(u, v), u, v, amplitude, t)
         posAttr.setY(i, h)
         // Hue sweeps across the plate by position (not just time), so the
         // surface itself reads as a genuine rainbow gradient rather than a
@@ -179,7 +443,7 @@ export default function GrainField({ analyser, running, onInteract }) {
         // nodal valleys, saturated and bright on the ripple peaks.
         const hue = ((u + v) * 0.5 + t * 0.008) % 1
         const brightness = 0.04 + Math.min(1, Math.abs(h) / NODAL_HEIGHT_SCALE) * 0.42
-        tmpColor.setHSL(hue, 0.8, brightness)
+        setPaletteColor(tmpColor, useKM, hue, 0.8, brightness)
         colAttr.setXYZ(i, tmpColor.r, tmpColor.g, tmpColor.b)
       }
       posAttr.needsUpdate = true
@@ -187,34 +451,56 @@ export default function GrainField({ analyser, running, onInteract }) {
 
       // Update grains — same nodal-drift physics as the 2D version, now
       // hovering above the plate's live surface height at their (x, y).
-      const gPos = grainGeo.attributes.position
-      const gCol = grainGeo.attributes.color
+      // Every grain shares this frame's lightness, so its color depends on
+      // hue alone — convert the palette once per hue step here instead of
+      // once per grain (80k sRGB→linear conversions a frame was the single
+      // biggest cost in the loop below).
+      const grainLightness = 0.55 + amplitude * 0.2
+      for (let h = 0; h < GRAIN_HUE_STEPS; h++) {
+        setPaletteColor(tmpColor, useKM, h / GRAIN_HUE_STEPS, 0.85, grainLightness)
+        grainHueLUT[h * 3] = tmpColor.r
+        grainHueLUT[h * 3 + 1] = tmpColor.g
+        grainHueLUT[h * 3 + 2] = tmpColor.b
+      }
+
+      // Pointer push lands where the finger meets the plate, through the
+      // wandering camera (last frame's pose) — comparing raw screen coords
+      // to plate coords pushed grains nowhere near the touch.
+      let pushX = 0
+      let pushY = 0
+      let pushR = 0
+      if (pushActive) {
+        pushNdc.set(pointer.x * 2 - 1, 1 - pointer.y * 2)
+        raycaster.setFromCamera(pushNdc, camera)
+        if (raycaster.ray.intersectPlane(platePlane, pushHit)) {
+          pushX = (pushHit.x / PLATE_MESH_SIZE + 0.5) * GRAIN_SPAN
+          pushY = (pushHit.z / PLATE_MESH_SIZE + 0.5) * GRAIN_SPAN
+          const viewHeight = 2 * camera.position.distanceTo(pushHit) * Math.tan((camera.fov * Math.PI) / 360)
+          pushR = (PUSH_RADIUS_FRAC * viewHeight) / GRAIN_AREA_SIZE
+        }
+      }
+      const pushR2 = pushR * pushR
+
       const grains = grainsRef.current
       for (let i = 0; i < grains.length; i++) {
         const g = grains[i]
-        // Fractional part tiles the nodal pattern across the grain's full
-        // GRAIN_SPAN-wide roaming area, same trick as the plate mesh.
-        const u = g.x - Math.floor(g.x)
-        const v = g.y - Math.floor(g.y)
-        const nodal = nodalValue(n, m, u, v)
-
+        // Drift reads the nodal value cached from this grain's height pass
+        // last frame (same spot, n/m/pan a frame stale) — saves a second
+        // full nodal evaluation per grain.
+        const nodal = grainNodal[i]
         const pull = 0.002 * (1 - Math.min(1, Math.abs(nodal) * 2))
         g.x += (Math.random() - 0.5) * 0.004 * (0.3 + amplitude) - Math.sign(nodal) * pull
         g.y += (Math.random() - 0.5) * 0.004 * (0.3 + amplitude) - Math.sign(nodal) * pull
 
-        if (pushActive) {
-          // pointer.x/y are normalized [0,1] screen-space; grains roam a
-          // GRAIN_SPAN-wide domain, so compare in normalized terms and scale
-          // the resulting displacement back up — keeps the same push feel
-          // as before regardless of the larger roaming area.
-          const dxNorm = g.x / GRAIN_SPAN - pointer.x
-          const dyNorm = g.y / GRAIN_SPAN - pointer.y
-          const distSq = dxNorm * dxNorm + dyNorm * dyNorm
-          if (distSq < 0.035) {
+        if (pushR2 > 0) {
+          const dx = g.x - pushX
+          const dy = g.y - pushY
+          const distSq = dx * dx + dy * dy
+          if (distSq < pushR2) {
             const dist = Math.sqrt(distSq) || 0.001
-            const force = pointer.strength * (1 - dist / 0.19)
-            g.x += (dxNorm / dist) * force * 0.006 * GRAIN_SPAN
-            g.y += (dyNorm / dist) * force * 0.006 * GRAIN_SPAN
+            const step = pointer.strength * (1 - dist / pushR) * pushR * PUSH_STEP
+            g.x += (dx / dist) * step
+            g.y += (dy / dist) * step
           }
         }
 
@@ -222,23 +508,76 @@ export default function GrainField({ analyser, running, onInteract }) {
         g.y = Math.min(GRAIN_SPAN, Math.max(0, g.y))
         g.hue = (g.hue + 0.05) % 360
 
-        const localU = g.x - Math.floor(g.x)
-        const localV = g.y - Math.floor(g.y)
-        const worldX = (g.x / GRAIN_SPAN - 0.5) * PLATE_MESH_SIZE
-        const worldZ = (g.y / GRAIN_SPAN - 0.5) * PLATE_MESH_SIZE
-        const worldY = surfaceHeight(n, m, localU, localV, amplitude, t) + HOVER_HEIGHT
-        gPos.setXYZ(i, worldX, worldY, worldZ)
+        // Fractional part tiles the nodal pattern across the grain's full
+        // GRAIN_SPAN-wide roaming area, same trick as the plate mesh.
+        const du = g.x - Math.floor(g.x) + panU - 0.5
+        const dv = g.y - Math.floor(g.y) + panV - 0.5
+        const u = 0.5 + du * spinCos - dv * spinSin
+        const v = 0.5 + du * spinSin + dv * spinCos
+        const local = field(u, v)
+        grainNodal[i] = local
+        const j = i * 3
+        grainPositions[j] = (g.x / GRAIN_SPAN - 0.5) * PLATE_MESH_SIZE
+        grainPositions[j + 1] = surfaceHeightFromNodal(local, u, v, amplitude, t) + HOVER_HEIGHT
+        grainPositions[j + 2] = (g.y / GRAIN_SPAN - 0.5) * PLATE_MESH_SIZE
 
-        tmpColor.setHSL(g.hue / 360, 0.85, 0.55 + amplitude * 0.2)
-        gCol.setXYZ(i, tmpColor.r, tmpColor.g, tmpColor.b)
+        const c = Math.floor((g.hue / 360) * GRAIN_HUE_STEPS) * 3
+        grainColors[j] = grainHueLUT[c]
+        grainColors[j + 1] = grainHueLUT[c + 1]
+        grainColors[j + 2] = grainHueLUT[c + 2]
       }
-      gPos.needsUpdate = true
-      gCol.needsUpdate = true
+      grainGeo.attributes.position.needsUpdate = true
+      grainGeo.attributes.color.needsUpdate = true
 
-      // Camera: fixed tilted view over the plate, with a slow, subtle sway
-      // so the 3D depth/parallax of the ripple reads clearly at a glance.
-      camera.position.set(Math.sin(t * 0.012) * 0.15, 1.5, 1.55 + Math.cos(t * 0.008) * 0.08)
-      camera.lookAt(0, 0, 0)
+      // Camera wander (see CAM_* constants): clock rate eased toward a
+      // level + onset-driven target, then every dimension read off it.
+      const now = performance.now()
+      const dt = Math.min(0.1, (now - lastFrame) / 1000)
+      lastFrame = now
+      // Off: the gate eases to 0, which stops the clock and freezes the
+      // shape where it is — the view settles and holds instead of snapping.
+      cam.active += ((running ? 1 : 0) - cam.active) * CAM_ACTIVE_SMOOTHING
+      const shape = cam.shape
+      const target = cameraShapeFor(paramsRef.current)
+      const shapeEase = CAM_SHAPE_SMOOTHING * cam.active
+      for (const k in shape) shape[k] += (target[k] - shape[k]) * shapeEase
+      cam.slowAmplitude += (amplitude - cam.slowAmplitude) * 0.01
+      const onset = Math.max(0, amplitude - cam.slowAmplitude)
+      const targetRate = running
+        ? CAM_BASE_RATE + amplitude * CAM_LEVEL_RATE + onset * CAM_ONSET_RATE +
+          shape.fire * CAM_FIRE_RATE + shape.wobble * CAM_WOBBLE_RATE
+        : 0
+      cam.rate += (targetRate - cam.rate) * CAM_RATE_SMOOTHING
+      cam.phase += cam.rate * dt
+      const camPhase = cam.phase
+      // Amplitude keeps easing while off (toward its idle value), so reach
+      // is gated too or the frozen view would still creep.
+      cam.reach += (0.85 + amplitude * 0.15 - cam.reach) * cam.active
+      const reach = cam.reach
+      const elevSpan = CAM_ELEV_MAX - CAM_ELEV_MIN
+      const azimuth = wander(camPhase, 0.31, 0.17, 0) * CAM_AZIMUTH_RANGE * shape.orbit * reach
+      // Param sets the center, wander sways +/- a quarter span around it.
+      const elev = Math.max(CAM_ELEV_MIN, Math.min(CAM_ELEV_MAX,
+        CAM_ELEV_MIN + shape.elev * elevSpan + wander(camPhase, 0.23, 0.13, 2.1) * elevSpan * 0.25))
+      const distSpan = CAM_DIST_MAX - CAM_DIST_MIN
+      const dist = Math.max(CAM_DIST_MIN, Math.min(CAM_DIST_MAX,
+        CAM_DIST_MIN + shape.dist * distSpan + wander(camPhase, 0.19, 0.29, 4.3) * distSpan * 0.2))
+      const tx = wander(camPhase, 0.27, 0.11, 1.3) * CAM_TARGET_RANGE * shape.aim * reach
+      const tz = wander(camPhase, 0.21, 0.15, 3.7) * CAM_TARGET_RANGE * shape.aim * reach
+      const horiz = Math.cos(elev) * dist
+      camera.position.set(tx + Math.sin(azimuth) * horiz, Math.sin(elev) * dist, tz + Math.cos(azimuth) * horiz)
+      camera.lookAt(tx, 0, tz)
+      camera.rotateZ(wander(camPhase, 0.37, 0.09, 5.9) * CAM_ROLL_RANGE * shape.roll * reach)
+
+      // Tilt dance (see TILT_* constants). Off, the clock stops and depth
+      // eases to 0, so the view settles level instead of freezing tipped.
+      cam.tiltLevel += (amplitude - cam.tiltLevel) * TILT_LEVEL_SMOOTHING
+      cam.tiltPhase += (TILT_BASE_HZ + cam.tiltLevel * TILT_LEVEL_HZ) * dt * cam.active
+      cam.tiltDepth += ((0.5 + cam.tiltLevel * 0.5) * cam.active - cam.tiltDepth) * TILT_LEVEL_SMOOTHING * 4
+      const tilt = wander(cam.tiltPhase * Math.PI * 2, 1, 0.42, 0.8) * TILT_RANGE * cam.tiltDepth
+      // Negative tilt pitches down toward the plate and dollies in.
+      camera.rotateX(tilt)
+      camera.translateZ(tilt * TILT_DOLLY)
 
       renderer.render(scene, camera)
     }
@@ -252,9 +591,10 @@ export default function GrainField({ analyser, running, onInteract }) {
       planeGeo.dispose()
       planeMat.dispose()
       renderer.dispose()
+      renderer.forceContextLoss()
       container.removeChild(renderer.domElement)
     }
-  }, [analyser, running])
+  }, [])
 
   const handlePointer = (e) => {
     const container = containerRef.current
@@ -272,6 +612,14 @@ export default function GrainField({ analyser, running, onInteract }) {
     pointer.lastX = nx
     pointer.lastY = ny
     pointer.strength = Math.min(1, pointer.strength + Math.max(0.25, moveDist * 6))
+
+    // Drag direction nudges the background spin/pan's momentum — decays on
+    // its own in the draw loop (DRIFT_VELOCITY_DECAY), so a stroke leaves
+    // the pattern drifting/turning for a bit rather than snapping back.
+    const drift = driftRef.current
+    drift.velU += dx * DRIFT_PAN_TOUCH_GAIN
+    drift.velV += dy * DRIFT_PAN_TOUCH_GAIN
+    drift.spinVel += dx * DRIFT_SPIN_TOUCH_GAIN
 
     if (onInteract) {
       onInteract(nx, ny, Math.min(1, Math.max(0.3, moveDist * 8)))

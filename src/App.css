@@ -5,6 +5,8 @@
   overflow: hidden;
 }
 
+/* Small cursive wordmark, top center — pure decoration, never blocks the
+   grain field or the corner clusters beneath/beside it. */
 .grain-field {
   position: absolute;
   inset: 0;
@@ -29,19 +31,47 @@
   pointer-events: auto;
 }
 
+/* max-width caps each corner cluster below half the viewport so the two
+   top corners can never physically overlap regardless of screen width —
+   knobs that don't fit on one line wrap onto a second instead of colliding
+   with the opposite cluster. */
 .control-cluster--top-left {
   top: max(0.75rem, env(safe-area-inset-top));
   left: max(0.75rem, env(safe-area-inset-left));
+  max-width: 46vw;
+  flex-wrap: wrap;
 }
 
 .control-cluster--top-right {
   top: max(0.75rem, env(safe-area-inset-top));
   right: max(0.75rem, env(safe-area-inset-right));
+  max-width: 46vw;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
+/* Shake bolt sits above the size/density row, stacked on the same edge. */
 .control-cluster--bottom-left {
   bottom: max(0.75rem, env(safe-area-inset-bottom));
   left: max(0.75rem, env(safe-area-inset-left));
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  max-width: 46vw;
+}
+
+/* Center the bolt over the size knob: give the shake button the same
+   width as the knob wrapper (knob-size + 16px, see RotaryKnob.css) — the
+   knob body is centered in that wrapper at every breakpoint, so a
+   centered bolt lands over the body's center too. 96 = BIG_KNOB in App. */
+.control-cluster--bottom-left .shake-button {
+  width: calc(96px + 16px);
+  justify-content: center;
+}
+
+.control-cluster__row {
+  display: flex;
+  gap: 0.5rem;
 }
 
 /* Tape-style trio (wow/flutter/wobble) stacks vertically so it stays narrow
@@ -54,13 +84,16 @@
   gap: 0.35rem;
 }
 
+/* granular/delay mix knobs sit to the left of listen, volume to its right —
+   the master-balance controls (mix + volume) grouped around the centerpiece
+   toggle rather than split off into a corner cluster. */
 .control-cluster--center {
   bottom: max(0.5rem, env(safe-area-inset-bottom));
   left: 50%;
   transform: translateX(-50%);
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
 }
 
 .listen-wrap {
@@ -68,6 +101,23 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.control-cluster__mix-pair {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Raw-mic and evolve toggles, moved out of the top-right corner cluster to
+   sit at the bottom, right of the volume knob — stacked in their own narrow
+   column so the pair doesn't stretch the centered listen/volume row much
+   wider than it already is. */
+.control-cluster__utility-pair {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 /* Console-less error surface: a small floating pill above the listen
@@ -82,7 +132,7 @@
   transform: translateX(-50%);
   max-width: min(80vw, 320px);
   padding: 0.6rem 1rem;
-  border: 1px solid color-mix(in srgb, var(--color-volume, #f0a) 50%, transparent);
+  border: 1px solid transparent;
   border-radius: 999px;
   background: color-mix(in srgb, #06060e 85%, transparent);
   color: #fff;
@@ -93,10 +143,71 @@
   backdrop-filter: blur(6px);
 }
 
+/* Narrow-to-medium widths: the centered listen/volume row has no room to
+   spare for two more knobs beside it without colliding with the bottom-left
+   corner cluster, so pull the mix pair out of flow and float it in its own
+   centered row directly above listen/volume instead of beside them. Widened
+   from 480px to 700px — the in-row layout was still colliding with the
+   bottom-left cluster on mid-width phones/small tablets (e.g. ~600px) that
+   fall between the old breakpoint and desktop widths. */
+/* With size at 2x (BIG_KNOB), the bottom-left size+density row is ~185px
+   wide — below ~800px that runs under the centered mix pair / listen
+   button. Stack size over density into a single narrow column instead. */
+@media (max-width: 800px) {
+  .control-cluster--bottom-left .control-cluster__row {
+    flex-direction: column;
+    align-items: center;
+  }
+}
+
+/* Phones: even the stacked column (~112px wide) collides with the center
+   row, which reaches nearly edge to edge here. Lift the whole bottom-left
+   cluster clear of the center row + its floating mix pair (~210px tall
+   together) and let size/density sit side by side again up there, where
+   nothing else shares the row. */
 @media (max-width: 480px) {
+  .control-cluster--bottom-left {
+    bottom: calc(max(0.5rem, env(safe-area-inset-bottom)) + 210px);
+  }
+  .control-cluster--bottom-left .control-cluster__row {
+    flex-direction: row;
+    align-items: flex-end;
+  }
+}
+
+@media (max-width: 700px) {
   .control-cluster--top-left,
   .control-cluster--top-right {
     gap: 0.35rem;
+  }
+  .control-cluster__mix-pair {
+    position: absolute;
+    left: 50%;
+    bottom: 100%;
+    transform: translateX(-50%);
+    margin-bottom: 0.6rem;
+    gap: 0.5rem;
+  }
+}
+
+/* Phone widths: the `on` button beside listen leaves no room for the
+   raw/evolve column in the same row without colliding with both bottom
+   corner clusters. Float that column above the right end of the row
+   (over on/volume), and shift the floating mix pair to the left end
+   (over listen) so the two floating groups don't collide either. */
+@media (max-width: 480px) {
+  .control-cluster--center {
+    gap: 0.25rem;
+  }
+  .control-cluster__mix-pair {
+    left: 0;
+    transform: none;
+  }
+  .control-cluster__utility-pair {
+    position: absolute;
+    right: 0;
+    bottom: 100%;
+    margin-bottom: 0.6rem;
   }
 }
 

@@ -1,7 +1,8 @@
 :root {
   color-scheme: dark;
-  font-family: system-ui, sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', 'Courier New', monospace;
+  /* Syne Mono everywhere — one face for labels, values, and buttons. */
+  --font-mono: 'Syne Mono', ui-monospace, 'SF Mono', 'Courier New', monospace;
+  font-family: var(--font-mono);
 
   /* GLOOP rainbow palette — shared by controls, listen button, loop ring */
   --rainbow-1: #ff4d6d;
@@ -11,22 +12,67 @@
   --rainbow-5: #4dc9ff;
   --rainbow-6: #b04dff;
 
-  /* Per-control accent colors */
-  --color-rate: var(--rainbow-1);
-  --color-dynamics: var(--rainbow-2);
-  --color-feedback: var(--rainbow-3);
-  --color-repeat: var(--rainbow-4);
-  --color-size: var(--rainbow-5);
-  --color-density: var(--rainbow-6);
-  --color-wow: #c86dff;
-  --color-flutter: #ff6dd6;
-  --color-wobble: #ff6d94;
-  --color-volume: #d8dbe6;
-  --color-sensitivity: #4dffe0;
+  /* Per-control accent colors — spread around the hue wheel (~25-30°
+     apart) so no two controls read as the same color; the one place two
+     hues share a hue (dynamics/granular, both ~25°) is split by
+     lightness instead. Hue in each comment. */
+  --color-rate: #ff4d6d;          /* 350 crimson */
+  --color-dynamics: #ff8a3d;      /*  25 orange */
+  --color-feedback: #ffe94d;      /*  55 yellow */
+  --color-repeat: #a8ff4d;        /*  90 lime */
+  --color-wobble: #3dff7a;        /* 140 green */
+  --color-sensitivity: #4dffe0;   /* 170 aqua */
+  --color-size: #4dc3ff;          /* 200 sky */
+  --color-delay-mix: #4d6bff;     /* 230 royal blue */
+  --color-wow: #8f6dff;           /* 255 periwinkle */
+  --color-density: #c04dff;       /* 280 violet */
+  --color-flutter: #ff4df0;       /* 305 magenta */
+  --color-granular-mix: #ffc9a0;  /*  25 pale peach (lightness-split from dynamics) */
+  --color-volume: #d8dbe6;        /* neutral */
+  --color-thru: #fff4c2;          /*  50 pale cream (lightness-split from feedback) */
+  /* Listen's own body: desaturated slate-lavender so the centerpiece
+     doesn't share a hue with any dial (its rainbow ring is the color). */
+  --color-listen: #a7a2c9;
+  /* `on` state colors — plain stop/go, not tied to any dial. */
+  --color-on: #34e36a;
+  --color-off: #ff3b30;
 }
 
 * {
   box-sizing: border-box;
+}
+
+/* Buttons don't inherit font-family by default. */
+button {
+  font-family: inherit;
+}
+
+/* Inverted, see-through control surface — each knob/button is a window
+   that photo-negatives whatever the grain field is doing behind it
+   (backdrop invert, dimmed so the near-black bg goes mid-grey and bright
+   grains go dark), washed with a translucent tint of its own
+   accent (--bevel-color) so the hue still identifies the control and
+   labels stay legible. The bevel is flipped too: light pools at the
+   bottom-right and the rim catches shadow top-left, so controls read as
+   dished into the plate rather than domed on top of it. Moving grains,
+   ripples and the camera dance all bleed through, so the controls shift
+   with the bg instead of sitting on it as flat opaque discs.
+   Elements opt in with the class and set --bevel-color; they consume
+   --bevel-bg / --bevel-inset in their own background/box-shadow so
+   hover/active can layer glows on top. */
+.bevel {
+  --bevel-color: #9aa0b4;
+  --bevel-bg: radial-gradient(
+    circle at 64% 70%,
+    color-mix(in srgb, color-mix(in srgb, var(--bevel-color) 40%, #1a1a28) 42%, transparent) 0%,
+    color-mix(in srgb, color-mix(in srgb, var(--bevel-color) 30%, #0c0c16) 62%, transparent) 55%,
+    color-mix(in srgb, color-mix(in srgb, var(--bevel-color) 20%, #04040a) 80%, transparent) 100%
+  );
+  --bevel-inset:
+    inset -1.5px -2px 2px color-mix(in srgb, var(--bevel-color) 50%, rgba(255, 255, 255, 0.5)),
+    inset 2px 3px 6px rgba(0, 0, 0, 0.65);
+  -webkit-backdrop-filter: invert(1) brightness(0.55);
+  backdrop-filter: invert(1) brightness(0.55);
 }
 
 html, body, #root {

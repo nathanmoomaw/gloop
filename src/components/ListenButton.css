@@ -8,6 +8,8 @@
   cursor: pointer;
   background: transparent;
   -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
   touch-action: manipulation;
 }
 
@@ -18,17 +20,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(
-    circle at 38% 32%,
-    rgba(90, 80, 130, 0.95),
-    rgba(35, 32, 58, 0.98) 55%,
-    rgba(10, 9, 20, 1)
-  );
-  border: 2px solid rgba(255, 255, 255, 0.14);
+  --bevel-color: var(--color-listen);
+  background: var(--bevel-bg);
+  border: 2px solid transparent;
   box-shadow:
     0 6px 24px rgba(0, 0, 0, 0.55),
-    inset 0 2px 0 rgba(255, 255, 255, 0.1),
-    inset 0 -6px 16px rgba(0, 0, 0, 0.4);
+    var(--bevel-inset);
   transition: box-shadow 0.3s, border-color 0.3s, transform 0.15s;
 }
 
@@ -50,7 +47,7 @@
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.18);
+  border: 2px solid transparent;
   animation: listen-idle-pulse 3.2s ease-in-out infinite;
 }
 
@@ -59,20 +56,33 @@
   50% { transform: scale(1.04); opacity: 0.9; box-shadow: 0 0 24px rgba(255, 255, 255, 0.12); }
 }
 
-/* Listening state — rainbow glow + faster breathing */
+/* Off: dimmed, see-through. */
+.listen-button:not(.listen-button--on) .listen-button__label {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* Listening — a solid lit core (not see-through) inside a thick spinning
+   rainbow ring, so on vs off reads at a glance, as lit vs unlit. */
 .listen-button--on .listen-button__core {
-  border-color: rgba(255, 255, 255, 0.3);
+  background: radial-gradient(
+    circle at 40% 35%,
+    #ffffff 0%,
+    color-mix(in srgb, var(--color-listen) 35%, #fff) 45%,
+    color-mix(in srgb, var(--color-listen) 85%, #fff) 100%
+  );
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
   box-shadow:
     0 6px 28px rgba(0, 0, 0, 0.6),
-    0 0 26px 2px color-mix(in srgb, var(--rainbow-3) 55%, transparent),
-    0 0 48px 8px color-mix(in srgb, var(--rainbow-5) 30%, transparent),
-    inset 0 2px 0 rgba(255, 255, 255, 0.14),
-    inset 0 -6px 16px rgba(0, 0, 0, 0.35);
+    0 0 30px 4px color-mix(in srgb, var(--rainbow-3) 60%, transparent),
+    0 0 56px 12px color-mix(in srgb, var(--rainbow-5) 35%, transparent),
+    inset 0 -4px 8px rgba(0, 0, 0, 0.18);
 }
 
 .listen-button--on .listen-button__label {
-  color: rgba(255, 255, 255, 0.95);
-  text-shadow: 0 0 10px color-mix(in srgb, var(--rainbow-3) 70%, transparent);
+  color: #1b1636;
+  font-weight: 700;
+  text-shadow: none;
 }
 
 .listen-button--on .listen-button__ring {
@@ -87,10 +97,10 @@
     var(--rainbow-6),
     var(--rainbow-1)
   );
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 5px));
   animation: listen-on-spin 6s linear infinite;
-  opacity: 0.8;
+  opacity: 1;
 }
 
 @keyframes listen-on-spin {

@@ -1,0 +1,75 @@
+.sound-button {
+  --sound-color: var(--color-dynamics);
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  /* Squircle, not a circle: an action, not a state lamp. */
+  border-radius: 22px;
+  border: 2px solid transparent;
+  background: linear-gradient(
+    150deg,
+    color-mix(in srgb, var(--sound-color) 40%, transparent) 0%,
+    color-mix(in srgb, var(--color-feedback) 25%, transparent) 100%
+  );
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.5),
+    0 0 12px color-mix(in srgb, var(--sound-color) 35%, transparent);
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.7);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: transform 0.15s, box-shadow 0.2s;
+}
+
+.sound-button:hover {
+  transform: scale(1.05) rotate(-3deg);
+}
+
+.sound-button:active {
+  transform: scale(0.93);
+}
+
+.sound-button:focus-visible {
+  outline: 2px solid var(--sound-color);
+  outline-offset: 3px;
+}
+
+.sound-button--flash {
+  animation: sound-flash 0.7s ease-out;
+}
+
+@keyframes sound-flash {
+  0% {
+    box-shadow:
+      0 4px 14px rgba(0, 0, 0, 0.5),
+      0 0 0 0 color-mix(in srgb, var(--sound-color) 80%, transparent);
+  }
+  40% {
+    box-shadow:
+      0 4px 14px rgba(0, 0, 0, 0.5),
+      0 0 30px 10px color-mix(in srgb, var(--sound-color) 60%, transparent);
+  }
+  100% {
+    box-shadow:
+      0 4px 14px rgba(0, 0, 0, 0.5),
+      0 0 12px color-mix(in srgb, var(--sound-color) 35%, transparent);
+  }
+}
+
+@media (max-width: 767px) {
+  .sound-button {
+    width: 50px;
+    height: 50px;
+    border-radius: 17px;
+    font-size: 0.56rem;
+  }
+}

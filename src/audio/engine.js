@@ -33,10 +33,25 @@
 //                  recorded silence) and the repeat/decay ceiling stretches
 //                  out toward SUSTAIN_MAX_MS. Higher value = more sensitive
 //                  = counts quieter input as still "active", so both of the
-//                  above kick in less readily.
+//                  above kick in less readily. The dial sets a floor, not a
+//                  fixed value: the longer input stays below it, the further
+//                  the effective threshold auto-ramps down (see
+//                  AUTO_SENSITIVITY_RAMP_SEC), so a persistently quiet room
+//                  keeps getting easier to pick up instead of just staying
+//                  gated out. Resets back to the dial's own threshold as soon
+//                  as input crosses it again.
 //   mix          — per-grain envelope peak level (internal balance, not
 //                  exposed as its own dial).
-//   volume       — master output gain.
+//   granularMix  — overall level of the direct granular voice (the dry grain
+//                  hits, before the delay network) reaching the output.
+//   delayMix     — overall level of the dynamic-delay/feedback echo path
+//                  reaching the output. Split from granularMix so the two
+//                  can be balanced independently instead of only sharing one
+//                  combined `mix` level. Automatically boosted further (up
+//                  to QUIET_DELAY_BOOST_MAX louder) while live input is
+//                  quiet, same `quietFactor` as the repeat/sustain ceiling.
+//   volume       — master output gain (0-1 dial range, scaled by OUTPUT_BOOST
+//                  before hitting the masterGain node).
 
 // Resolved via Vite's `new URL(..., import.meta.url)` asset pattern so it
 // works identically in dev and build — audioWorklet.addModule() needs a URL.
@@ -47,12 +62,51 @@ let micStream = null
 let analyser = null
 let grainInterval = null
 let masterGain = null
+// Sits between every grain's output and masterGain, so `thru` can mute the
+// whole granular/delay path at once without touching the volume dial.
+let fxBus = null
+// Shared diffuser the top of the `repeat` dial sends grains into (see
+// smearAmount) — feeds fxBus, so `thru` mutes it with everything else.
+let smearVerb = null
+// Dry mic -> output monitor path for `thru` (see setThru).
+let thruGain = null
+let thru = false
+// Final-stage limiter, kept so the thru path can feed it directly — the dry
+// signal has to be audible whether or not `on` (masterGain) is up.
+let limiter = null
 let perturbDecayInterval = null
 let onGrainFireCallback = null
 
-const GRAIN_MS_DEFAULT = 120
-const RATE_MS_DEFAULT = 26
+// Opt-in only (see start()) — browsers' default echoCancellation/
+// noiseSuppression/autoGainControl processing is a real suspect for the
+// "choppy, cuts off" complaints (NS in particular gates/ducks audio that
+// doesn't look like voice, which is a bad fit for continuous granular
+// capture), but disabling it isn't safe as a default: prior testing found
+// each of the three individually could drop Chromium's fake-device signal
+// to near-silence. Exposed as a user-toggleable A/B switch instead so real
+// hardware can be compared live rather than guessed at blind.
+let rawCapture = false
+
+export function setRawCapture(value) {
+  rawCapture = value
+}
+
+export function getRawCapture() {
+  return rawCapture
+}
+
+// Size knob at 12 o'clock (linear 30–3000ms dial).
+const GRAIN_MS_DEFAULT = 1500
+// 5 grains/s: a first listen should hear itself fed back right away. (Was
+// 2000ms/0.5 per s from 2026-10-04 to 10-28, which read as too slow to
+// connect cause and effect.) Lower is still one knob turn away.
+const RATE_MS_DEFAULT = 200
 const POOL_SIZE = 24
+// Ceiling for the `size` (grainSizeMs) dial. Pool buffers below are sized to
+// hold exactly this much captured audio — grains longer than a pool slot
+// silently fail to play (see playGrain's `grainSamples > src.length` guard),
+// so this and the buffer allocation have to move together.
+const SIZE_MAX_MS = 3000
 
 // Modulation ranges — the raw 0-1 dial values are scaled into these before
 // being applied to the audio graph.
@@ -69,27 +123,89 @@ const REPEAT_MAX_MS = 6000
 // stretches from REPEAT_MAX_MS up toward this — a much longer, more
 // persistent wash of echoes instead of the loop dying out quickly.
 const SUSTAIN_MAX_MS = 30000
-const MAX_DELAY_SEC = 2 // matches ctx.createDelay(2)
+// Clouds-style threshold: past SMEAR_START on the `repeat` dial the grains
+// stop reading as discrete events and smear into a diffuse wash — rounder,
+// overlapping envelopes, wider pitch scatter, and a send into a noise-decay
+// diffuser — the qualitative "character flips" move granular instruments
+// like Mutable Instruments Clouds put at the end of a continuous control.
+const SMEAR_START = 0.85
+const SMEAR_IR_SEC = 2.5
+const SMEAR_SEND_MAX = 0.9
+
+// 0 below SMEAR_START, easing (smoothstep) to 1 at the top of the dial.
+export function smearAmount(repeat) {
+  const t = Math.max(0, Math.min(1, (repeat - SMEAR_START) / (1 - SMEAR_START)))
+  return t * t * (3 - 2 * t)
+}
+
+// Stereo exponentially-decaying noise with a soft onset: diffuse, no
+// discrete early reflections, so grains blur rather than echo.
+function makeSmearIR(context) {
+  const len = Math.floor(context.sampleRate * SMEAR_IR_SEC)
+  const onset = Math.floor(context.sampleRate * 0.04)
+  const ir = context.createBuffer(2, len, context.sampleRate)
+  for (let ch = 0; ch < 2; ch++) {
+    const data = ir.getChannelData(ch)
+    for (let i = 0; i < len; i++) {
+      const fadeIn = Math.min(1, i / onset)
+      data[i] = (Math.random() * 2 - 1) * fadeIn * Math.exp((-4 * i) / len)
+    }
+  }
+  return ir
+}
+// Must cover the largest possible per-grain delay time: SIZE_MAX_MS (the
+// base delay time tracks grainSizeMs) plus wobble's own +/- swing and a bit
+// of margin.
+const MAX_DELAY_SEC = SIZE_MAX_MS / 1000 + WOBBLE_MAX_SEC + 0.1
+// Output boost applied on top of the volume dial's 0-1 range — the dial
+// already maxes out at unity gain, so louder-by-default has to happen as a
+// multiplier on top of it rather than by raising the dial's own ceiling.
+// Bumped 2 -> 3 after the first pass (2x) still read as "not louder" —
+// turned out the safety limiter below was eating most of that gain before
+// it ever reached the speakers (see its comment); this and the limiter
+// retune below are meant to land together.
+const OUTPUT_BOOST = 3
+// Fixed gain applied after the safety limiter to recover the loudness the
+// compression stage takes back out — see the limiter setup in start() for
+// why this exists.
+const LIMITER_MAKEUP_GAIN = 1.4
+// How much louder the delay/feedback echo path gets, on top of its own
+// `delayMix` level, at full quiet (quietFactor === 1). 0.8 = up to 80%
+// louder than the plain delayMix level when nothing new is coming in.
+const QUIET_DELAY_BOOST_MAX = 0.8
+// Dry thru level relative to the volume dial — unity-ish, no OUTPUT_BOOST:
+// a clean monitor shouldn't be hotter than the source.
+const THRU_GAIN = 1
 // Sensitivity dial maps to an input-level threshold in this range: higher
 // sensitivity = lower threshold = quieter input still counts as "active".
 const SENSITIVITY_THRESH_MAX = 0.05
 const SENSITIVITY_THRESH_MIN = 0.002
 // Smoothing factor for the rolling input-level estimate (per audio block).
 const INPUT_LEVEL_SMOOTHING = 0.85
+// Auto-sensitivity: how long a continuous quiet streak takes to reach full
+// ramp (effective threshold at its lowest, i.e. most sensitive).
+const AUTO_SENSITIVITY_RAMP_SEC = 8
+// Floor the ramp can reach, as a fraction of the dial's own threshold — e.g.
+// 0.25 means "at full quiet, pick up input 4x quieter than the dial alone
+// would allow." Never ramps below this, so it can't chase the noise floor
+// forever.
+const AUTO_SENSITIVITY_MIN_RATIO = 0.25
 
 const state = {
   grainSizeMs: GRAIN_MS_DEFAULT,
   rate: RATE_MS_DEFAULT,
-  feedback: 0.45,
-  repeat: 0.4,
+  feedback: 0.65,
+  repeat: 0.65,
   spread: 0.3,
-  density: 0.35,
+  density: 0.6,
   dynamics: 0.15,
   sensitivity: 0.1,
   wow: 0,
   flutter: 0,
   wobble: 0,
   mix: 0.7,
+  granularMix: 1,
+  delayMix: 1,
   volume: 0.9,
 }
 
@@ -103,6 +219,11 @@ let recorderNode = null
 // Rolling estimate of live input level, updated per audio block — drives the
 // "no new sound coming in" sustain behavior via the sensitivity threshold.
 let inputLevel = 0
+// ctx.currentTime of the last block that counted as "active" (crossed the
+// then-current effective threshold) — drives the auto-sensitivity ramp in
+// currentThreshold(). Set to ctx.currentTime on start() so a fresh session
+// doesn't begin mid-ramp.
+let lastActiveTime = 0
 
 // Persistent modulation sources, created once in start().
 let wowLFO = null
@@ -116,6 +237,33 @@ export function getAnalyser() {
   return analyser
 }
 
+// How much sound is flowing right now, for learn mode's log: smoothed mic
+// RMS, smoothed output RMS (sampleOutputLevel), and the nominal grain rate.
+let levelBuf = null
+let outputLevel = 0
+const OUTPUT_LEVEL_SMOOTHING = 0.97 // per 60ms sample, ~2s: a press rates the last few seconds
+
+function sampleOutputLevel() {
+  if (!analyser || !playing) {
+    outputLevel = 0
+    return
+  }
+  if (!levelBuf) levelBuf = new Float32Array(analyser.fftSize)
+  analyser.getFloatTimeDomainData(levelBuf)
+  let sumSq = 0
+  for (let i = 0; i < levelBuf.length; i++) sumSq += levelBuf[i] * levelBuf[i]
+  const rms = Math.sqrt(sumSq / levelBuf.length)
+  outputLevel = outputLevel * OUTPUT_LEVEL_SMOOTHING + rms * (1 - OUTPUT_LEVEL_SMOOTHING)
+}
+
+export function getLevels() {
+  return {
+    input: listening ? inputLevel : 0,
+    output: outputLevel,
+    grainsPerSec: playing ? 1000 / state.rate : 0,
+  }
+}
+
 export function setParam(name, value) {
   if (!(name in state)) return
   state[name] = value
@@ -123,7 +271,8 @@ export function setParam(name, value) {
   // A few params drive already-created persistent nodes and need to be
   // pushed onto the live AudioParam immediately, not just stashed in state.
   if (name === 'volume' && masterGain) {
-    masterGain.gain.value = value
+    if (playing) rampMaster(value * OUTPUT_BOOST)
+    if (thru) applyThru()
   } else if (name === 'wow' && wowDepth) {
     wowDepth.gain.value = value * WOW_MAX_RATIO
   } else if (name === 'flutter' && flutterDepth) {
@@ -159,10 +308,33 @@ export function onGrainFire(callback) {
 // on first tap and kept alive across taps; independent of start()/stop().
 let tapCtx = null
 let tapNoiseBuffer = null
+// Every tap voice sums into this bus: a lowpass to take the brittle top
+// off, then a compressor so a fast drag (dozens of overlapping voices)
+// can't stack up into the harsh, loud wall it used to.
+let tapBus = null
+let lastTapAt = -Infinity
+// ctx.currentTime the current unbroken run of taps began — drives the
+// velocity ramp (see tapVelocity).
+let tapStreakStart = -Infinity
 
 function ensureTapContext() {
   if (!tapCtx) {
     tapCtx = new (window.AudioContext || window.webkitAudioContext)()
+    tapBus = tapCtx.createGain()
+    tapBus.gain.value = TAP_BUS_GAIN
+    const tone = tapCtx.createBiquadFilter()
+    tone.type = 'lowpass'
+    tone.frequency.value = 2400
+    tone.Q.value = 0.5
+    const comp = tapCtx.createDynamicsCompressor()
+    comp.threshold.value = -24
+    comp.knee.value = 12
+    comp.ratio.value = 6
+    comp.attack.value = 0.005
+    comp.release.value = 0.2
+    tapBus.connect(tone)
+    tone.connect(comp)
+    comp.connect(tapCtx.destination)
   }
   if (!tapNoiseBuffer) {
     const len = Math.ceil(tapCtx.sampleRate * 0.3)
@@ -173,93 +345,278 @@ function ensureTapContext() {
   return tapCtx
 }
 
+// Tap-sound pitch range: low end reads as a struck object/plate thud, high
+// end as a plucked/dripping ping. Mapped exponentially (musical) rather
+// than linearly across vertical tap position.
+const TAP_F0_MIN = 70
+const TAP_F0_MAX = 1400
+// DelayNode needs a fixed max delay at creation — must cover the longest
+// period we'll ever set (the lowest pitch), plus a little margin.
+const TAP_MAX_DELAY_SEC = 1 / TAP_F0_MIN + 0.002
+// Overall tap level — the old per-voice gains (up to 0.85, straight to the
+// destination) read as harsh and far too loud, especially mid-drag.
+const TAP_BUS_GAIN = 0.6
+// Pointermove fires every frame during a drag; each event used to spawn its
+// own voice. Taps closer together than this are dropped.
+const TAP_MIN_INTERVAL_SEC = 0.09
+// Velocity ramp: a fresh touch starts at TAP_VELOCITY_START of full
+// velocity and eases up to full over TAP_VELOCITY_RAMP_SEC of continued
+// touching. A gap longer than TAP_STREAK_GAP_SEC starts over from soft —
+// so a stray touch is a whisper and only deliberate play gets loud.
+const TAP_VELOCITY_START = 0.1
+const TAP_VELOCITY_RAMP_SEC = 5
+const TAP_STREAK_GAP_SEC = 0.6
+
+function tapVelocity(now) {
+  if (now - lastTapAt > TAP_STREAK_GAP_SEC) tapStreakStart = now
+  const t = Math.min(1, (now - tapStreakStart) / TAP_VELOCITY_RAMP_SEC)
+  return TAP_VELOCITY_START + (1 - TAP_VELOCITY_START) * t * t * (3 - 2 * t)
+}
+
 // (nx, ny) normalized screen position, intensity 0-1 — mirrors the same
 // gesture that would otherwise feed engine.perturb() while listening.
+//
+// Karplus-Strong: a delay line + lowpass filter wired into a feedback loop,
+// excited once by a short noise burst — the standard cheap physical-model
+// technique for plucked strings, struck objects, and water drips, all from
+// the same tiny signal chain (they fall out of pitch/damping/decay choices,
+// not separate models). Fitting for a tap on the Chladni plate itself,
+// which is literally what this gesture represents. Replaces the previous
+// plain band-passed-noise version, which read as a flat hiss/whistle burst
+// with no resonant body (see DEVLOG).
 export function playTapSound(nx, ny, intensity) {
   const c = ensureTapContext()
+  if (c.state === 'suspended') c.resume()
+  if (c.currentTime - lastTapAt < TAP_MIN_INTERVAL_SEC) return
+  // Velocity scales both level and gesture intensity, so soft taps also
+  // sound soft (shorter, darker), not just quieter.
+  const velocity = tapVelocity(c.currentTime)
+  lastTapAt = c.currentTime
+  intensity *= velocity
 
+  const f0 = TAP_F0_MIN * (TAP_F0_MAX / TAP_F0_MIN) ** (1 - ny) // higher on screen = higher pitch
+  const period = 1 / f0
+  // Time to decay to ~-60dB — harder taps ring a little longer.
+  const targetDecay = 0.18 + intensity * 0.3
+  // feedbackCoeff^(targetDecay/period) = 0.001, solved for feedbackCoeff.
+  const feedbackCoeff = Math.min(0.995, Math.exp((Math.log(0.001) * period) / targetDecay))
+
+  // The feedback loop: excitation and the delayed/filtered tail both sum
+  // into loopIn, which feeds the delay line — this summing junction is what
+  // makes it a real closed loop rather than a one-shot filtered noise burst.
+  const loopIn = c.createGain()
+  const delay = c.createDelay(TAP_MAX_DELAY_SEC)
+  delay.delayTime.value = Math.min(TAP_MAX_DELAY_SEC, period)
+
+  // Lowpass inside the loop is what actually gives Karplus-Strong its
+  // string/object character — each pass damps the high end a bit more than
+  // the low end. Brighter (higher cutoff) for harder taps.
+  const damping = c.createBiquadFilter()
+  damping.type = 'lowpass'
+  damping.frequency.value = f0 * (2 + intensity * 2)
+  damping.Q.value = 0.3
+
+  const feedbackGain = c.createGain()
+  feedbackGain.gain.value = feedbackCoeff
+
+  loopIn.connect(delay)
+  delay.connect(damping)
+  damping.connect(feedbackGain)
+  feedbackGain.connect(loopIn)
+
+  // Excitation: a brief noise burst fed into the loop (the "pluck"/"strike"
+  // impulse) — short relative to the loop period so it reads as an impulse,
+  // not a sustained noise source.
   const src = c.createBufferSource()
   src.buffer = tapNoiseBuffer
-  src.playbackRate.value = 0.7 + Math.random() * 0.6
+  const burstDur = Math.min(period * 3, 0.012)
+  const burstGain = c.createGain()
+  burstGain.gain.setValueAtTime(0.25 + intensity * 0.2, c.currentTime)
+  burstGain.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + burstDur)
+  src.connect(burstGain)
+  burstGain.connect(loopIn)
 
-  const filter = c.createBiquadFilter()
-  filter.type = 'bandpass'
-  filter.frequency.value = 300 + (1 - ny) * 3200 // higher on screen = higher pitch
-  filter.Q.value = 3 + Math.random() * 4
-
-  const gain = c.createGain()
-  const peak = Math.min(0.5, 0.15 + intensity * 0.35)
-  const dur = 0.08 + intensity * 0.12
-  gain.gain.setValueAtTime(0, c.currentTime)
-  gain.gain.linearRampToValueAtTime(peak, c.currentTime + 0.008)
-  gain.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + dur)
-
+  const outGain = c.createGain()
+  outGain.gain.value = (0.2 + intensity * 0.2) * velocity
   const panner = c.createStereoPanner()
   panner.pan.value = (nx - 0.5) * 1.6
 
-  src.connect(filter)
-  filter.connect(gain)
-  gain.connect(panner)
-  panner.connect(c.destination)
+  feedbackGain.connect(outGain)
+  outGain.connect(panner)
+  panner.connect(tapBus)
 
   src.start()
-  src.stop(c.currentTime + dur + 0.05)
+  src.stop(c.currentTime + burstDur + 0.02)
+
+  const stopInMs = (targetDecay + 0.1) * 1000
+  setTimeout(() => {
+    try { loopIn.disconnect() } catch { /* already disconnected */ }
+    try { delay.disconnect() } catch { /* already disconnected */ }
+    try { damping.disconnect() } catch { /* already disconnected */ }
+    try { feedbackGain.disconnect() } catch { /* already disconnected */ }
+    try { outGain.disconnect() } catch { /* already disconnected */ }
+    try { panner.disconnect() } catch { /* already disconnected */ }
+  }, stopInMs + 50)
 }
 
 // Sensitivity dial (0-1) maps to this amplitude threshold: higher sensitivity
-// = lower threshold = quieter input still counts as "active".
+// = lower threshold = quieter input still counts as "active". That dial
+// value is a floor, not the final answer — the longer input has stayed below
+// it, the further this ramps down toward AUTO_SENSITIVITY_MIN_RATIO of it,
+// so a persistently quiet room gets picked up sooner rather than staying
+// gated out indefinitely.
 function currentThreshold() {
-  return SENSITIVITY_THRESH_MAX - state.sensitivity * (SENSITIVITY_THRESH_MAX - SENSITIVITY_THRESH_MIN)
+  const base = SENSITIVITY_THRESH_MAX - state.sensitivity * (SENSITIVITY_THRESH_MAX - SENSITIVITY_THRESH_MIN)
+  if (!ctx) return base
+  const quietSec = Math.max(0, ctx.currentTime - lastActiveTime)
+  const rampT = Math.min(1, quietSec / AUTO_SENSITIVITY_RAMP_SEC)
+  return base * (1 - rampT * (1 - AUTO_SENSITIVITY_MIN_RATIO))
 }
 
-export async function start() {
-  if (ctx) return
+// Listening (mic -> grain pool) and playing (grain pool -> speakers) are
+// independent: either can run without the other, so a phrase can be
+// recorded silently and played back later, or the pool can keep looping
+// with the mic closed. Both share one AudioContext/graph, built lazily by
+// whichever side starts first (memoized so a simultaneous start of both —
+// e.g. hold-to-record — doesn't build it twice).
+let graphPromise = null
+let listening = false
+let playing = false
+// Set synchronously by startListening/stopListening so a release that lands
+// while getUserMedia is still pending (quick tap of a hold-to-record) can
+// cancel the in-flight start instead of leaving the mic open.
+let wantListening = false
+let wantPlaying = false
+let micSource = null
+let inputHighpass = null
+let suspendTimeout = null
+const OUTPUT_FADE_SEC = 0.05
+// Longest a trailing stop (see stopPlaying) lets in-flight echo tails ring
+// before the output is fully faded.
+const TRAIL_MAX_SEC = 10
+// ctx.currentTime at which the last fired grain's feedback tail has fully
+// decayed — how much trail there actually is to leave.
+let lastTailEnd = 0
+// ctx.currentTime until which a trailing stop is still ringing out —
+// maybeSuspend must not suspend the context before then.
+let trailUntil = 0
 
-  // getUserMedia is only exposed in secure contexts (HTTPS, or localhost) —
-  // on mobile this is the most common way to end up here, e.g. testing over
-  // a plain-http LAN address. Fail with a clear message up front rather than
-  // a raw "Cannot read properties of undefined" from calling it directly.
-  if (!navigator.mediaDevices?.getUserMedia) {
-    throw new DOMException(
-      'Microphone access needs a secure connection (HTTPS) — this page was loaded over an insecure one.',
-      'NotSupportedError',
-    )
+export function isListening() {
+  return listening
+}
+
+export function isPlaying() {
+  return playing
+}
+
+export function isThru() {
+  return thru
+}
+
+// True while a startListening() call is waiting on the mic — lets the UI
+// treat a second tap during the permission prompt as "cancel", not "start
+// again" (otherwise the mic opens after the user already turned it off).
+export function isListenPending() {
+  return wantListening && !listening
+}
+
+// Thru = full bypass: the live mic passes straight to the output, clean,
+// and the whole granular/delay path (in-flight feedback tails included) is
+// muted. Off restores the effects and silences the dry monitor. Only
+// audible while listening — there's no mic signal to pass otherwise.
+export function setThru(value) {
+  thru = value
+  applyThru()
+}
+
+function applyThru() {
+  if (!ctx) return
+  const t = ctx.currentTime
+  fxBus.gain.cancelScheduledValues(t)
+  fxBus.gain.setTargetAtTime(thru ? 0 : 1, t, OUTPUT_FADE_SEC / 3)
+  thruGain.gain.cancelScheduledValues(t)
+  thruGain.gain.setTargetAtTime(thru ? state.volume * THRU_GAIN : 0, t, OUTPUT_FADE_SEC / 3)
+}
+
+// Builds/resumes the audio graph from inside a user gesture. Hold-to-record
+// starts from a timer callback (after the long-press delay), which mobile
+// Safari no longer treats as user activation — so the press itself warms
+// the context up first.
+export function prepare() {
+  if (ctx) {
+    wake()
+    return
   }
+  ensureGraph().catch(() => {})
+}
 
+function ensureGraph() {
+  if (!graphPromise) {
+    graphPromise = buildGraph().catch((err) => {
+      graphPromise = null
+      throw err
+    })
+  }
+  return graphPromise
+}
+
+async function buildGraph() {
+  // Left over from a build that failed partway (addModule rejected).
+  ctx?.close().catch(() => {})
   ctx = new (window.AudioContext || window.webkitAudioContext)()
-
-  try {
-    micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-  } catch (err) {
-    // Nothing was hooked up to this context yet — close it and reset to
-    // null so a retry (e.g. tapping listen again after granting permission)
-    // doesn't just early-return on the `if (ctx) return` guard above.
-    ctx.close()
-    ctx = null
-    throw err
-  }
-  const micSource = ctx.createMediaStreamSource(micStream)
+  lastActiveTime = ctx.currentTime
 
   analyser = ctx.createAnalyser()
   analyser.fftSize = 1024
   analyser.smoothingTimeConstant = 0.8
 
+  // Starts silent — startPlaying() fades it up to the volume dial.
   masterGain = ctx.createGain()
-  masterGain.gain.value = state.volume
+  masterGain.gain.value = 0
   masterGain.connect(analyser)
+
+  fxBus = ctx.createGain()
+  fxBus.gain.value = thru ? 0 : 1
+  fxBus.connect(masterGain)
+
+  smearVerb = ctx.createConvolver()
+  smearVerb.buffer = makeSmearIR(ctx)
+  smearVerb.connect(fxBus)
 
   // Safety limiter on the final output — with feedback up to 0.95 and long
   // silence-sustain tails (up to 30s), overlapping grain feedback loops can
   // sum into harsh digital clipping at higher feedback/volume settings.
   // A gentle compressor catches that instead of letting it distort.
-  const limiter = ctx.createDynamicsCompressor()
-  limiter.threshold.value = -6
-  limiter.knee.value = 12
-  limiter.ratio.value = 12
+  //
+  // The original -6dB/12:1 settings were so aggressive that OUTPUT_BOOST
+  // (above) mostly just drove the compressor harder instead of making
+  // anything audibly louder — a 2x pre-compressor gain increase barely
+  // moves the post-compressor level when almost everything above -6dB gets
+  // squashed 12:1. Loosened both (higher threshold, gentler ratio) so more
+  // of the boosted signal passes through un-squashed, and added a fixed
+  // makeup-gain stage after the compressor to recover the loudness the
+  // compression stage would otherwise still be eating — safe headroom-wise
+  // since the compressor's own ceiling for even a very hot input stays well
+  // under 0dBFS at these settings.
+  limiter = ctx.createDynamicsCompressor()
+  limiter.threshold.value = -3
+  limiter.knee.value = 6
+  limiter.ratio.value = 8
   limiter.attack.value = 0.003
   limiter.release.value = 0.25
+  const makeupGain = ctx.createGain()
+  makeupGain.gain.value = LIMITER_MAKEUP_GAIN
   masterGain.connect(limiter)
-  limiter.connect(ctx.destination)
+  limiter.connect(makeupGain)
+  makeupGain.connect(ctx.destination)
+
+  // Thru monitor bypasses masterGain (which only opens while `on`) but
+  // still goes through the limiter, and taps the analyser so the plate
+  // keeps reacting to the dry signal.
+  thruGain = ctx.createGain()
+  thruGain.gain.value = thru ? state.volume * THRU_GAIN : 0
+  thruGain.connect(limiter)
+  thruGain.connect(analyser)
 
   // Tape-style modulation sources — persistent for the life of the session,
   // fanned out to each grain's playbackRate/delayTime as they're created.
@@ -291,7 +648,7 @@ export async function start() {
   // the audio render thread, not main, so it no longer contends with the
   // WebGL grain-field render for main-thread time (replaces the previous
   // ScriptProcessorNode, which was both deprecated and main-thread-bound).
-  pool = Array.from({ length: POOL_SIZE }, () => new Float32Array(Math.ceil((ctx.sampleRate * 400) / 1000)))
+  pool = Array.from({ length: POOL_SIZE }, () => new Float32Array(Math.ceil((ctx.sampleRate * SIZE_MAX_MS) / 1000)))
   poolWriteIndex = 0
   let writeOffset = 0
 
@@ -308,13 +665,20 @@ export async function start() {
     for (let i = 0; i < input.length; i++) sumSq += input[i] * input[i]
     const blockRms = Math.sqrt(sumSq / input.length)
     inputLevel = inputLevel * INPUT_LEVEL_SMOOTHING + blockRms * (1 - INPUT_LEVEL_SMOOTHING)
+    // Not listening — the worklet still runs (silence in), but nothing
+    // should land in the pool.
+    if (!listening) return
 
     // While quiet, freeze the pool instead of overwriting it with near-
     // silence — this is what actually makes the echo "just continue" when
     // nothing new is coming in: grains keep pulling from the last real
     // captured sound indefinitely, rather than gradually recording over it
     // with silence while only the feedback *decay time* gets extended.
-    if (inputLevel < currentThreshold()) return
+    const threshold = currentThreshold()
+    if (inputLevel < threshold) return
+    // Crossed the (possibly auto-ramped-down) threshold — this counts as
+    // "active" input, so reset the quiet streak the ramp is measured from.
+    lastActiveTime = ctx.currentTime
 
     const buf = pool[poolWriteIndex % POOL_SIZE]
     for (let i = 0; i < input.length; i++) {
@@ -329,11 +693,11 @@ export async function start() {
   // Highpass removes rumble/DC bias from the captured audio itself (mic
   // handling rooms/wind noise, or DC offset from cheap hardware) before it
   // ever enters the grain pool — cleans up every grain pulled from it,
-  // rather than filtering the mix after the fact.
-  const inputHighpass = ctx.createBiquadFilter()
+  // rather than filtering the mix after the fact. The mic source itself
+  // only gets attached while listening (see startListening).
+  inputHighpass = ctx.createBiquadFilter()
   inputHighpass.type = 'highpass'
   inputHighpass.frequency.value = 70
-  micSource.connect(inputHighpass)
   inputHighpass.connect(recorderNode)
   // The audio graph is pulled from the destination backward, so this node
   // only gets processed each render quantum if it has a path through to the
@@ -349,14 +713,154 @@ export async function start() {
     perturbation.spread *= 0.85
     perturbation.feedback *= 0.85
     perturbation.dynamics *= 0.85
+    sampleOutputLevel()
   }, 60)
-
-  scheduleGrains()
 }
+
+// Opens the mic and starts recording into the grain pool. Resolves true if
+// listening actually started, false if stopListening() was called while the
+// mic permission/stream was still pending.
+export async function startListening() {
+  wantListening = true
+  // getUserMedia is only exposed in secure contexts (HTTPS, or localhost) —
+  // on mobile this is the most common way to end up here, e.g. testing over
+  // a plain-http LAN address. Fail with a clear message up front rather than
+  // a raw "Cannot read properties of undefined" from calling it directly.
+  if (!navigator.mediaDevices?.getUserMedia) {
+    wantListening = false
+    throw new DOMException(
+      'Microphone access needs a secure connection (HTTPS) — this page was loaded over an insecure one.',
+      'NotSupportedError',
+    )
+  }
+  try {
+    await ensureGraph()
+  } catch (err) {
+    wantListening = false
+    throw err
+  }
+  if (listening) return true
+  wake()
+
+  // Reverted on 2026-07-25 as a *default* (see `rawCapture` above for why
+  // it's still available as an opt-in): disabling echoCancellation/
+  // noiseSuppression/autoGainControl measured, via Chromium's fake-device
+  // harness, as dropping the captured signal to near-silence — each of the
+  // three individually, not just AEC. That was a worse failure than the
+  // gating/choppiness this toggle is meant to address, so plain
+  // `audio: true` stays the default; `rawCapture` only applies when a user
+  // explicitly opts in to compare against real hardware.
+  const constraints = rawCapture
+    ? { audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }, video: false }
+    : { audio: true, video: false }
+  let stream
+  try {
+    stream = await navigator.mediaDevices.getUserMedia(constraints)
+  } catch (err) {
+    wantListening = false
+    maybeSuspend()
+    throw err
+  }
+  if (!wantListening || listening) {
+    stream.getTracks().forEach((t) => t.stop())
+    maybeSuspend()
+    return listening
+  }
+  micStream = stream
+  micSource = ctx.createMediaStreamSource(micStream)
+  micSource.connect(inputHighpass)
+  micSource.connect(thruGain)
+  lastActiveTime = ctx.currentTime
+  listening = true
+  return true
+}
+
+// Closes the mic. The grain pool keeps whatever it last captured, so
+// playback (if on) carries on looping it.
+export function stopListening() {
+  wantListening = false
+  if (!listening) return
+  listening = false
+  try { micSource?.disconnect() } catch { /* already disconnected */ }
+  micSource = null
+  micStream?.getTracks().forEach((t) => t.stop())
+  micStream = null
+  inputLevel = 0
+  maybeSuspend()
+}
+
+// Starts firing grains from the pool and fades the output up. Resolves true
+// if playing, false if stopPlaying() was called while the graph was still
+// being built (first use) — same cancel guard as startListening.
+export async function startPlaying() {
+  wantPlaying = true
+  await ensureGraph()
+  if (!wantPlaying) return false
+  if (playing) return true
+  wake()
+  playing = true
+  rampMaster(state.volume * OUTPUT_BOOST)
+  scheduleGrains()
+  return true
+}
+
+// Stops firing new grains. Default: fades the output out fast — in-flight
+// feedback tails are muted, not cut mid-sample. With `trail`, the output
+// stays up and fades over however long the in-flight tails still have to
+// ring (capped at TRAIL_MAX_SEC), so the echo dies away naturally instead.
+export function stopPlaying({ trail = false } = {}) {
+  wantPlaying = false
+  if (!playing) return
+  playing = false
+  if (grainInterval) clearTimeout(grainInterval)
+  grainInterval = null
+  const trailSec = trail && ctx ? Math.max(0, Math.min(TRAIL_MAX_SEC, lastTailEnd - ctx.currentTime)) : 0
+  if (trailSec > OUTPUT_FADE_SEC) {
+    const t = ctx.currentTime
+    masterGain.gain.cancelScheduledValues(t)
+    masterGain.gain.setValueAtTime(masterGain.gain.value, t)
+    // Time constant at a fifth of the trail: ~-43dB by the end, then a
+    // hard zero so nothing lingers past the cap.
+    masterGain.gain.setTargetAtTime(0, t, trailSec / 5)
+    masterGain.gain.setValueAtTime(0, t + trailSec)
+    trailUntil = t + trailSec
+  } else {
+    rampMaster(0)
+  }
+  maybeSuspend()
+}
+
+function rampMaster(value) {
+  if (!masterGain) return
+  const t = ctx.currentTime
+  masterGain.gain.cancelScheduledValues(t)
+  masterGain.gain.setTargetAtTime(value, t, OUTPUT_FADE_SEC / 3)
+}
+
+function wake() {
+  if (suspendTimeout) clearTimeout(suspendTimeout)
+  suspendTimeout = null
+  if (ctx?.state === 'suspended') ctx.resume()
+}
+
+// Idle (neither listening nor playing) suspends the context rather than
+// closing it, so the grain pool survives — record now, play later.
+function maybeSuspend() {
+  if (listening || playing || !ctx) return
+  if (suspendTimeout) clearTimeout(suspendTimeout)
+  const trailMs = Math.max(0, trailUntil - ctx.currentTime) * 1000
+  suspendTimeout = setTimeout(() => {
+    suspendTimeout = null
+    if (!listening && !playing && ctx?.state === 'running') ctx.suspend()
+  }, OUTPUT_FADE_SEC * 4000 + trailMs)
+}
+
+// How far ahead of ctx.currentTime each grain is scheduled (see playGrain).
+const SCHEDULE_LOOKAHEAD_SEC = 0.03
 
 function scheduleGrains() {
   const fire = () => {
-    if (!ctx) return
+    if (!ctx || !playing) return
     playGrain()
     if (onGrainFireCallback) {
       onGrainFireCallback({ rate: state.rate, delayTime: state.grainSizeMs / 1000 })
@@ -381,6 +885,12 @@ function playGrain() {
   const effFeedback = Math.min(0.95, state.feedback + perturbation.feedback)
   const effDynamics = Math.min(1, state.dynamics + perturbation.dynamics)
 
+  // Everything below is scheduled at t0 (a short lookahead) rather than
+  // "now": grains are triggered from a main-thread setTimeout, so any jank
+  // (WebGL frame, backdrop-filter recomposite) lands the call late and an
+  // envelope set at ctx.currentTime starts already past its own start —
+  // clicks, truncated attacks. The lookahead absorbs that jitter.
+  const t0 = ctx.currentTime + SCHEDULE_LOOKAHEAD_SEC
   const src = pickPoolSlot()
   const grainSamples = Math.floor((ctx.sampleRate * state.grainSizeMs) / 1000)
   if (grainSamples < 8 || grainSamples > src.length) return
@@ -389,23 +899,27 @@ function playGrain() {
   const buffer = ctx.createBuffer(1, grainSamples, ctx.sampleRate)
   buffer.copyToChannel(src.subarray(startAt, startAt + grainSamples), 0)
 
+  const smear = smearAmount(state.repeat)
+
   const bufSource = ctx.createBufferSource()
   bufSource.buffer = buffer
-  bufSource.playbackRate.value = 1 + (Math.random() - 0.5) * effSpread * 0.6
+  bufSource.playbackRate.value = 1 + (Math.random() - 0.5) * (effSpread * 0.6 + smear * 0.15)
   // Wow (slow/deep) + flutter (fast/shallow) additively modulate playback rate.
   wowDepth.connect(bufSource.playbackRate)
   flutterDepth.connect(bufSource.playbackRate)
 
   const grainGain = ctx.createGain()
-  const attack = state.grainSizeMs * 0.15
+  // Smear stretches the attack toward a symmetric swell, so grains blur
+  // into each other instead of starting on an edge.
+  const attack = state.grainSizeMs * (0.15 + 0.35 * smear)
   // Exponential attack/release instead of linear — a linear ramp has an
   // audible "zipper" edge at each grain boundary, especially with several
   // grains overlapping at once (default rate/grainSize overlap ~4-5x). The
   // exponential curve is the standard smoother window shape for granular
   // synthesis envelopes.
-  grainGain.gain.setValueAtTime(0.0001, ctx.currentTime)
-  grainGain.gain.exponentialRampToValueAtTime(state.mix, ctx.currentTime + attack / 1000)
-  grainGain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + state.grainSizeMs / 1000)
+  grainGain.gain.setValueAtTime(0.0001, t0)
+  grainGain.gain.exponentialRampToValueAtTime(state.mix, t0 + attack / 1000)
+  grainGain.gain.exponentialRampToValueAtTime(0.0001, t0 + state.grainSizeMs / 1000)
 
   // Dynamic delay: per-grain random jitter on top of the grain-size-derived
   // base delay time. Distinct from wobble, which is a continuous LFO below.
@@ -423,27 +937,56 @@ function playGrain() {
   // The ceiling itself stretches toward SUSTAIN_MAX_MS as live input goes
   // quiet (per `sensitivity`), so echoes linger much longer when nothing new
   // is coming in, and behave normally while actively fed.
-  const quietFactor = Math.max(0, Math.min(1, 1 - inputLevel / currentThreshold()))
+  // Only while listening: with the mic closed, "quiet" is just the absence
+  // of a mic, and boosting/stretching the echo the moment listen goes off
+  // made it sound like it was still picking the room up.
+  const quietFactor = listening ? Math.max(0, Math.min(1, 1 - inputLevel / currentThreshold())) : 0
   const repeatCeilingMs = REPEAT_MAX_MS + quietFactor * (SUSTAIN_MAX_MS - REPEAT_MAX_MS)
   const repeatMs = REPEAT_MIN_MS + state.repeat * (repeatCeilingMs - REPEAT_MIN_MS)
-  feedbackGain.gain.setValueAtTime(Math.max(0.0001, effFeedback), ctx.currentTime)
+  feedbackGain.gain.setValueAtTime(Math.max(0.0001, effFeedback), t0)
   if (effFeedback > 0.0005) {
-    feedbackGain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + repeatMs / 1000)
+    feedbackGain.gain.exponentialRampToValueAtTime(0.0001, t0 + repeatMs / 1000)
   }
+
+  lastTailEnd = Math.max(lastTailEnd, t0 + repeatMs / 1000)
 
   const panner = ctx.createStereoPanner()
   panner.pan.value = (Math.random() - 0.5) * effSpread * 2
 
+  // Split the direct granular voice and the delay/feedback echo onto their
+  // own mix gains so the two can be balanced independently (granularMix,
+  // delayMix), rather than always summing at a fixed relative level.
+  const granularMixGain = ctx.createGain()
+  granularMixGain.gain.value = state.granularMix * (1 - 0.5 * smear)
+  const delayMixGain = ctx.createGain()
+  // Quiet-time echo boost: `quietFactor` (already computed above for the
+  // repeat/sustain ceiling) also raises the delay/feedback path's own
+  // level, not just its tail length — so when the mic isn't picking up new
+  // sound, the looped-back echo actually gets louder/more present instead
+  // of just decaying more slowly, which is what "reflecting back sounds
+  // louder" during silence actually needs. Fades back to the plain
+  // `delayMix` level as soon as live input resumes (quietFactor -> 0).
+  delayMixGain.gain.value = state.delayMix * (1 + quietFactor * QUIET_DELAY_BOOST_MAX)
+
   bufSource.connect(grainGain)
   grainGain.connect(panner)
-  panner.connect(masterGain)
+  panner.connect(granularMixGain)
+  granularMixGain.connect(fxBus)
   panner.connect(delay)
+  let smearSend = null
+  if (smear > 0) {
+    smearSend = ctx.createGain()
+    smearSend.gain.value = smear * SMEAR_SEND_MAX * state.granularMix
+    panner.connect(smearSend)
+    smearSend.connect(smearVerb)
+  }
   delay.connect(feedbackGain)
   feedbackGain.connect(delay)
-  feedbackGain.connect(masterGain)
+  feedbackGain.connect(delayMixGain)
+  delayMixGain.connect(fxBus)
 
-  bufSource.start()
-  const stopAt = ctx.currentTime + state.grainSizeMs / 1000 + 0.05
+  bufSource.start(t0)
+  const stopAt = t0 + state.grainSizeMs / 1000 + 0.05
   bufSource.stop(stopAt)
   bufSource.onended = () => {
     try { wowDepth.disconnect(bufSource.playbackRate) } catch { /* already disconnected */ }
@@ -452,29 +995,16 @@ function playGrain() {
 
   // Tear down this grain's private feedback subgraph once its tail has fully
   // decayed, so the persistent LFO depth nodes don't accumulate fan-out
-  // connections to long-dead nodes over a running session.
+  // connections to long-dead nodes over a running session. Not before the
+  // dry grain itself has finished, though: at low repeat (250ms) a long
+  // grain was cut off mid-play when granularMixGain got disconnected.
+  const teardownMs = (Math.max(t0 + repeatMs / 1000, stopAt) - ctx.currentTime) * 1000 + 80
   setTimeout(() => {
     try { wobbleDepth.disconnect(delay.delayTime) } catch { /* already disconnected */ }
     try { delay.disconnect() } catch { /* already disconnected */ }
     try { feedbackGain.disconnect() } catch { /* already disconnected */ }
-  }, repeatMs + 80)
-}
-
-export function stop() {
-  if (grainInterval) clearTimeout(grainInterval)
-  grainInterval = null
-  if (perturbDecayInterval) clearInterval(perturbDecayInterval)
-  perturbDecayInterval = null
-  if (micStream) micStream.getTracks().forEach((t) => t.stop())
-  if (ctx) ctx.close()
-  ctx = null
-  analyser = null
-  pool = []
-  inputLevel = 0
-  wowLFO = null
-  wowDepth = null
-  flutterLFO = null
-  flutterDepth = null
-  wobbleLFO = null
-  wobbleDepth = null
+    try { delayMixGain.disconnect() } catch { /* already disconnected */ }
+    try { granularMixGain.disconnect() } catch { /* already disconnected */ }
+    try { smearSend?.disconnect() } catch { /* already disconnected */ }
+  }, teardownMs)
 }

@@ -85,19 +85,43 @@ export const RotaryKnob = memo(function RotaryKnob({
     onChange(clampedStepped)
   }, [min, max, step, range, onChange, applyVisuals])
 
-  const onPointerUp = useCallback(() => {
+  const onPointerUp = useCallback((e) => {
     const didDrag = hasDragged.current
     dragging.current = false
     hasDragged.current = false
     // Hide ghost slider
     if (ghostRef.current) ghostRef.current.classList.remove('rotary-knob__ghost--visible')
-    if (didDrag) {
-      // Swallow the synthetic click that fires after a pointer-capture drag ends
-      const suppress = (e) => e.stopImmediatePropagation()
+    // Swallow the synthetic click that fires after a pointer-capture drag
+    // ends. Mouse only: a touch drag fires no click, so the swallow would
+    // eat the next tap on anything else instead.
+    if (didDrag && e.pointerType === 'mouse') {
+      const suppress = (ev) => ev.stopImmediatePropagation()
       document.addEventListener('click', suppress, { once: true, capture: true })
       setTimeout(() => document.removeEventListener('click', suppress, true), 300)
     }
   }, [])
+
+  // Keyboard: arrows nudge 1% of the range, PageUp/PageDown 10%,
+  // Home/End jump to the ends — standard ARIA slider keys.
+  const onKeyDown = useCallback((e) => {
+    const nudge = Math.max(step, range / 100)
+    let next
+    switch (e.key) {
+      case 'ArrowUp':
+      case 'ArrowRight': next = value + nudge; break
+      case 'ArrowDown':
+      case 'ArrowLeft': next = value - nudge; break
+      case 'PageUp': next = value + nudge * 10; break
+      case 'PageDown': next = value - nudge * 10; break
+      case 'Home': next = min; break
+      case 'End': next = max; break
+      default: return
+    }
+    e.preventDefault()
+    const stepped = Math.max(min, Math.min(max, Math.round(next / step) * step))
+    applyVisuals((stepped - min) / range)
+    onChange(stepped)
+  }, [value, min, max, step, range, onChange, applyVisuals])
 
   const ghostTopPct = (1 - ratio) * 100
 
@@ -108,13 +132,21 @@ export const RotaryKnob = memo(function RotaryKnob({
     >
       {label && <span className="rotary-knob__label">{label}</span>}
       <div
-        className="rotary-knob__body"
+        className="rotary-knob__body bevel"
         ref={knobRef}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
+        onKeyDown={onKeyDown}
         style={{ touchAction: 'none' }}
+        role="slider"
+        tabIndex={0}
+        aria-label={label}
+        aria-valuemin={min}
+        aria-valuemax={max}
+        aria-valuenow={value}
+        aria-valuetext={valueLabel != null ? String(valueLabel) : undefined}
       >
         {/* The rotating notch indicator */}
         <div

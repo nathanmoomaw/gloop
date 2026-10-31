@@ -2,11 +2,53 @@
 
 ## Active
 
-- [ ] Tune default grain size / feedback / spread for a good out-of-the-box first impression — needs an actual listening pass (headless/automated testing can't judge this), unlike the other items below
-- [ ] Verify 80000-grain field on real (esp. mobile) hardware — measured 31fps under headless software GL, dial back GRAIN_COUNT if it feels janky on an actual device (needs physical-device testing, can't be verified in this environment)
+- [ ] Tune default grain size / feedback / spread for a good out-of-the-box first impression — grain size, rate, feedback, repeat, density, and overall output volume/gain-staging were all bumped up per explicit request (2026-08-12/13, the latter after diagnosing that the safety limiter was silently eating the first volume-boost attempt), but still needs an actual listening pass to confirm the new values land well (headless/automated testing can't judge this), unlike the other items below
+- [ ] Verify 80000-grain field on real (esp. mobile) hardware — grain loop cut 20.5 → 9.8 ms JS/frame on desktop (2026-10-27), ~40fps under headless software GL; dial back GRAIN_COUNT if it feels janky on an actual device (needs physical-device testing, can't be verified in this environment)
+- [ ] Confirm the new opt-in "raw" mic toggle (no echoCancellation/noiseSuppression/autoGainControl) actually fixes the "choppy, cuts off" recordings on real hardware — Playwright's fake mic device can only confirm the toggle is wired up, not judge real capture quality (this is the same class of item as the two above)
+- [ ] Listening pass on Kubelka-Munk palette vs HSL (`k`) and new tap-sound level — keep or revert KM default
+- [ ] Eyeball pass on inverted see-through controls (legibility over bright grain clusters) and tilt-dance intensity on device
+- [ ] Redeploy capture (`bash ~/Sites/capture/scripts/deploy.sh`) to drop its unused `/learn` route
+- [ ] If gloop goes public with per-interaction analytics: add an S3/Firehose events stream next to `gloop-learn` (DynamoDB stays for learn signals)
+- [ ] Before gloop has real users: add a one-line notice that settings + sound levels are shared anonymously to improve it, and restore the GPC/DNT opt-out (removed 2026-10-30 so all input is saved). Not needed while it's just Nathan
+- [ ] First real `/evolve-cycle` once gloop-learn is live and has ~50+ entries: check the model's breed-card guesses against your picks, tune `bandwidth`/`LABELS` in predict.js if they disagree
+- [ ] Optionally schedule `/evolve-cycle` (e.g. weekly via /schedule) once one manual cycle has gone well
+- [ ] Listening pass on evolve ↔ breed sharing (does a resumed evolve keep what you picked?) and the implicit settle/linger thresholds (20s/90s)
+- [ ] Use learn mode for a while, then have Claude read `learning/feedback.jsonl` (dev) or an export and retune defaults / `SOUND_BOUNDS` from it
+- [ ] Eyeball pass on the CPPN field (`c`): keep or tune mutation rate 0.35 (one Shift+C jumped to a very different look), and whether it should get a UI control or hook into `breed`
+- [ ] Real-browser check: first spacebar press with a real mic permission prompt now ends with listen + `on` both lit
+- [ ] Confirm the 30ms grain-scheduling lookahead cleared the clicks reported 2026-10-06 (listening pass)
+- [ ] Listening check: thru monitor may be ×1.4 hot (it passes the limiter's makeup gain), and a hot input can come out near +1 dBFS after makeup. Deeper fix (from /simplify 2026-10-30): one gain stage owns loudness, limiter last as a real ceiling, taps routed through the main context so the volume dial and limiter cover them
+- [ ] Learn: when adding a kind, add it to `infra/learn/handler.mjs` KINDS and redeploy the Lambda *before* shipping the client (a batch of only unknown kinds 400s and is dropped). The parity test catches a mismatch, not the deploy order
+- [ ] Refactors deferred from /simplify (2026-10-30), each needs a listen/eyeball pass:
+  - one `<Toggle>` for On/Thru/MicMode/Evolve/Breed/Learn; a `KNOBS` table for App's 13 RotaryKnob blocks
+  - one `PARAM_RANGES` module for EVOLVE_RANGES / predict FEATURES / SOUND_BOUNDS / SHAKE_RANGES / knob min-max
+  - engine state via `useSyncExternalStore(engine.subscribe)` instead of hand-mirrored React flags; one `usePressGesture` (pointer capture) for listen button + spacebar; evolve pause as one effect over evolving/breeding/running
+  - learn sinks drain from IndexedDB by cursor (file, dev log, remote) instead of 4 retry mechanisms
+  - CPPN LUT: static x/y/r arrays and separable Chladni (~230k → ~55k ops/frame); goo-filter logo drop-shadows off the animated layer; per-grain AudioBuffer reuse in engine.js
 
 ## Completed
 
+- [x] Pre-main review chain on dev/v0 (Haiku in 5 groups, /code-review, /simplify) and merge to main (2026-10-30)
+- [x] Learn store builds drop the auto-save file option (2026-10-30)
+- [x] gloop-learn live and tested end to end: API checks, real-browser heart + implicit settle → DynamoDB, breed guesses, learn:pull (2026-10-30)
+- [x] Self-evolving engine prototype: in-app preference model screens evolve/breed; offline `npm run evolve:cycle` + `/evolve-cycle` (2026-10-30)
+- [x] Learn store moved off LIFE to gloop's own `gloop-learn` Lambda + DynamoDB, with `npm run learn:pull` (built; needs setup.sh run) (2026-10-30)
+- [x] All input saved from every device, no pairing (2026-10-30)
+- [x] setup-learn.sh run; capture `/learn` live, gloop-dev bundle has the URL, anonymous path verified end to end (2026-10-30)
+- [x] Evolve and breed share one population (breed seeds from evolve's fittest, picks join evolve; evolve pauses while breed is open) (2026-10-30)
+- [x] No outlines on controls/panels (borders transparent, focus rings kept) (2026-10-30)
+- [x] Implicit learning for every listener (settle/linger/rescue/pick) + anonymous sending to capture `anon/` (2026-10-30)
+
+- [x] Learn presses from any device → capture Lambda `/learn` → `LIFE/learn/gloop/` (built; needs setup-learn.sh run) (2026-10-29)
+- [x] Logo glitches (12, random); learn log in IndexedDB + auto-save to a picked file (2026-10-29)
+- [x] Learn mode (❤️ 🔊 🔇 ⭐ feedback log + learned target for `sound`/🔇); default size 1500ms (knob noon) (2026-10-28)
+- [x] CPPN grain field (`c` / Shift+C, LUT-evaluated) + worth-saving reference notes (Sethares, waveguide, OPFS, ICMC94) (2026-10-28)
+- [x] Loop dot driven by JS phase (no jump on rate change); spacebar lost-keyup root cause; raw toggle applies live; full-stack tool audit in DEVLOG (2026-10-28)
+- [x] `sound` button: one-press reset into an audible zone + start listen/on; dev-stack effectiveness review in DEVLOG (2026-10-28)
+- [x] Drippy goo-filter logo, lit/unlit listen + on buttons, default rate 5 grains/s (2026-10-28)
+- [x] Worth-saving sweep: `breed` interactive evolution, Clouds-style repeat wash, keyboard/screen-reader knobs, LINEAGE evolution references (2026-10-28)
+- [x] Opus review pass: grain field 2× cheaper per frame, pointer push raycast onto plate, long-grain teardown cutoff, startPlaying cancel race (2026-10-27)
+- [x] Unit tests (vitest) + big-diff review wired in; dev-stack debug pass fixed GrainField renderer rebuild, KM color seam, unhandled rejection (2026-10-27)
 - [x] GitHub repo + local project scaffold
 - [x] Vite + React build setup
 - [x] Mic → grain pool → feedback delay network (engine.js)
@@ -43,3 +85,59 @@
 - [x] Migrated `ScriptProcessor` grain capture to an `AudioWorklet` (`src/audio/recorder-processor.js`) — capture now runs on the audio render thread instead of main, clearing the biggest remaining glitch-risk lever now that WebGL rendering also shares main-thread time
 - [x] Mobile mic permission UX pass — `getUserMedia` failures (denied, no device, in-use, insecure-context) now surface a dismissible toast instead of failing silently; also fixed a latent bug where a failed `start()` left `AudioContext` non-null, silently no-op'ing every retry via the `if (ctx) return` guard
 - [x] Code-split `GrainField` (and its three.js dependency) behind a dynamic `import()` — separate ~509KB chunk (was bundled into the ~715KB main bundle), so the initial shell loads and paints before that chunk is fetched
+- [x] Forced `recorder-processor.js` to always emit as a real asset file (`vite.config.js` `assetsInlineLimit: 0`) instead of being base64-inlined as a `data:` URI, which has inconsistent cross-browser support specifically for `audioWorklet.addModule()`
+- [x] Loop indicator now laps the full screen edges (`LoopIndicator.jsx`/`.css`) instead of circling just the listen button
+- [x] Tried disabling echoCancellation/noiseSuppression/autoGainControl on the mic stream, then reverted it — measured that `echoCancellation: false` alone drops captured signal to literal digital silence (and the other two badly attenuate it), a worse regression than the suppression problem it targeted. Back to `audio: true`; see DEVLOG for the investigation. Any future attempt at this needs to be opt-in, not a default.
+- [x] Volume knob moved to the right of the listen button (was stacked above it)
+- [x] Added a lightning-bolt "shake" button (`ShakeButton.jsx`/`.css`) above the size knob — randomizes the granular/modulation dials (excludes master volume) and nudges the live grain stream, adapted from ribbon's shake/randomize pattern
+- [x] Split the granular voice and the delay/feedback echo onto independent mix gains (`granularMix`/`delayMix`), with their own big knobs, so the two can be balanced separately instead of only sharing the combined `mix`/`feedback` dials
+- [x] Moved the granular/delay mix knobs to sit left of the listen button (was a standalone top-center row); on mobile widths they float in their own row above listen/volume instead, to stay clear of the bottom-left corner cluster
+- [x] Added an opt-in "raw" mic-capture toggle (`MicModeToggle.jsx`/`.css`) next to sensitivity — lets echoCancellation/noiseSuppression/autoGainControl be disabled by user choice instead of by default, per the guardrail from the earlier reverted attempt at this
+- [x] Default grain size (120ms→400ms) and rate (26ms→200ms) bumped up per request
+- [x] Default feedback (0.45→0.65) and repeat (0.4→0.65) raised so a fresh session loops back more sound out of the box
+- [x] Added `WaveformOverlay.jsx`/`.css` — a live time-domain waveform trace of the actual output, layered over the plate at 50vh tall, vertically centered
+- [x] Fixed mobile control-overlap bugs: top-left/top-right clusters now cap at `max-width: 46vw` and wrap instead of colliding at mid-narrow widths (~600-650px); mix-pair's "float above listen" breakpoint widened 480px→700px; bottom-left size/density stacks into a column below 430px to clear the centered listen button
+- [x] Output volume doubled (`OUTPUT_BOOST = 2` multiplier on `masterGain`, on top of the volume dial's existing 0-1 range) — dial itself was already at its ceiling, so loudness had to increase as a multiplier layered on top
+- [x] Real fix for "still needs to be louder": the safety limiter (12:1-ratio compressor, no makeup gain) was eating almost all of the above boost before it reached the speakers — loosened the limiter (threshold -6→-3dB, ratio 12→8, knee 12→6), added a `LIMITER_MAKEUP_GAIN=1.4` stage after it, and raised `OUTPUT_BOOST` 2→3
+- [x] Quiet-time echo boost: the delay/feedback path's own level now scales up to 80% louder (`QUIET_DELAY_BOOST_MAX`) as live input goes quiet, reusing the existing `quietFactor`/`sensitivity` machinery — not just a longer decay tail, actual added presence
+- [x] GrainField background now has ambient spin + horizontal/vertical pan, with decaying momentum nudged by drag direction ("physics from the last touches") — applied as a rotation of the nodal-pattern sampling coordinates rather than an Object3D transform, so it doesn't desync from the pointer-push interaction math
+- [x] Size dial range widened 400ms→3000ms max; fixed a real hidden dependency this exposed — grain pool buffers were hardcoded to 400ms, so larger grains would have silently failed to play. `SIZE_MAX_MS` now sizes both the pool buffers and `MAX_DELAY_SEC`
+- [x] Rendered sand-particle size now follows the size dial (sqrt-scaled `THREE.PointsMaterial.size`)
+- [x] Density default raised 35%→60%
+- [x] Raw-mic toggle's "float below the row, right-aligned" placement made permanent instead of only applying under the 700px mobile breakpoint
+- [x] Waveform visualizer given a playful traveling-sine wobble, independent of the actual audio-reactive trace underneath it
+- [x] Auto-sensitivity ramp: `sensitivity` dial now sets a floor rather than a fixed capture threshold — the longer input stays quiet, the further the effective threshold auto-lowers (down to 25% of the dial's value after 8s), so a persistently quiet room stops staying gated out indefinitely; resets to the dial's baseline the instant real input returns
+- [x] Tap sound (`engine.playTapSound`) rebuilt as real Karplus-Strong synthesis (delay line + lowpass filter feedback loop, excited by a noise burst) instead of plain band-passed noise — same technique covers plucked-string/struck-object/water-drip character via pitch/decay/damping alone
+- [x] Avida-style host-parasite parameter evolution (`src/audio/evolve.js` + `EvolveToggle`) — opt-in background competition mutating live parameter sets against each other, scored on spectral/nodal stability read off the same dominant-FFT-bin signal the Chladni visualization uses, winners expressed onto the live engine
+- [x] NEAT innovation-number crossover breeding layered onto the host-parasite evolver — slots now carry per-param innovation numbers, ~50% of generations breed two slots (matching-innovation keys inherit randomly, disjoint keys inherit from the fitter parent) instead of only mutating one
+- [x] Raw-mic and evolve toggles moved from the top-right corner cluster to bottom-right of the volume knob
+- [x] Google Tag Manager (GTM-M5GKBML2) wired into `index.html`, same snippet pattern as obfusco.us
+- [x] Split `listen` (record) from new `on` (playback) toggle; hold spacebar / long-press listen = hold-to-record (auto-on, listen off on release)
+- [x] Shake bolt now a monochrome, centered inline SVG instead of the color ⚡ emoji
+- [x] Beveled, per-hue polarized backgrounds for all knobs/buttons (shared `.bevel` tokens)
+- [x] `on` as mid-size round button directly right of listen; narrow-phone layout reflow
+- [x] Shake bolt aligned to size knob body's left edge
+- [x] Shake bolt has no background — bare monochrome bolt, edge-aligned with size knob
+- [x] Syne Mono UI font
+- [x] First listen auto-enables `on`; `on` red/green by state
+- [x] Raw/evolve toggles show state with gray-vs-hue bevel + LED dot
+- [x] Shake bolt centered over size knob
+- [x] Spacebar tap latches listen (fresh session → listen + on), hold = record while held
+- [x] Control palette re-spaced so no two knobs/buttons share a hue
+- [x] Rate and size knobs at 2x (96px), responsive reflow for the bigger bottom-left cluster
+- [x] Double spacebar = stop listen + stop play
+- [x] Cursive gloop wordmark top-center
+- [x] `thru` toggle: clean mic straight out, full grain/delay bypass (2026-10-04)
+- [x] Listen-off no longer boosts/stretches the loop (quiet-room factor gated on listening) (2026-10-04)
+- [x] Ambient tap sound throttled + bussed through lowpass/compressor, much quieter (2026-10-04)
+- [x] Kubelka-Munk pigment palette for plate/grains, `k` to A/B against HSL (2026-10-04)
+- [x] Spacebar tap stops both listen + on, echo trails out (max 10s) (2026-10-04)
+- [x] Evolve slowed (14s generations), smaller glided mutations, live host re-measurement (2026-10-04)
+- [x] Input-reactive wandering camera over the plate (2026-10-04)
+- [x] Default rate 200 → 2000ms, dial to 4000ms (2026-10-04)
+- [x] Tap velocity starts at 10%, ramps to full over 5s of continuous touching (2026-10-04)
+- [x] Camera frozen while off, driven by feedback/size/density/wow/flutter/dynamics/rate while on (2026-10-04)
+- [x] Rate knob clockwise = faster (grains/sec, log), loop ring lap responds over full range (2026-10-06)
+- [x] Inverted see-through control surfaces (backdrop invert + flipped bevel) (2026-10-06)
+- [x] Plate camera forward/backward tilt dance — level-driven spring with onset kicks (2026-10-06)
+- [x] Grain scheduling lookahead (jank-proof envelopes); tilt dance slowed to a smooth nod (2026-10-06)

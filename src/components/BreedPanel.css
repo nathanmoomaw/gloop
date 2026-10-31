@@ -1,0 +1,135 @@
+.breed-panel {
+  position: absolute;
+  /* Centered: the top corners hold the big rate/feedback knobs on phones. */
+  top: 45%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(calc(100vw - 32px), 420px);
+  padding: 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: color-mix(in srgb, #06060e 82%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  pointer-events: auto;
+  z-index: 5;
+}
+
+.breed-panel__cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+}
+
+.breed-card {
+  position: relative;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.breed-card--active {
+  box-shadow: 0 0 10px color-mix(in srgb, var(--color-repeat) 45%, transparent);
+}
+
+.breed-card__play {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.45rem 0.45rem 0.55rem;
+  border: 0;
+  background: none;
+  color: #fff;
+  cursor: pointer;
+}
+
+.breed-card__letter {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-align: left;
+  opacity: 0.8;
+}
+
+.breed-card__guess {
+  font-size: 0.6rem;
+  text-align: left;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.breed-card__bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 44px;
+}
+
+.breed-card__bars > span {
+  flex: 1;
+  border-radius: 1px;
+  opacity: 0.85;
+}
+
+.breed-card__pick {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.25rem;
+  padding: 0.1rem 0.25rem;
+  border: 0;
+  background: none;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.breed-card--picked .breed-card__pick {
+  color: var(--color-rate);
+  text-shadow: 0 0 6px var(--color-rate);
+}
+
+.breed-panel__footer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.breed-panel__gen {
+  flex: 1;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.55);
+  text-transform: uppercase;
+}
+
+.breed-panel__btn {
+  height: 26px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  font-size: 0.62rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.breed-panel__btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.breed-panel button:focus-visible {
+  outline: 2px solid var(--color-repeat);
+  outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+  .breed-panel__cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

@@ -1,0 +1,63 @@
+.shake-button {
+  width: 34px;
+  height: 34px;
+  /* No body at all — just the bare bolt (centered over the size knob,
+     see App.css). A dark drop-shadow keeps it legible over the field. */
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.85));
+  -webkit-tap-highlight-color: transparent;
+  font-size: 0.95rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.2s, filter 0.2s, transform 0.15s;
+}
+
+.shake-button__bolt {
+  display: block;
+  /* viewBox is cropped to the bolt's own bounds, so the element edge is
+     the visible edge. */
+  width: 16px;
+  height: 22px;
+  fill: currentColor;
+}
+
+.shake-button:hover {
+  color: #fff;
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.85)) drop-shadow(0 0 6px rgba(255, 255, 255, 0.45));
+  transform: scale(1.08);
+}
+
+.shake-button:active {
+  transform: scale(0.92);
+}
+
+.shake-button--shaking {
+  animation: shake-button-wiggle 0.35s ease-out;
+}
+
+@keyframes shake-button-wiggle {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  20% { transform: translate(-2px, 1px) rotate(-6deg); }
+  40% { transform: translate(2px, -1px) rotate(6deg); }
+  60% { transform: translate(-2px, 1px) rotate(-4deg); }
+  80% { transform: translate(1px, -1px) rotate(3deg); }
+}
+
+@media (max-width: 767px) {
+  .shake-button {
+    width: 30px;
+    height: 30px;
+    font-size: 0.85rem;
+  }
+
+  .shake-button__bolt {
+    width: 14px;
+    height: 19px;
+  }
+}
