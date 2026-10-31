@@ -34,13 +34,14 @@ export default function ListenButton({ running, onToggle, onHoldStart, onHoldEnd
     }, LONG_PRESS_MS)
   }, [onHoldStart, onPress])
 
-  const handlePointerEnd = useCallback(() => {
+  const handlePointerEnd = useCallback((e) => {
     clearTimer()
     if (holdingRef.current) {
       holdingRef.current = false
       // The click that follows a long press's pointerup shouldn't also
-      // toggle listening back on.
-      suppressClickRef.current = true
+      // toggle listening back on. Released off the button (leave/cancel),
+      // no click follows, so there's nothing to suppress.
+      suppressClickRef.current = e.type === 'pointerup'
       onHoldEnd()
     }
   }, [onHoldEnd])

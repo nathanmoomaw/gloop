@@ -1,6 +1,62 @@
 # DEVLOG
 
-## 2026-10-30 (latest) - No auto-save file when the learn store is on
+## 2026-10-30 (latest) - Pre-main review chain, cleanup, merge dev/v0 → main
+
+63 commits, 78 files, ~10.6k lines since main.
+- **Haiku:** the whole diff (212k tokens) was over Haiku's 95k cap, and `--budget` doesn't shrink
+  it. So it ran in 5 groups in a temp worktree at main, each group committed so later groups saw
+  the earlier ones as context:
+  1. audio engine/evolution
+  2. learn storage/infra/scripts
+  3. App + existing components (incl. GrainField)
+  4. new components
+  5. visuals
+  - Tests/CSS/docs not sent.
+  - Real (1): a listen hold released after dragging off the button left the click-suppress flag
+    set, so the next tap did nothing.
+  - False:
+    - 2 from the split itself (App.jsx still at main)
+    - `learn:pull` pagination (the aws CLI pages by itself)
+    - `review-haiku` not in devDependencies (global tool)
+    - BreedPanel double-click (React flushes between discrete events)
+    - 2 theoretical WaveformOverlay cases
+- **/code-review** (medium), 7 findings:
+  - Real (2):
+    - The listen flag: better fix, set only on `pointerup`, which also covers keyboard
+      activation after a drag-off.
+    - Implicit entries (from a timer) called `requestPermission` with no gesture: now asks only
+      when `navigator.userActivation.isActive`.
+  - By design / skipped:
+    - rescue with thru on or playback off doesn't teach (the dials weren't heard)
+    - 400 drops a batch (now a ROADMAP rule plus a parity test)
+    - StrictMode double send (idempotent)
+    - refit cost at 20k entries (far off)
+  - False: legacy entries without ids (every outbox entry gets an id).
+- **/simplify** (4 agents), applied:
+  - shared `wasSounding()` in learn.js (learnedTarget and predict had copies)
+  - dead evolve API (`onEvolveTick`, `isEvolving`, unused `bred`) and a misplaced doc comment
+    removed
+  - legacy `gloop.learn.outbox.anon` fold removed (only ever existed on gloop-dev)
+  - `stripId` shared
+  - private-mode save uses `appendEntry` (no magic 2000)
+  - `learnLoadedRef` folded into `learnPendingRef = null`
+  - `learn:pull` uses `toJSONL`
+  - parity test: Lambda KINDS = client kinds = predict LABELS
+  - GrainField: refs built once, not per render; one grain-size source (`paramsRef`, prop removed)
+  - WaveformOverlay: rAF stops while idle, gradient built on resize
+- **/simplify, deferred to ROADMAP** (each changes sound or behavior and needs a listening pass):
+  - one Toggle component, a knob table, one PARAM_RANGES module
+  - engine state subscription, one press gesture, an evolve-pause effect
+  - learn sinks drained from IndexedDB
+  - gain staging (thru may be ×1.4)
+  - CPPN LUT, logo filter, per-grain buffers
+  - Kept: evolve-cycle's `countByKind` (it counts unknown kinds, useful for data reads).
+- **Jev:** 13/13 files flagged (0.41–0.66), no line signal, as before.
+- **Haiku on the cleanup:** 1 finding, the removed legacy fold. Intended.
+- 109 tests + build smoke pass, lint clean, headless smoke of the built app (listen, `c`, stop)
+  shows no page errors.
+
+## 2026-10-30 - No auto-save file when the learn store is on
 
 DUMP: "no need for file saving style if the gloop store is active". Builds with `VITE_LEARN_URL`
 (prod and gloop-dev) no longer offer "auto-save to file": `LearnPanel` hides it, and `useLearnLog`

@@ -248,3 +248,14 @@ describe('learn-pull helpers', () => {
     ])
   })
 })
+
+// The Lambda can't import src (setup.sh zips only infra/learn), so its kind
+// list is a copy: a kind added client-side without it would 400 and be lost.
+describe('handler stays in step with the client', () => {
+  it('accepts every kind the client logs, and the model labels them all', async () => {
+    const { KIND_BY_ID } = await import('../src/audio/learn.js')
+    const { LABELS } = await import('../src/audio/predict.js')
+    expect([...KINDS].sort()).toEqual(Object.keys(KIND_BY_ID).sort())
+    expect(Object.keys(LABELS).sort()).toEqual(Object.keys(KIND_BY_ID).sort())
+  })
+})

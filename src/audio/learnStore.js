@@ -25,7 +25,7 @@ function done(tx) {
   })
 }
 
-function stripId(entry) {
+export function stripId(entry) {
   const copy = { ...(entry || {}) }
   delete copy.id
   return copy

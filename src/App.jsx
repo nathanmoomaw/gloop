@@ -424,7 +424,6 @@ export default function App() {
             analyser={analyser}
             running={running}
             onInteract={handleInteract}
-            grainSizeMs={params.grainSizeMs}
             params={params}
           />
         </Suspense>

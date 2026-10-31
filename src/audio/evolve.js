@@ -120,7 +120,6 @@ let genTimer = null
 let fitnessTimer = null
 let dominantBinHistory = []
 let levelHistory = []
-let onTickCallback = null
 // Global tick counter — doubles as the NEAT "innovation number" clock, so
 // every mutation that lands gets a unique, comparable generation tag.
 let generation = 0
@@ -252,13 +251,11 @@ function runGeneration() {
   const hostIdx = Math.floor(Math.random() * slots.length)
   const host = slots[hostIdx]
 
-  let bred = false
   let base = { params: host.params, innovation: host.innovation }
   if (slots.length > 1 && Math.random() < CROSSOVER_PROBABILITY) {
     let partnerIdx
     do { partnerIdx = Math.floor(Math.random() * slots.length) } while (partnerIdx === hostIdx)
     base = crossover(host, slots[partnerIdx])
-    bred = true
   }
   const tries = Array.from({ length: predict ? PARASITE_TRIES : 1 }, () =>
     mutate(base.params, base.innovation, PARASITE_MUTATION_SCALE, PARASITE_MUTATION_RATE, generation),
@@ -290,30 +287,14 @@ function runGeneration() {
 
     for (const slot of slots) slot.resistance *= RESISTANCE_DECAY
 
-    if (onTickCallback) {
-      onTickCallback({
-        hostIdx,
-        bred,
-        won: parasiteFitness > hostEffective,
-        fitness: Math.max(parasiteFitness, hostEffective),
-      })
-    }
-
     genTimer = setTimeout(runGeneration, GENERATION_INTERVAL_MS - EVAL_DELAY_MS)
   }, EVAL_DELAY_MS)
 }
 
-// Fires with { hostIdx, bred, won, fitness } after each generation's
-// outcome — purely informational (e.g. for a UI pulse), evolution runs the
-// same without a listener.
 // Sets the learned preference model evolve screens parasites with (see the
 // header); null turns screening off.
 export function setPredictor(fn) {
   predict = fn
-}
-
-export function onEvolveTick(callback) {
-  onTickCallback = callback
 }
 
 export function startEvolve() {
@@ -411,8 +392,4 @@ export function fittestParams(n) {
 export function resetEvolvePopulation() {
   slots = []
   generation = 0
-}
-
-export function isEvolving() {
-  return running
 }

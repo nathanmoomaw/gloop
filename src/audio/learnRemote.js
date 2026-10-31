@@ -17,8 +17,6 @@
 // and the fields.
 
 export const OUTBOX_KEY = 'gloop.learn.outbox'
-// Where the keyless capture-era build queued entries; folded in on start.
-const LEGACY_OUTBOX_KEY = 'gloop.learn.outbox.anon'
 const OUTBOX_CAP = 500
 // Under the Lambda's 64KB body cap and sendBeacon's 64KB limit, and its
 // 50-entry cap per batch.
@@ -85,19 +83,6 @@ export function createRemoteSender({
   let storageOk = !!storage
   try {
     storage?.getItem(OUTBOX_KEY)
-    const legacy = storage?.getItem(LEGACY_OUTBOX_KEY)
-    if (legacy) {
-      let old = []
-      try {
-        old = JSON.parse(legacy)
-      } catch {
-        // Unreadable: nothing to fold in.
-      }
-      // Only drop the old outbox once its entries are safely in the new one.
-      if (!Array.isArray(old) || writeOutbox(storage, [...readOutbox(storage), ...old].slice(-OUTBOX_CAP))) {
-        storage.removeItem(LEGACY_OUTBOX_KEY)
-      }
-    }
   } catch {
     storageOk = false
   }

@@ -25,35 +25,36 @@ export default function WaveformOverlay({ analyser, running }) {
     const dataArray = analyser ? new Uint8Array(analyser.fftSize) : null
     const startTime = performance.now()
 
+    let gradient
     const resize = () => {
       const dpr = Math.min(devicePixelRatio || 1, 2)
       canvas.width = canvas.clientWidth * dpr
       canvas.height = canvas.clientHeight * dpr
       ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0)
-    }
-    resize()
-    window.addEventListener('resize', resize)
-
-    let raf
-    const draw = () => {
-      raf = requestAnimationFrame(draw)
-      const w = canvas.clientWidth
-      const h = canvas.clientHeight
-      ctx2d.clearRect(0, 0, w, h)
-
-      if (!running || !analyser) return
-
-      analyser.getByteTimeDomainData(dataArray)
-      const t = (performance.now() - startTime) / 1000
-      const wobbleAmplitude = h * WOBBLE_AMPLITUDE_RATIO
-
-      const gradient = ctx2d.createLinearGradient(0, 0, w, 0)
+      // Spans the width, so it only changes on resize.
+      gradient = ctx2d.createLinearGradient(0, 0, canvas.clientWidth, 0)
       gradient.addColorStop(0, '#ff4d6d')
       gradient.addColorStop(0.2, '#ff9f4d')
       gradient.addColorStop(0.4, '#ffe14d')
       gradient.addColorStop(0.6, '#4dff88')
       gradient.addColorStop(0.8, '#4dc9ff')
       gradient.addColorStop(1, '#b04dff')
+    }
+    resize()
+    window.addEventListener('resize', resize)
+
+    let raf
+    const draw = () => {
+      const w = canvas.clientWidth
+      const h = canvas.clientHeight
+      ctx2d.clearRect(0, 0, w, h)
+      // Nothing to trace: clear once and stop (the effect reruns on change).
+      if (!running || !analyser) return
+      raf = requestAnimationFrame(draw)
+
+      analyser.getByteTimeDomainData(dataArray)
+      const t = (performance.now() - startTime) / 1000
+      const wobbleAmplitude = h * WOBBLE_AMPLITUDE_RATIO
 
       ctx2d.lineWidth = 2.5
       ctx2d.strokeStyle = gradient

@@ -2,6 +2,7 @@
 // kernel regression in normalized feature space with a Beta-like prior so
 // unexplored regions report 0.5 at zero confidence instead of extrapolating
 // wildly from a single distant datapoint.
+import { wasSounding } from './learn.js'
 
 // First 9 match EVOLVE_RANGES in evolve.js; the 4 level dials are appended
 // because they decide whether anything is heard at all.
@@ -75,7 +76,7 @@ export function createPredictor(
       if (!e || typeof e !== 'object') continue
       if (!Object.prototype.hasOwnProperty.call(LABELS, e.kind)) continue
       if (!e.params || typeof e.params !== 'object') continue
-      if (e.state && (e.state.playing === false || e.state.thru === true)) continue
+      if (!wasSounding(e)) continue
       kept.push({ x: featurize(e.params), y: LABELS[e.kind] })
     }
   }

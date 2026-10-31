@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { toJSONL } from '../src/audio/learn.js'
 
 // Pull recent days of learn entries from DynamoDB into learning/remote/<day>.jsonl
 // using the AWS CLI so the gloop repo needs no AWS SDK dependency.
@@ -72,8 +73,7 @@ function main() {
     const entries = queryDay(day, table, region)
     if (entries.length === 0) continue
     entries.sort((a, b) => String(a.t).localeCompare(String(b.t)))
-    const text = entries.map((e) => JSON.stringify(e)).join('\n') + '\n'
-    writeFileSync(join(outDir, `${day}.jsonl`), text, 'utf8')
+    writeFileSync(join(outDir, `${day}.jsonl`), toJSONL(entries), 'utf8')
     console.log(`${day}: ${entries.length} entries`)
     total += entries.length
   }

@@ -17,9 +17,18 @@
 - [ ] Eyeball pass on the CPPN field (`c`): keep or tune mutation rate 0.35 (one Shift+C jumped to a very different look), and whether it should get a UI control or hook into `breed`
 - [ ] Real-browser check: first spacebar press with a real mic permission prompt now ends with listen + `on` both lit
 - [ ] Confirm the 30ms grain-scheduling lookahead cleared the clicks reported 2026-10-06 (listening pass)
+- [ ] Listening check: thru monitor may be ×1.4 hot (it passes the limiter's makeup gain), and a hot input can come out near +1 dBFS after makeup. Deeper fix (from /simplify 2026-10-30): one gain stage owns loudness, limiter last as a real ceiling, taps routed through the main context so the volume dial and limiter cover them
+- [ ] Learn: when adding a kind, add it to `infra/learn/handler.mjs` KINDS and redeploy the Lambda *before* shipping the client (a batch of only unknown kinds 400s and is dropped). The parity test catches a mismatch, not the deploy order
+- [ ] Refactors deferred from /simplify (2026-10-30), each needs a listen/eyeball pass:
+  - one `<Toggle>` for On/Thru/MicMode/Evolve/Breed/Learn; a `KNOBS` table for App's 13 RotaryKnob blocks
+  - one `PARAM_RANGES` module for EVOLVE_RANGES / predict FEATURES / SOUND_BOUNDS / SHAKE_RANGES / knob min-max
+  - engine state via `useSyncExternalStore(engine.subscribe)` instead of hand-mirrored React flags; one `usePressGesture` (pointer capture) for listen button + spacebar; evolve pause as one effect over evolving/breeding/running
+  - learn sinks drain from IndexedDB by cursor (file, dev log, remote) instead of 4 retry mechanisms
+  - CPPN LUT: static x/y/r arrays and separable Chladni (~230k → ~55k ops/frame); goo-filter logo drop-shadows off the animated layer; per-grain AudioBuffer reuse in engine.js
 
 ## Completed
 
+- [x] Pre-main review chain on dev/v0 (Haiku in 5 groups, /code-review, /simplify) and merge to main (2026-10-30)
 - [x] Learn store builds drop the auto-save file option (2026-10-30)
 - [x] gloop-learn live and tested end to end: API checks, real-browser heart + implicit settle → DynamoDB, breed guesses, learn:pull (2026-10-30)
 - [x] Self-evolving engine prototype: in-app preference model screens evolve/breed; offline `npm run evolve:cycle` + `/evolve-cycle` (2026-10-30)

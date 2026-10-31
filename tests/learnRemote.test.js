@@ -167,11 +167,4 @@ describe('createRemoteSender', () => {
     for (let i = 0; i < 3; i++) await timers.run()
     expect(counts).toEqual([50, 50, 20])
   })
-
-  it('folds the capture-era outbox in once', () => {
-    const storage = fakeStorage({ 'gloop.learn.outbox.anon': JSON.stringify([{ ...entry('old'), id: 'legacy1' }]) })
-    const s = createRemoteSender({ url: 'U', storage, ...fakeTimers() })
-    expect(s.pending()).toBe(1)
-    expect(storage.getItem('gloop.learn.outbox.anon')).toBeNull()
-  })
 })

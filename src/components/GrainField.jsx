@@ -169,7 +169,7 @@ function cameraShapeFor(p) {
   }
 }
 
-export default function GrainField({ analyser, running, onInteract, grainSizeMs = 400, params }) {
+export default function GrainField({ analyser, running, onInteract, params }) {
   const containerRef = useRef(null)
   const grainsRef = useRef([])
   const pointerRef = useRef({ x: 0.5, y: 0.5, strength: 0, lastX: 0.5, lastY: 0.5 })
@@ -180,19 +180,26 @@ export default function GrainField({ analyser, running, onInteract, grainSizeMs 
   // Camera clock (see CAM_* constants) and the slow amplitude average its
   // onset detection compares against — in a ref so a remount (e.g. dev
   // StrictMode) doesn't jump the view back to a new start point.
-  const camRef = useRef({
-    phase: CAM_START_PHASE,
-    rate: 0,
-    slowAmplitude: 0.3,
-    active: 0,
-    reach: 0.9,
-    shape: cameraShapeFor({}),
-    tiltPhase: 0,
-    tiltLevel: 0,
-    tiltDepth: 0,
-  })
-  // Latest output params, read live in the draw loop (same reason as
-  // grainSizeRef) to steer the camera.
+  // Built once, not on every render (App re-renders this several times a
+  // second while evolve, breed or a glide moves the dials).
+  const camRef = useRef(null)
+  if (camRef.current === null) {
+    camRef.current = {
+      phase: CAM_START_PHASE,
+      rate: 0,
+      slowAmplitude: 0.3,
+      active: 0,
+      reach: 0.9,
+      shape: cameraShapeFor({}),
+      tiltPhase: 0,
+      tiltLevel: 0,
+      tiltDepth: 0,
+    }
+  }
+  // Latest output params (the size dial included), read live in the draw
+  // loop rather than as effect dependencies: they change on every drag
+  // tick, and rebuilding the three.js scene that often would be wasteful
+  // and visibly jarring. They also steer the camera.
   const paramsRef = useRef(params ?? {})
   useEffect(() => {
     paramsRef.current = params ?? {}
@@ -206,21 +213,20 @@ export default function GrainField({ analyser, running, onInteract, grainSizeMs 
     runningRef.current = running
     analyserRef.current = analyser
   }, [running, analyser])
-  // Read live in the draw loop rather than an effect dependency — the size
-  // dial changes on every drag tick, and rebuilding the whole three.js scene
-  // that often would be both wasteful and visibly jarring.
-  const grainSizeRef = useRef(grainSizeMs)
-  // Read live in the draw loop, same reason as grainSizeRef.
+  // Read live in the draw loop, same reason as paramsRef.
   const kmRef = useRef(KM_DEFAULT)
   // CPPN field state, also read live: blend eases toward target (0 = pure
   // Chladni), and a mutation morphs from `prev` to `cur` so neither snaps.
   // Evaluated once a frame on a LUT grid (two, while morphing) rather than
   // per grain: ~9k CPPN calls instead of ~87k.
-  const cppnRef = useRef({
-    target: 0, blend: 0, genome: null, cur: null, prev: null, morph: 1,
-    lut: new Float32Array(LUT_SIZE * LUT_SIZE),
-    prevLut: new Float32Array(LUT_SIZE * LUT_SIZE),
-  })
+  const cppnRef = useRef(null)
+  if (cppnRef.current === null) {
+    cppnRef.current = {
+      target: 0, blend: 0, genome: null, cur: null, prev: null, morph: 1,
+      lut: new Float32Array(LUT_SIZE * LUT_SIZE),
+      prevLut: new Float32Array(LUT_SIZE * LUT_SIZE),
+    }
+  }
   useEffect(() => {
     const onKey = (e) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return
@@ -246,9 +252,6 @@ export default function GrainField({ analyser, running, onInteract, grainSizeMs 
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
-  useEffect(() => {
-    grainSizeRef.current = grainSizeMs
-  }, [grainSizeMs])
 
   useEffect(() => {
     const container = containerRef.current
@@ -298,7 +301,7 @@ export default function GrainField({ analyser, running, onInteract, grainSizeMs 
     grainGeo.setAttribute('position', new THREE.BufferAttribute(grainPositions, 3))
     grainGeo.setAttribute('color', new THREE.BufferAttribute(grainColors, 3))
     const grainMat = new THREE.PointsMaterial({
-      size: pointSizeForGrainMs(grainSizeRef.current),
+      size: pointSizeForGrainMs(paramsRef.current.grainSizeMs ?? 400),
       vertexColors: true,
       sizeAttenuation: true,
       transparent: true,
@@ -371,7 +374,7 @@ export default function GrainField({ analyser, running, onInteract, grainSizeMs 
       const m = smoothM
       const amplitude = smoothAmplitude
 
-      grainMat.size = pointSizeForGrainMs(grainSizeRef.current)
+      grainMat.size = pointSizeForGrainMs(paramsRef.current.grainSizeMs ?? 400)
       const useKM = kmRef.current
 
       const cppn = cppnRef.current

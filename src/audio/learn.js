@@ -77,9 +77,7 @@ export function learnedTarget(entries, halfLife = 50) {
     const e = entries[i]
     const spec = e && KIND_BY_ID[e.kind]
     if (!spec || spec.weight <= 0) continue
-    // A like while the grains weren't sounding (off, or muted by thru)
-    // rated something else, so it doesn't teach the target.
-    if (e.state && (e.state.playing === false || e.state.thru === true)) continue
+    if (!wasSounding(e)) continue
     const recency = 0.5 ** ((n - 1 - i) / halfLife)
     const w = spec.weight * recency
     if (w > 0 && Number.isFinite(w)) {
@@ -142,6 +140,15 @@ export function saveLog(log, storage = globalThis.localStorage) {
   } catch {
     return false
   }
+}
+
+/**
+ * Whether the grains were sounding when the entry was made. One made while
+ * off, or muted by thru, rated something else, so it doesn't teach the
+ * target or the preference model.
+ */
+export function wasSounding(e) {
+  return !(e.state && (e.state.playing === false || e.state.thru === true))
 }
 
 /** Serialize log entries as newline-delimited JSON. */

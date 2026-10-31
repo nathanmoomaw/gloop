@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { appendEntry, loadLog, saveLog, summarize, toJSONL } from './learn'
-import { addEntry, getAllEntries, getMeta, loadLearnStore, saveFallbackEntry, setMeta } from './learnStore'
+import { addEntry, getAllEntries, getMeta, loadLearnStore, saveFallbackEntry, setMeta, stripId } from './learnStore'
 import { createAppender, ensurePermission, pickLearnFile, writeAll } from './learnFile'
 import { createRemoteSender, remoteUrl } from './learnRemote'
 
@@ -23,14 +23,14 @@ async function learnHistory(db, memoryLog) {
   } catch {
     // Fall back to what's in memory.
   }
-  return rows.map(({ id: _id, ...entry }) => entry)
+  return rows.map(stripId)
 }
 
 // Db write failed: park it for the next load to import. No db at all
 // (private mode): the localStorage log is the store.
 function persistLearnEntry(db, entry) {
   if (db) addEntry(db, entry).catch(() => saveFallbackEntry(entry))
-  else saveLog([...loadLog(), entry].slice(-2000))
+  else saveLog(appendEntry(loadLog(), entry))
 }
 
 // How many presses stay in memory (all of them stay in the db), and how
@@ -47,9 +47,9 @@ export function useLearnLog() {
   // IndexedDB (learnStore.js); null until loaded, or for good in private
   // mode, where presses fall back to localStorage.
   const learnDbRef = useRef(null)
-  // Presses made before the store finished loading, saved once it has.
+  // Presses made before the store finished loading, saved once it has;
+  // null once loaded.
   const learnPendingRef = useRef([])
-  const learnLoadedRef = useRef(false)
   // Builds with the store URL send every entry to the gloop learn store
   // (learnRemote.js), so they skip the auto-save file.
   const learnUrl = remoteUrl()
@@ -64,12 +64,11 @@ export function useLearnLog() {
     learnStorePromise.then(async ({ db, entries }) => {
       if (cancelled) return
       learnDbRef.current = db
-      learnLoadedRef.current = true
       const pending = learnPendingRef.current
       for (const entry of pending) persistLearnEntry(db, entry)
-      learnPendingRef.current = []
+      learnPendingRef.current = null
       // Presses made before the load finished go after the stored ones.
-      const stored = entries.map(({ id: _id, ...entry }) => entry)
+      const stored = entries.map(stripId)
       const merged = [...stored, ...learnLogRef.current].slice(-LEARN_MEMORY_CAP)
       learnLogRef.current = merged
       setLearnLog(merged)
@@ -105,14 +104,16 @@ export function useLearnLog() {
     const next = appendEntry(learnLogRef.current, entry, LEARN_MEMORY_CAP)
     learnLogRef.current = next
     setLearnLog(next)
-    if (learnLoadedRef.current) persistLearnEntry(learnDbRef.current, entry)
-    else learnPendingRef.current.push(entry)
+    if (learnPendingRef.current) learnPendingRef.current.push(entry)
+    else persistLearnEntry(learnDbRef.current, entry)
     const file = learnFileRef.current
     if (file) {
       // Lines that failed to write earlier go out first, so the file
       // catches back up instead of keeping a gap.
       file.backlog += JSON.stringify(entry) + '\n'
-      ensurePermission(file.handle, { request: true })
+      // Only ask with a user gesture: implicit entries come from a timer,
+      // where requestPermission throws.
+      ensurePermission(file.handle, { request: globalThis.navigator?.userActivation?.isActive ?? true })
         .then((ok) => {
           if (!ok) throw new Error('permission')
           const text = file.backlog
