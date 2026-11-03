@@ -1,6 +1,23 @@
 # DEVLOG
 
-## 2026-10-30 (latest) - Pre-main review chain, cleanup, merge dev/v0 → main
+## 2026-11-02 (latest) - Iteration: one range table, faster CPPN LUT; evolve cycle blocked on IAM
+
+- **/evolve-cycle:** stopped at step 1. `npm run learn:pull 30` is denied: IAM user `local-deploy`
+  has no `dynamodb:Query` on `gloop-learn` (it pulled fine on 2026-10-30). `evolve:cycle` then saw
+  0 entries (score 0.500, conf 0), so no suggestion and no default changes.
+- **`src/audio/ranges.js`:** `DIAL_RANGES` = every dial's [min, max, isLog], one place. `FEATURES`
+  (predict) is it; `EVOLVE_RANGES` is `pickRanges` of the 9 evolve keys (same order); the knobs'
+  min/max, the rate knob's ms span and shake's ranges read it. `SOUND_BOUNDS` stays narrower;
+  its test now checks it against `DIAL_RANGES`. No range values changed.
+- **CPPN LUT:** `compileGenome` returns an evaluator with its own `fillLUT` (cached x/y/r grid, 4
+  per-axis sin tables for the separable Chladni modes, time/amp/bias folded per node). `fillLUT`
+  uses it when there. 3.1 → 1.65 ms/frame at 96² (node bench). New property test: fast fill equals
+  the point-by-point fill. 110 tests.
+- **Jev:** 6/7 files flagged (0.41–0.73), scores only, no reasons; evolve.js 0.73 on a 12-line
+  diff. Nothing found on read-through.
+- **Haiku:** 0 findings ($0.0065).
+
+## 2026-10-30 - Pre-main review chain, cleanup, merge dev/v0 → main
 
 63 commits, 78 files, ~10.6k lines since main.
 - **Haiku:** the whole diff (212k tokens) was over Haiku's 95k cap, and `--budget` doesn't shrink

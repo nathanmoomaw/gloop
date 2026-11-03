@@ -10,7 +10,7 @@
 - [ ] Redeploy capture (`bash ~/Sites/capture/scripts/deploy.sh`) to drop its unused `/learn` route
 - [ ] If gloop goes public with per-interaction analytics: add an S3/Firehose events stream next to `gloop-learn` (DynamoDB stays for learn signals)
 - [ ] Before gloop has real users: add a one-line notice that settings + sound levels are shared anonymously to improve it, and restore the GPC/DNT opt-out (removed 2026-10-30 so all input is saved). Not needed while it's just Nathan
-- [ ] First real `/evolve-cycle` once gloop-learn is live and has ~50+ entries: check the model's breed-card guesses against your picks, tune `bandwidth`/`LABELS` in predict.js if they disagree
+- [ ] Grant `local-deploy` `dynamodb:Query` on `gloop-learn` (learn:pull denied 2026-11-02), then the first real `/evolve-cycle` once gloop-learn is live and has ~50+ entries: check the model's breed-card guesses against your picks, tune `bandwidth`/`LABELS` in predict.js if they disagree
 - [ ] Optionally schedule `/evolve-cycle` (e.g. weekly via /schedule) once one manual cycle has gone well
 - [ ] Listening pass on evolve ↔ breed sharing (does a resumed evolve keep what you picked?) and the implicit settle/linger thresholds (20s/90s)
 - [ ] Use learn mode for a while, then have Claude read `learning/feedback.jsonl` (dev) or an export and retune defaults / `SOUND_BOUNDS` from it
@@ -21,13 +21,13 @@
 - [ ] Learn: when adding a kind, add it to `infra/learn/handler.mjs` KINDS and redeploy the Lambda *before* shipping the client (a batch of only unknown kinds 400s and is dropped). The parity test catches a mismatch, not the deploy order
 - [ ] Refactors deferred from /simplify (2026-10-30), each needs a listen/eyeball pass:
   - one `<Toggle>` for On/Thru/MicMode/Evolve/Breed/Learn; a `KNOBS` table for App's 13 RotaryKnob blocks
-  - one `PARAM_RANGES` module for EVOLVE_RANGES / predict FEATURES / SOUND_BOUNDS / SHAKE_RANGES / knob min-max
   - engine state via `useSyncExternalStore(engine.subscribe)` instead of hand-mirrored React flags; one `usePressGesture` (pointer capture) for listen button + spacebar; evolve pause as one effect over evolving/breeding/running
   - learn sinks drain from IndexedDB by cursor (file, dev log, remote) instead of 4 retry mechanisms
-  - CPPN LUT: static x/y/r arrays and separable Chladni (~230k → ~55k ops/frame); goo-filter logo drop-shadows off the animated layer; per-grain AudioBuffer reuse in engine.js
+  - goo-filter logo drop-shadows off the animated layer; per-grain AudioBuffer reuse in engine.js
 
 ## Completed
 
+- [x] One `DIAL_RANGES` table (ranges.js) for knobs/evolve/predict/shake; compiled CPPN fast LUT fill, ~2× (2026-11-02)
 - [x] Pre-main review chain on dev/v0 (Haiku in 5 groups, /code-review, /simplify) and merge to main (2026-10-30)
 - [x] Learn store builds drop the auto-save file option (2026-10-30)
 - [x] gloop-learn live and tested end to end: API checks, real-browser heart + implicit settle → DynamoDB, breed guesses, learn:pull (2026-10-30)
