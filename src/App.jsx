@@ -21,25 +21,19 @@ import { fileSaveSupported } from './audio/learnFile'
 import { useLearnLog } from './audio/useLearnLog'
 import LearnToggle from './components/LearnToggle'
 import LearnPanel from './components/LearnPanel'
+import { DIAL_RANGES, pickRanges } from './audio/ranges'
 import './App.css'
 
-// Randomization ranges for the shake button — mirrors each dial's own
-// min/max below. Master `volume` is deliberately excluded (mirrors
+// Randomization ranges for the shake button — the dials' own ranges
+// (ranges.js) except where narrowed. Master `volume` is deliberately excluded (mirrors
 // ribbon's shake convention of never randomizing master level — a shake
 // should reshuffle texture, not suddenly blast or mute the output).
 const SHAKE_RANGES = {
-  // Narrower than the dial's 20-4000: a shake shouldn't land on either
-  // extreme (machine-gun buzz or near-silent gaps).
+  ...pickRanges(['dynamics', 'feedback', 'repeat', 'sensitivity', 'density', 'wow', 'flutter', 'wobble']),
+  // Narrower than the dials: a shake shouldn't land on either extreme
+  // (machine-gun buzz or near-silent gaps; clicks or mush).
   rate: [100, 3000],
-  dynamics: [0, 1],
-  feedback: [0, 0.9],
-  repeat: [0, 1],
-  sensitivity: [0, 1],
   grainSizeMs: [300, 2500],
-  density: [0, 1],
-  wow: [0, 1],
-  flutter: [0, 1],
-  wobble: [0, 1],
 }
 
 // Spacebar press shorter than this counts as a tap (latch listen) rather
@@ -73,8 +67,7 @@ function loopPeriodFromRate(rateMs) {
 // longer gaps = fewer grains = slower loop ring. The knob instead drives a
 // 0-1 position mapped exponentially (clockwise = faster) across the same
 // 20-4000ms span, and reads out grains per second.
-const RATE_MS_MIN = 20
-const RATE_MS_MAX = 4000
+const [RATE_MS_MIN, RATE_MS_MAX] = DIAL_RANGES.rate
 const rateMsFromKnob = (t) => RATE_MS_MAX * (RATE_MS_MIN / RATE_MS_MAX) ** t
 const knobFromRateMs = (ms) => Math.log(RATE_MS_MAX / ms) / Math.log(RATE_MS_MAX / RATE_MS_MIN)
 function formatGrainsPerSec(ms) {
@@ -469,8 +462,8 @@ export default function App() {
             label="dynamics"
             valueLabel={pct(params.dynamics)}
             value={params.dynamics}
-            min={0}
-            max={1}
+            min={DIAL_RANGES.dynamics[0]}
+            max={DIAL_RANGES.dynamics[1]}
             step={0.01}
             onChange={(v) => updateParam('dynamics', v)}
             color="var(--color-dynamics)"
@@ -482,8 +475,8 @@ export default function App() {
             label="feedback"
             valueLabel={pct(params.feedback)}
             value={params.feedback}
-            min={0}
-            max={0.9}
+            min={DIAL_RANGES.feedback[0]}
+            max={DIAL_RANGES.feedback[1]}
             step={0.01}
             onChange={(v) => updateParam('feedback', v)}
             color="var(--color-feedback)"
@@ -492,8 +485,8 @@ export default function App() {
             label="repeat"
             valueLabel={engine.smearAmount(params.repeat) > 0 ? `${pct(params.repeat)} wash` : pct(params.repeat)}
             value={params.repeat}
-            min={0}
-            max={1}
+            min={DIAL_RANGES.repeat[0]}
+            max={DIAL_RANGES.repeat[1]}
             step={0.01}
             onChange={(v) => updateParam('repeat', v)}
             color="var(--color-repeat)"
@@ -502,8 +495,8 @@ export default function App() {
             label="sensitivity"
             valueLabel={pct(params.sensitivity)}
             value={params.sensitivity}
-            min={0}
-            max={1}
+            min={DIAL_RANGES.sensitivity[0]}
+            max={DIAL_RANGES.sensitivity[1]}
             step={0.01}
             onChange={(v) => updateParam('sensitivity', v)}
             color="var(--color-sensitivity)"
@@ -518,8 +511,8 @@ export default function App() {
               label="size"
               valueLabel={`${Math.round(params.grainSizeMs)}ms`}
               value={params.grainSizeMs}
-              min={30}
-              max={3000}
+              min={DIAL_RANGES.grainSizeMs[0]}
+              max={DIAL_RANGES.grainSizeMs[1]}
               step={20}
               onChange={(v) => updateParam('grainSizeMs', v)}
               color="var(--color-size)"
@@ -529,8 +522,8 @@ export default function App() {
               label="density"
               valueLabel={pct(params.density)}
               value={params.density}
-              min={0}
-              max={1}
+              min={DIAL_RANGES.density[0]}
+              max={DIAL_RANGES.density[1]}
               step={0.01}
               onChange={(v) => updateParam('density', v)}
               color="var(--color-density)"
@@ -543,8 +536,8 @@ export default function App() {
             label="wow"
             valueLabel={pct(params.wow)}
             value={params.wow}
-            min={0}
-            max={1}
+            min={DIAL_RANGES.wow[0]}
+            max={DIAL_RANGES.wow[1]}
             step={0.01}
             onChange={(v) => updateParam('wow', v)}
             color="var(--color-wow)"
@@ -554,8 +547,8 @@ export default function App() {
             label="flutter"
             valueLabel={pct(params.flutter)}
             value={params.flutter}
-            min={0}
-            max={1}
+            min={DIAL_RANGES.flutter[0]}
+            max={DIAL_RANGES.flutter[1]}
             step={0.01}
             onChange={(v) => updateParam('flutter', v)}
             color="var(--color-flutter)"
@@ -565,8 +558,8 @@ export default function App() {
             label="wobble"
             valueLabel={pct(params.wobble)}
             value={params.wobble}
-            min={0}
-            max={1}
+            min={DIAL_RANGES.wobble[0]}
+            max={DIAL_RANGES.wobble[1]}
             step={0.01}
             onChange={(v) => updateParam('wobble', v)}
             color="var(--color-wobble)"
@@ -580,8 +573,8 @@ export default function App() {
               label="granular"
               valueLabel={pct(params.granularMix)}
               value={params.granularMix}
-              min={0}
-              max={1}
+              min={DIAL_RANGES.granularMix[0]}
+              max={DIAL_RANGES.granularMix[1]}
               step={0.01}
               onChange={(v) => updateParam('granularMix', v)}
               color="var(--color-granular-mix)"
@@ -591,8 +584,8 @@ export default function App() {
               label="delay"
               valueLabel={pct(params.delayMix)}
               value={params.delayMix}
-              min={0}
-              max={1}
+              min={DIAL_RANGES.delayMix[0]}
+              max={DIAL_RANGES.delayMix[1]}
               step={0.01}
               onChange={(v) => updateParam('delayMix', v)}
               color="var(--color-delay-mix)"
@@ -620,8 +613,8 @@ export default function App() {
             label="volume"
             valueLabel={pct(params.volume)}
             value={params.volume}
-            min={0}
-            max={1}
+            min={DIAL_RANGES.volume[0]}
+            max={DIAL_RANGES.volume[1]}
             step={0.01}
             onChange={(v) => updateParam('volume', v)}
             color="var(--color-volume)"

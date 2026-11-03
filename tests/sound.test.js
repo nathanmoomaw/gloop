@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { SOUND_BOUNDS, soundFix } from '../src/audio/sound.js'
 import { getParams } from '../src/audio/engine.js'
-import { EVOLVE_RANGES } from '../src/audio/evolve.js'
+import { DIAL_RANGES } from '../src/audio/ranges.js'
 
 describe('soundFix', () => {
   it('leaves in-range params alone', () => {
@@ -24,8 +24,7 @@ describe('soundFix', () => {
   })
 
   it('every bound sits inside its dial range', () => {
-    // Evolvable dials' ranges, plus the 0-1 dials evolve leaves alone.
-    const dials = { ...EVOLVE_RANGES, volume: [0, 1], granularMix: [0, 1], delayMix: [0, 1], sensitivity: [0, 1] }
+    const dials = DIAL_RANGES
     for (const [k, [lo, hi]] of Object.entries(SOUND_BOUNDS)) {
       expect(dials[k], k).toBeDefined()
       expect(lo, k).toBeLessThan(hi)

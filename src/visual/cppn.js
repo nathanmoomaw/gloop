@@ -160,8 +160,9 @@ export function compileGenome(genome) {
     fns[i] = ACTIVATIONS[node.fn]
   }
   const outBias = genome.outBias
+  const folded = new Float64Array(count)
 
-  return function evalCompiled(n, m, u, v, t, amplitude) {
+  function evalCompiled(n, m, u, v, t, amplitude) {
     const x = 0.5 * Math.sin(Math.PI * (u - 0.5))
     const y = 0.5 * Math.sin(Math.PI * (v - 0.5))
     const r = Math.sqrt(x * x + y * y)
@@ -182,6 +183,77 @@ export function compileGenome(genome) {
     }
     return 2 * Math.tanh(sum)
   }
+
+  // Same field as evalCompiled over the fillLUT grid, but with x/y/r from a
+  // cached grid, Chladni from per-axis sin tables (it's separable), and the
+  // time/amplitude/bias terms folded per node: ~7 transcendental calls per
+  // texel instead of ~26, about 2× faster at LUT_SIZE (node.js bench).
+  evalCompiled.fillLUT = function fillCompiledLUT(lut, size, n, m, t, amplitude) {
+    const { x: gx, r: gr, s } = lutGrid(size)
+    const n0 = Math.floor(n)
+    const m0 = Math.floor(m)
+    const a = n - n0
+    const b = m - m0
+    const N0 = sinTable(s, 0, n0, size)
+    const N1 = sinTable(s, 1, n0 + 1, size)
+    const M0 = sinTable(s, 2, m0, size)
+    const M1 = sinTable(s, 3, m0 + 1, size)
+    const ts = Math.sin(t * 0.05)
+    for (let k = 0; k < count; k++) {
+      const base = k * 8
+      folded[k] = weights[base + 4] * ts + weights[base + 5] * amplitude + weights[base + 6]
+    }
+    for (let j = 0; j < size; j++) {
+      const y = gx[j]
+      const n0j = N0[j]
+      const n1j = N1[j]
+      const m0j = M0[j]
+      const m1j = M1[j]
+      const row = j * size
+      for (let i = 0; i < size; i++) {
+        const x = gx[i]
+        const r = gr[row + i]
+        const c00 = N0[i] * m0j - M0[i] * n0j
+        const c10 = N1[i] * m0j - M0[i] * n1j
+        const c01 = N0[i] * m1j - M1[i] * n0j
+        const c11 = N1[i] * m1j - M1[i] * n1j
+        const top = c00 + (c10 - c00) * a
+        const c = top + (c01 + (c11 - c01) * a - top) * b
+        let sum = outBias
+        for (let k = 0; k < count; k++) {
+          const base = k * 8
+          const z = weights[base] * x + weights[base + 1] * y + weights[base + 2] * r + weights[base + 3] * c + folded[k]
+          sum += weights[base + 7] * fns[k](z)
+        }
+        lut[row + i] = 2 * Math.tanh(sum)
+      }
+    }
+  }
+
+  return evalCompiled
+}
+
+// Per-size grid for compiled fills: x (= y) per axis index, r per texel, and
+// 4 scratch sin tables (one per neighbouring Chladni mode).
+const grids = new Map()
+function lutGrid(size) {
+  let g = grids.get(size)
+  if (g) return g
+  const step = 2 / size
+  const x = new Float64Array(size)
+  for (let i = 0; i < size; i++) x[i] = 0.5 * Math.sin(Math.PI * (i * step - 0.5))
+  const r = new Float64Array(size * size)
+  for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) r[j * size + i] = Math.sqrt(x[i] * x[i] + x[j] * x[j])
+  g = { x, r, s: [0, 1, 2, 3].map(() => new Float64Array(size)) }
+  grids.set(size, g)
+  return g
+}
+
+function sinTable(scratch, slot, k, size) {
+  const out = scratch[slot]
+  const step = 2 / size
+  for (let i = 0; i < size; i++) out[i] = Math.sin(k * Math.PI * (i * step))
+  return out
 }
 
 /** Grid resolution for fillLUT/sampleLUT: one period-2 tile, size × size texels. */
@@ -189,6 +261,7 @@ export const LUT_SIZE = 96
 
 /** Fill a Float32Array(size * size) with fn sampled over one u/v tile [0, 2)². */
 export function fillLUT(lut, size, fn, n, m, t, amplitude) {
+  if (fn.fillLUT) return fn.fillLUT(lut, size, n, m, t, amplitude)
   const step = 2 / size
   for (let j = 0; j < size; j++) {
     const v = j * step

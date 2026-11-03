@@ -54,21 +54,22 @@
 
 import { getParams, setParam, getAnalyser } from './engine'
 import { bestOf } from './predict'
+import { pickRanges } from './ranges'
 
 // Same texture-only philosophy as App.jsx's SHAKE_RANGES: master volume
 // and sensitivity are excluded so evolution reshuffles the sound's
 // character without ever drifting it toward silence or blasting output.
-export const EVOLVE_RANGES = {
-  rate: [20, 4000],
-  dynamics: [0, 1],
-  feedback: [0, 0.9],
-  repeat: [0, 1],
-  grainSizeMs: [30, 3000],
-  density: [0, 1],
-  wow: [0, 1],
-  flutter: [0, 1],
-  wobble: [0, 1],
-}
+export const EVOLVE_RANGES = pickRanges([
+  'rate',
+  'dynamics',
+  'feedback',
+  'repeat',
+  'grainSizeMs',
+  'density',
+  'wow',
+  'flutter',
+  'wobble',
+])
 export const EVOLVE_KEYS = Object.keys(EVOLVE_RANGES)
 
 const SLOT_COUNT = 5

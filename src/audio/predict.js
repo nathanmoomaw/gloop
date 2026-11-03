@@ -4,23 +4,11 @@
 // wildly from a single distant datapoint.
 import { wasSounding } from './learn.js'
 
-// First 9 match EVOLVE_RANGES in evolve.js; the 4 level dials are appended
-// because they decide whether anything is heard at all.
-export const FEATURES = {
-  rate: [20, 4000, true],
-  grainSizeMs: [30, 3000, true],
-  feedback: [0, 0.9, false],
-  repeat: [0, 1, false],
-  density: [0, 1, false],
-  dynamics: [0, 1, false],
-  wow: [0, 1, false],
-  flutter: [0, 1, false],
-  wobble: [0, 1, false],
-  volume: [0, 1, false],
-  granularMix: [0, 1, false],
-  delayMix: [0, 1, false],
-  sensitivity: [0, 1, false],
-}
+import { DIAL_RANGES } from './ranges.js'
+
+// Every dial: the 9 evolve touches plus the 4 level dials, which decide
+// whether anything is heard at all.
+export const FEATURES = DIAL_RANGES
 
 const FEATURE_SPECS = Object.entries(FEATURES).map(([key, [lo, hi, isLog]]) => ({
   key,

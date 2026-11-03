@@ -203,6 +203,24 @@ describe('fillLUT / sampleLUT', () => {
     }), { numRuns: 200 })
   })
 
+  it("a compiled genome's fast fill matches filling it point by point", () => {
+    fc.assert(fc.property(
+      fc.integer({ min: 1, max: 1e6 }),
+      fc.double({ min: 1, max: 7, noNaN: true }),
+      fc.double({ min: 1, max: 7, noNaN: true }),
+      fc.double({ min: 0, max: 500, noNaN: true }),
+      fc.double({ min: 0, max: 1, noNaN: true }),
+      (seed, n, m, t, amp) => {
+        const f = compileGenome(randomGenome(mulberry32(seed)))
+        const fast = new Float32Array(size * size)
+        const slow = new Float32Array(size * size)
+        fillLUT(fast, size, f, n, m, t, amp)
+        fillLUT(slow, size, (...args) => f(...args), n, m, t, amp)
+        for (let i = 0; i < fast.length; i++) expect(fast[i]).toBeCloseTo(slow[i], 5)
+      },
+    ), { numRuns: 100 })
+  })
+
   it('the CPPN field itself has period 2 in u and v', () => {
     const f = compileGenome(randomGenome(mulberry32(7)))
     expect(f(2, 3, 0.3 + 2, 0.7 - 2, 5, 0.4)).toBeCloseTo(f(2, 3, 0.3, 0.7, 5, 0.4), 9)
