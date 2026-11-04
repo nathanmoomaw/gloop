@@ -18,7 +18,7 @@
 // Control or Do Not Track) sends nothing.
 //
 // Each batch carries `tags` next to `host`: a tester name from a
-// `?tester=<name>` link (kept in this browser), an anonymous per-browser
+// `?tester=<name>` link (kept in this browser), a random per-browser
 // `sid` and a coarse `device`, so user-testing data can be split by person
 // and platform without names beyond the tester link.
 
