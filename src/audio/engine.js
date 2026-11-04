@@ -191,18 +191,20 @@ const AUTO_SENSITIVITY_RAMP_SEC = 8
 // forever.
 const AUTO_SENSITIVITY_MIN_RATIO = 0.25
 
+// feedback through wobble: first /evolve-cycle on learn data (2026-11-03,
+// 26 entries). Size stays at noon by choice; volume/mix untouched (no data).
 const state = {
   grainSizeMs: GRAIN_MS_DEFAULT,
   rate: RATE_MS_DEFAULT,
-  feedback: 0.65,
-  repeat: 0.65,
+  feedback: 0.48,
+  repeat: 0.46,
   spread: 0.3,
-  density: 0.6,
+  density: 0.33,
   dynamics: 0.15,
-  sensitivity: 0.1,
-  wow: 0,
-  flutter: 0,
-  wobble: 0,
+  sensitivity: 0.79,
+  wow: 0.26,
+  flutter: 0.22,
+  wobble: 0.3,
   mix: 0.7,
   granularMix: 1,
   delayMix: 1,
