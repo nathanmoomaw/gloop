@@ -6,7 +6,8 @@ Goal: get 50+ entries from people other than Nathan, tagged per tester, so the n
 learns from strangers' rooms and devices, not one desk.
 
 - [x] Claude: tag every learn entry with `tester` (from a `?tester=<name>` link, sticky), an anonymous per-browser `sid` and a coarse `device` (ios/android/desktop); `learn:pull` + `evolve:cycle` report counts per tester
-- [x] Claude: one-line sharing notice + GPC/DNT opt-out restored (the item below)
+- [x] Claude: one-line sharing notice + GPC/DNT opt-out restored
+- [ ] Nathan: redeploy the learn Lambda so rows keep the tags: `bash infra/learn/setup.sh` (blocked for Claude as a prod deploy)
 - [ ] Nathan: 1-day solo listen on gloop-dev with the 11-03 defaults (`?tester=nathan`): does it make sound in a quiet room without `sound`? Press ❤️/🔇 as you go
 - [ ] Nathan: merge dev/v0 → main (review chain) so testers hit gloop.obfusco.us and `host` separates them from dev work
 - [ ] Nathan: pick 3–5 testers with different rooms + devices (aim ≥1 iPhone, ≥1 Android, ≥1 laptop speakers). Nic first
@@ -24,7 +25,6 @@ learns from strangers' rooms and devices, not one desk.
 - [ ] Eyeball pass on inverted see-through controls (legibility over bright grain clusters) and tilt-dance intensity on device
 - [ ] Redeploy capture (`bash ~/Sites/capture/scripts/deploy.sh`) to drop its unused `/learn` route
 - [ ] If gloop goes public with per-interaction analytics: add an S3/Firehose events stream next to `gloop-learn` (DynamoDB stays for learn signals)
-- [ ] Before gloop has real users: add a one-line notice that settings + sound levels are shared anonymously to improve it, and restore the GPC/DNT opt-out (removed 2026-10-30 so all input is saved). Not needed while it's just Nathan
 - [ ] Next `/evolve-cycle` at ~50+ entries (26 on 2026-11-03): check the model's breed-card guesses against your picks, tune `bandwidth`/`LABELS` in predict.js if they disagree; revisit grain size (data favors 300–685ms, knob kept at noon)
 - [ ] Optionally schedule `/evolve-cycle` (e.g. weekly via /schedule) once one manual cycle has gone well
 - [ ] Listening pass on evolve ↔ breed sharing (does a resumed evolve keep what you picked?) and the implicit settle/linger thresholds (20s/90s)
@@ -41,6 +41,7 @@ learns from strangers' rooms and devices, not one desk.
   - goo-filter logo drop-shadows off the animated layer; per-grain AudioBuffer reuse in engine.js
 
 ## Completed
+- [x] Learn tags (tester/sid/device), sharing notice, GPC/DNT opt-out restored (2026-11-03)
 - [x] `local-deploy` granted read on `gloop-learn`; first real `/evolve-cycle` applied new defaults (2026-11-03)
 
 - [x] One `DIAL_RANGES` table (ranges.js) for knobs/evolve/predict/shake; compiled CPPN fast LUT fill, ~2× (2026-11-02)

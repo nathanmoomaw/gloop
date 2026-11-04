@@ -1,6 +1,25 @@
 # DEVLOG
 
-## 2026-11-03 (latest) - First real evolve cycle: new defaults from learn data
+## 2026-11-03 (latest) - User testing route; learn tags, notice, opt-out
+
+- **ROADMAP:** new "User testing route" section. Solo listen on the new defaults → merge to main →
+  3–5 testers on different devices, each with their own `?tester=<name>` link → `/evolve-cycle`
+  at ~50 tester entries.
+- **Tags:** learn batches now carry `tester` (from `?tester=`, kept in localStorage), a random
+  per-browser `sid` and `device` (ios/android/desktop; iPadOS = Mac UA + touch) next to `host`.
+  `cleanTags` in the Lambda keeps them only when they match the client's shapes and stamps them on
+  each row. `learn:pull` passes them through. `evolve:cycle` reports counts by tester/host/device.
+  An old Lambda ignores the extra body fields, so either side can ship first.
+- **Notice + opt-out:** a tap-to-hide pill above listen, shown once per browser when the build
+  sends ("dial settings and sound levels (never audio) are saved under a random id for this
+  browser"). GPC/DNT browsers send nothing again (`optedOut`, removed 2026-10-30).
+- **Not done:** Lambda redeploy (`bash infra/learn/setup.sh`) was blocked as a prod deploy in auto
+  mode. Until it runs, rows keep landing without tags.
+- **Jev:** all 8 files flagged (0.40–0.68), scores only, no reasons. Read-through found nothing;
+  checked that DocumentClient takes the new string fields. **Haiku:** 1 real finding: the notice
+  said "anonymously", but a lasting sid plus a tester name isn't anonymous. Reworded. 120 tests.
+
+## 2026-11-03 - First real evolve cycle: new defaults from learn data
 
 - **Unblocked:** Nathan added inline policy `gloop-learn-read` (`dynamodb:Query` +
   `DescribeTable`, this table only) to `local-deploy`. `learn:pull 30`: 16 entries (10-30: 4,
