@@ -20,7 +20,7 @@
 // Each batch carries `tags` next to `host`: a tester name from a
 // `?tester=<name>` link (kept in this browser), an anonymous per-browser
 // `sid` and a coarse `device`, so user-testing data can be split by person
-// and platform without knowing who anyone is.
+// and platform without names beyond the tester link.
 
 export const OUTBOX_KEY = 'gloop.learn.outbox'
 export const TESTER_KEY = 'gloop.tester'

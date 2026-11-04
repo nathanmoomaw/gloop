@@ -619,7 +619,7 @@ export default function App() {
                   }}
                 >
                   gloop learns from how it's played: dial settings and sound levels (never audio) are
-                  shared anonymously. tap to hide
+                  saved under a random id for this browser. tap to hide
                 </button>
               )
             )}
