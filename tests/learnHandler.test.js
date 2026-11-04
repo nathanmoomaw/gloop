@@ -6,6 +6,7 @@ import {
   MAX_ENTRIES,
   cleanEntry,
   cleanHost,
+  cleanTags,
   createHandler,
 } from '../infra/learn/handler.mjs'
 import { unmarshal, toEntry, lastDays } from '../scripts/learn-pull.mjs'
@@ -257,5 +258,40 @@ describe('handler stays in step with the client', () => {
     const { LABELS } = await import('../src/audio/predict.js')
     expect([...KINDS].sort()).toEqual(Object.keys(KIND_BY_ID).sort())
     expect(Object.keys(LABELS).sort()).toEqual(Object.keys(KIND_BY_ID).sort())
+  })
+})
+
+describe('batch tags', () => {
+  it('keeps well-formed tester/sid/device and drops the rest', () => {
+    expect(cleanTags({ tester: 'nic', sid: 'abc123', device: 'ios' })).toEqual({ tester: 'nic', sid: 'abc123', device: 'ios' })
+    expect(cleanTags({ tester: 'Nic Cage', sid: 'x', device: 'toaster' })).toEqual({})
+    expect(cleanTags(null)).toEqual({})
+  })
+
+  it('stamps the tags on every row in the batch', async () => {
+    const writeItems = vi.fn().mockResolvedValue(undefined)
+    const handler = createHandler({ writeItems, allowedOrigins: ALLOWED })
+    const res = await handler(
+      makeEvent({
+        body: {
+          host: 'gloop.obfusco.us',
+          tester: 'nic',
+          sid: 'abc123',
+          device: 'android',
+          entries: [{ kind: 'heart' }, { kind: 'muted' }],
+        },
+      }),
+    )
+    expect(res.statusCode).toBe(204)
+    const [items] = writeItems.mock.calls[0]
+    expect(items).toHaveLength(2)
+    for (const item of items) expect(item).toMatchObject({ tester: 'nic', sid: 'abc123', device: 'android', host: 'gloop.obfusco.us' })
+  })
+
+  it('accepts what the client produces', async () => {
+    const { clientTags, DEVICES } = await import('../src/audio/learnRemote.js')
+    for (const device of DEVICES) expect(cleanTags({ device })).toEqual({ device })
+    const tags = clientTags({ search: '?tester=amy-2', storage: null, nav: { userAgent: 'Android' } })
+    expect(cleanTags(tags)).toEqual(tags)
   })
 })

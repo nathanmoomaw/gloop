@@ -34,6 +34,20 @@ export function cleanHost(host) {
   return typeof host === 'string' && /^[a-z0-9.:-]{1,80}$/i.test(host) ? host : 'unknown'
 }
 
+// Batch-level tags from the client (learnRemote.js clientTags): kept only
+// when they match the client's own shapes, else left off the row.
+const TESTER_RE = /^[a-z0-9-]{1,24}$/
+const SID_RE = /^[a-z0-9]{6,24}$/
+const DEVICES = new Set(['ios', 'android', 'desktop'])
+
+export function cleanTags(body) {
+  const out = {}
+  if (typeof body?.tester === 'string' && TESTER_RE.test(body.tester)) out.tester = body.tester
+  if (typeof body?.sid === 'string' && SID_RE.test(body.sid)) out.sid = body.sid
+  if (DEVICES.has(body?.device)) out.device = body.device
+  return out
+}
+
 // Re-serialize only known fields with known types so an open endpoint cannot
 // store arbitrary text. Invalid/missing client ids get a fresh UUID so the row
 // still lands; resend dedupe only applies to valid client ids.
@@ -112,7 +126,11 @@ export function createHandler({ writeItems, allowedOrigins = [] }) {
     }
 
     const host = cleanHost(body.host)
-    const items = body.entries.map((e) => cleanEntry(e, host)).filter(Boolean)
+    const tags = cleanTags(body)
+    const items = body.entries
+      .map((e) => cleanEntry(e, host))
+      .filter(Boolean)
+      .map((item) => ({ ...item, ...tags }))
     if (!items.length) return reply(400, 'no valid entries')
 
     try {

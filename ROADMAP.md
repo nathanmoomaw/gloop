@@ -1,5 +1,20 @@
 # ROADMAP
 
+## User testing route (2026-11-03)
+
+Goal: get 50+ entries from people other than Nathan, tagged per tester, so the next `/evolve-cycle`
+learns from strangers' rooms and devices, not one desk.
+
+- [x] Claude: tag every learn entry with `tester` (from a `?tester=<name>` link, sticky), an anonymous per-browser `sid` and a coarse `device` (ios/android/desktop); `learn:pull` + `evolve:cycle` report counts per tester
+- [x] Claude: one-line sharing notice + GPC/DNT opt-out restored (the item below)
+- [ ] Nathan: 1-day solo listen on gloop-dev with the 11-03 defaults (`?tester=nathan`): does it make sound in a quiet room without `sound`? Press ❤️/🔇 as you go
+- [ ] Nathan: merge dev/v0 → main (review chain) so testers hit gloop.obfusco.us and `host` separates them from dev work
+- [ ] Nathan: pick 3–5 testers with different rooms + devices (aim ≥1 iPhone, ≥1 Android, ≥1 laptop speakers). Nic first
+- [ ] Nathan: send each their own link `https://gloop.obfusco.us/?tester=<name>` + the 4-line brief: "tap listen, then play/talk/clap near it for 5 min. Press ❤️ when it sounds good, 🔇 when it goes silent, ⭐ when it's dialed. Try breed once. Tell me one thing that confused you."
+- [ ] Nathan: collect the "one confusing thing" replies into a DUMP item; those are UX fixes, not model data
+- [ ] Claude: after ~1 week or 50 tester entries, `/evolve-cycle`. Compare testers vs Nathan, per device; check breed-card guesses vs picks; revisit grain size
+- [ ] Claude: if iOS testers show many 🔇/rescue with input≈0, investigate mic constraints / AudioWorklet on Safari before tuning dials
+
 ## Active
 
 - [ ] Tune default grain size / feedback / spread for a good out-of-the-box first impression — grain size, rate, feedback, repeat, density, and overall output volume/gain-staging were all bumped up per explicit request (2026-08-12/13, the latter after diagnosing that the safety limiter was silently eating the first volume-boost attempt), but still needs an actual listening pass to confirm the new values land well (headless/automated testing can't judge this), unlike the other items below

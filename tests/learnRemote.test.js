@@ -1,5 +1,16 @@
 import { describe, it, expect } from 'vitest'
-import { OUTBOX_KEY, createRemoteSender, remoteUrl } from '../src/audio/learnRemote.js'
+import {
+  OUTBOX_KEY,
+  SID_KEY,
+  TESTER_KEY,
+  clientTags,
+  createRemoteSender,
+  deviceClass,
+  markNoticeSeen,
+  noticeSeen,
+  optedOut,
+  remoteUrl,
+} from '../src/audio/learnRemote.js'
 
 function fakeStorage(init = {}) {
   const map = new Map(Object.entries(init))
@@ -166,5 +177,75 @@ describe('createRemoteSender', () => {
     for (let i = 0; i < 120; i++) s.add(entry(String(i)))
     for (let i = 0; i < 3; i++) await timers.run()
     expect(counts).toEqual([50, 50, 20])
+  })
+})
+
+describe('optedOut', () => {
+  it('honors GPC and DNT, nothing else', () => {
+    expect(optedOut({ globalPrivacyControl: true })).toBe(true)
+    expect(optedOut({ doNotTrack: '1' })).toBe(true)
+    expect(optedOut({ doNotTrack: '0', globalPrivacyControl: false })).toBe(false)
+    expect(optedOut(undefined)).toBe(false)
+  })
+})
+
+describe('deviceClass', () => {
+  it('maps user agents to ios/android/desktop', () => {
+    expect(deviceClass({ userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)' })).toBe('ios')
+    expect(deviceClass({ userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', maxTouchPoints: 5 })).toBe('ios')
+    expect(deviceClass({ userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', maxTouchPoints: 0 })).toBe('desktop')
+    expect(deviceClass({ userAgent: 'Mozilla/5.0 (Linux; Android 15; Pixel 9)' })).toBe('android')
+    expect(deviceClass(undefined)).toBe('desktop')
+  })
+})
+
+describe('clientTags', () => {
+  const nav = { userAgent: 'x' }
+
+  it('keeps a ?tester= name and one sid across visits', () => {
+    const storage = fakeStorage()
+    const first = clientTags({ search: '?tester=Nic', storage, nav })
+    expect(first).toMatchObject({ tester: 'nic', device: 'desktop' })
+    expect(first.sid).toMatch(/^[a-z0-9]{6,24}$/)
+    const later = clientTags({ search: '', storage, nav })
+    expect(later).toEqual(first)
+    expect(storage.getItem(TESTER_KEY)).toBe('nic')
+  })
+
+  it('ignores a bad tester name and a bad stored sid', () => {
+    const storage = fakeStorage({ [SID_KEY]: 'BAD!' })
+    const tags = clientTags({ search: '?tester=<script>', storage, nav })
+    expect('tester' in tags).toBe(false)
+    expect(tags.sid).not.toBe('BAD!')
+    expect(storage.getItem(SID_KEY)).toBe(tags.sid)
+  })
+
+  it('still tags when storage throws', () => {
+    const storage = { getItem: () => { throw new Error('blocked') }, setItem: () => { throw new Error('blocked') } }
+    const tags = clientTags({ search: '?tester=amy', storage, nav })
+    expect(tags.tester).toBe('amy')
+    expect(tags.sid).toMatch(/^[a-z0-9]{6,24}$/)
+  })
+
+  it('rides along in the batch body without overriding host or entries', async () => {
+    const calls = []
+    const timers = fakeTimers()
+    const tags = { tester: 'nic', sid: 'abc123', device: 'ios', host: 'evil', entries: [] }
+    const s = createRemoteSender({ url: 'U', host: 'h', tags, storage: fakeStorage(), ...timers, fetchImpl: async (u, o) => (calls.push(o), { ok: true }) })
+    s.add(entry('a'))
+    await timers.run()
+    const sent = JSON.parse(calls[0].body)
+    expect(sent).toMatchObject({ tester: 'nic', sid: 'abc123', device: 'ios', host: 'h' })
+    expect(sent.entries).toHaveLength(1)
+  })
+})
+
+describe('sharing notice', () => {
+  it('stays hidden once seen, shows when storage is blocked', () => {
+    const storage = fakeStorage()
+    expect(noticeSeen(storage)).toBe(false)
+    markNoticeSeen(storage)
+    expect(noticeSeen(storage)).toBe(true)
+    expect(noticeSeen({ getItem: () => { throw new Error('blocked') } })).toBe(false)
   })
 })

@@ -143,6 +143,14 @@
   backdrop-filter: blur(6px);
 }
 
+/* Same pill, quieter: the one-time learn sharing notice (learnRemote.js). */
+.mic-error-toast--notice {
+  border-radius: 1rem;
+  color: color-mix(in srgb, #fff 75%, transparent);
+  font-size: 0.7rem;
+  width: max-content;
+}
+
 /* Narrow-to-medium widths: the centered listen/volume row has no room to
    spare for two more knobs beside it without colliding with the bottom-left
    corner cluster, so pull the mix pair out of flow and float it in its own

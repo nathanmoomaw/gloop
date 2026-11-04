@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { appendEntry, loadLog, saveLog, summarize, toJSONL } from './learn'
 import { addEntry, getAllEntries, getMeta, loadLearnStore, saveFallbackEntry, setMeta, stripId } from './learnStore'
 import { createAppender, ensurePermission, pickLearnFile, writeAll } from './learnFile'
-import { createRemoteSender, remoteUrl } from './learnRemote'
+import { clientTags, createRemoteSender, optedOut, remoteUrl } from './learnRemote'
 
 // Learn mode's storage, behind one hook: the in-memory log (what the panel
 // counts and the learned target reads), IndexedDB (every press), the
@@ -51,8 +51,9 @@ export function useLearnLog() {
   // null once loaded.
   const learnPendingRef = useRef([])
   // Builds with the store URL send every entry to the gloop learn store
-  // (learnRemote.js), so they skip the auto-save file.
+  // (learnRemote.js), so they skip the auto-save file. GPC/DNT: no sending.
   const learnUrl = remoteUrl()
+  const sending = !!learnUrl && !optedOut()
   // Auto-save file (learnFile.js, Chrome/Edge desktop): picked once, kept in
   // the db, appended on every press.
   const learnFileRef = useRef(null)
@@ -87,8 +88,8 @@ export function useLearnLog() {
   // also goes to the gloop-learn table (learnRemote.js, infra/learn/).
   const remoteRef = useRef(null)
   useEffect(() => {
-    if (!learnUrl) return
-    const remote = createRemoteSender({ url: learnUrl })
+    if (!sending) return
+    const remote = createRemoteSender({ url: learnUrl, tags: clientTags() })
     remoteRef.current = remote
     remote.flush() // whatever an earlier visit left in the outbox
     const onHide = () => document.visibilityState === 'hidden' && remote.flush({ beacon: true })
@@ -98,7 +99,7 @@ export function useLearnLog() {
       remote.dispose()
       if (remoteRef.current === remote) remoteRef.current = null
     }
-  }, [learnUrl])
+  }, [learnUrl, sending])
 
   const record = useCallback((entry) => {
     const next = appendEntry(learnLogRef.current, entry, LEARN_MEMORY_CAP)
@@ -177,7 +178,7 @@ export function useLearnLog() {
   return {
     summary: learnSummary,
     file: learnFile,
-    remote: !!learnUrl,
+    remote: sending,
     record,
     recent,
     exportLog: handleLearnExport,

@@ -19,6 +19,7 @@ import { createImplicitLearner } from './audio/implicit'
 import { createPredictor } from './audio/predict'
 import { fileSaveSupported } from './audio/learnFile'
 import { useLearnLog } from './audio/useLearnLog'
+import { markNoticeSeen, noticeSeen } from './audio/learnRemote'
 import LearnToggle from './components/LearnToggle'
 import LearnPanel from './components/LearnPanel'
 import { DIAL_RANGES, pickRanges } from './audio/ranges'
@@ -110,6 +111,7 @@ export default function App() {
   const [breeding, setBreeding] = useState(false)
   const [learning, setLearning] = useState(false)
   const learn = useLearnLog()
+  const [showNotice, setShowNotice] = useState(() => learn.remote && !noticeSeen())
   const { record: recordLearn, recent: recentLearn } = learn
   const [learnLast, setLearnLast] = useState({ kind: null, pulse: 0 })
   // Logs the current params (or `params` over them), levels and state as
@@ -602,10 +604,24 @@ export default function App() {
               onPress={engine.prepare}
               size={128}
             />
-            {micError && (
+            {micError ? (
               <button type="button" className="mic-error-toast" onClick={() => setMicError(null)}>
                 {micError}
               </button>
+            ) : (
+              showNotice && (
+                <button
+                  type="button"
+                  className="mic-error-toast mic-error-toast--notice"
+                  onClick={() => {
+                    markNoticeSeen()
+                    setShowNotice(false)
+                  }}
+                >
+                  gloop learns from how it's played: dial settings and sound levels (never audio) are
+                  shared anonymously. tap to hide
+                </button>
+              )
             )}
           </div>
           <OnButton active={running} onToggle={setPower} />

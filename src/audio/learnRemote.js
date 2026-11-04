@@ -14,9 +14,21 @@
 // serialized across tabs with the Web Locks API where it exists.
 //
 // The build carries only the URL. No key; the Lambda checks the origin
-// and the fields.
+// and the fields. A browser asking not to be tracked (Global Privacy
+// Control or Do Not Track) sends nothing.
+//
+// Each batch carries `tags` next to `host`: a tester name from a
+// `?tester=<name>` link (kept in this browser), an anonymous per-browser
+// `sid` and a coarse `device`, so user-testing data can be split by person
+// and platform without knowing who anyone is.
 
 export const OUTBOX_KEY = 'gloop.learn.outbox'
+export const TESTER_KEY = 'gloop.tester'
+export const SID_KEY = 'gloop.sid'
+export const NOTICE_KEY = 'gloop.learn.noticeSeen'
+export const TESTER_RE = /^[a-z0-9-]{1,24}$/
+export const SID_RE = /^[a-z0-9]{6,24}$/
+export const DEVICES = ['ios', 'android', 'desktop']
 const OUTBOX_CAP = 500
 // Under the Lambda's 64KB body cap and sendBeacon's 64KB limit, and its
 // 50-entry cap per batch.
@@ -62,6 +74,74 @@ export function remoteUrl(env = import.meta.env) {
   return env.PROD && env.VITE_LEARN_URL ? env.VITE_LEARN_URL : null
 }
 
+/** True when the browser asks not to be tracked: nothing is sent. */
+export function optedOut(nav = globalThis.navigator) {
+  return nav?.globalPrivacyControl === true || nav?.doNotTrack === '1'
+}
+
+/** Whether this browser already hid the sharing notice. Blocked storage: show it. */
+export function noticeSeen(storage = defaultStorage()) {
+  try {
+    return storage?.getItem(NOTICE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function markNoticeSeen(storage = defaultStorage()) {
+  try {
+    storage?.setItem(NOTICE_KEY, '1')
+  } catch {
+    // shows again next visit
+  }
+}
+
+/** Coarse platform, never the full user agent. iPadOS reports as a Mac with touch. */
+export function deviceClass(nav = globalThis.navigator) {
+  const ua = nav?.userAgent ?? ''
+  if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && nav?.maxTouchPoints > 1)) return 'ios'
+  if (/Android/.test(ua)) return 'android'
+  return 'desktop'
+}
+
+/**
+ * { tester, sid, device } for this browser. `?tester=` sets (and keeps) the
+ * tester name; without storage the sid lasts for this page load only.
+ */
+export function clientTags({
+  search = globalThis.location?.search ?? '',
+  storage = defaultStorage(),
+  nav = globalThis.navigator,
+} = {}) {
+  const get = (k) => {
+    try {
+      return storage?.getItem(k) ?? null
+    } catch {
+      return null
+    }
+  }
+  const set = (k, v) => {
+    try {
+      storage?.setItem(k, v)
+    } catch {
+      // blocked or full: the tag just doesn't stick
+    }
+  }
+
+  let tester = new URLSearchParams(search).get('tester')?.trim().toLowerCase() ?? null
+  if (tester && TESTER_RE.test(tester)) set(TESTER_KEY, tester)
+  else tester = get(TESTER_KEY)
+  if (!tester || !TESTER_RE.test(tester)) tester = null
+
+  let sid = get(SID_KEY)
+  if (!sid || !SID_RE.test(sid)) {
+    sid = newId()
+    set(SID_KEY, sid)
+  }
+
+  return { ...(tester && { tester }), sid, device: deviceClass(nav) }
+}
+
 /**
  * Batching sender: { add(entry), flush({ beacon }), pending(), dispose() }.
  * Deps are injectable for tests.
@@ -69,6 +149,7 @@ export function remoteUrl(env = import.meta.env) {
 export function createRemoteSender({
   url,
   host = globalThis.location?.host ?? 'unknown',
+  tags = {},
   storage = defaultStorage(),
   fetchImpl = (...args) => globalThis.fetch(...args),
   beacon = (u, data) => globalThis.navigator?.sendBeacon?.(u, data) ?? false,
@@ -118,7 +199,7 @@ export function createRemoteSender({
     return batch
   }
 
-  const body = (batch) => JSON.stringify({ host, entries: batch })
+  const body = (batch) => JSON.stringify({ ...tags, host, entries: batch })
 
   const remove = (batch) => {
     const sent = new Set(batch.map((e) => e.id))

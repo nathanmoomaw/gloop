@@ -21,9 +21,9 @@ export function unmarshal(attr) {
 }
 
 // An unmarshaled row as a learn entry: the same shape gloop logs locally
-// (the `day` partition key dropped).
-export function toEntry({ id, t, kind, params, levels, state, host }) {
-  return { id, t, kind, params, levels, state, host }
+// (the `day` partition key dropped). Tags are only on rows sent since 2026-11-03.
+export function toEntry({ id, t, kind, params, levels, state, host, tester, sid, device }) {
+  return { id, t, kind, params, levels, state, host, tester, sid, device }
 }
 
 export function lastDays(n, now = new Date()) {

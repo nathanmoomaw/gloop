@@ -157,20 +157,30 @@ function parseArgs(argv) {
   return opts
 }
 
-function countByKind(entries) {
+/** Counts of `entries` by a string field; missing → `fallback`. */
+export function countBy(entries, field, fallback = 'unknown') {
   const counts = {}
   for (const e of entries) {
-    const k = e && typeof e.kind === 'string' ? e.kind : 'unknown'
+    const k = e && typeof e[field] === 'string' ? e[field] : fallback
     counts[k] = (counts[k] || 0) + 1
   }
   return counts
 }
 
+const summarizeCounts = (counts) =>
+  Object.entries(counts)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join(', ') || 'none'
+
 function main() {
   const opts = parseArgs(process.argv.slice(2))
   const learningDir = path.join(process.cwd(), 'learning')
   const entries = readEntries(learningDir)
-  const byKind = countByKind(entries)
+  const byKind = countBy(entries, 'kind')
+  // Who and where, for user testing (tags on rows sent since 2026-11-03).
+  const byTester = countBy(entries, 'tester', 'untagged')
+  const byHost = countBy(entries, 'host', 'local')
+  const byDevice = countBy(entries, 'device', 'untagged')
   const current = getParams()
   const { trained, base, best, changes } = proposeDefaults({
     entries,
@@ -186,15 +196,13 @@ function main() {
   const cycleDir = path.join(learningDir, 'cycle')
   fs.mkdirSync(cycleDir, { recursive: true })
 
-  const kindSummary =
-    Object.entries(byKind)
-      .map(([k, v]) => `${k}: ${v}`)
-      .join(', ') || 'none'
-
   const lines = [
     `# Evolve Cycle — ${date}`,
     '',
-    `- Entries: ${entries.length} (${kindSummary})`,
+    `- Entries: ${entries.length} (${summarizeCounts(byKind)})`,
+    `- By tester: ${summarizeCounts(byTester)}`,
+    `- By host: ${summarizeCounts(byHost)}`,
+    `- By device: ${summarizeCounts(byDevice)}`,
     `- Training size: ${trained} (min required: ${opts.minEntries})`,
     `- Current defaults: score ${base.score.toFixed(4)}, confidence ${base.confidence.toFixed(4)}`,
   ]
@@ -226,7 +234,7 @@ function main() {
 
   const jsonPayload = {
     date,
-    entries: { total: entries.length, byKind },
+    entries: { total: entries.length, byKind, byTester, byHost, byDevice },
     trained,
     current: { score: roundSig4(base.score), confidence: roundSig4(base.confidence) },
     best: best
