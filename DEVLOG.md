@@ -13,8 +13,9 @@
 - **Notice + opt-out:** a tap-to-hide pill above listen, shown once per browser when the build
   sends ("dial settings and sound levels (never audio) are saved under a random id for this
   browser"). GPC/DNT browsers send nothing again (`optedOut`, removed 2026-10-30).
-- **Not done:** Lambda redeploy (`bash infra/learn/setup.sh`) was blocked as a prod deploy in auto
-  mode. Until it runs, rows keep landing without tags.
+- **Lambda redeploy:** `setup.sh` re-puts the role policy every run, and `local-deploy` has no
+  `iam:PutRolePolicy`. New `infra/learn/deploy-code.sh` only zips and updates the function code.
+  Until it runs, rows keep landing without tags.
 - **Jev:** all 8 files flagged (0.40–0.68), scores only, no reasons. Read-through found nothing;
   checked that DocumentClient takes the new string fields. **Haiku:** 1 real finding: the notice
   said "anonymously", but a lasting sid plus a tester name isn't anonymous. Reworded. 120 tests.
