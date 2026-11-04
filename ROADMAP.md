@@ -10,7 +10,7 @@
 - [ ] Redeploy capture (`bash ~/Sites/capture/scripts/deploy.sh`) to drop its unused `/learn` route
 - [ ] If gloop goes public with per-interaction analytics: add an S3/Firehose events stream next to `gloop-learn` (DynamoDB stays for learn signals)
 - [ ] Before gloop has real users: add a one-line notice that settings + sound levels are shared anonymously to improve it, and restore the GPC/DNT opt-out (removed 2026-10-30 so all input is saved). Not needed while it's just Nathan
-- [ ] Grant `local-deploy` `dynamodb:Query` on `gloop-learn` (learn:pull still denied 2026-11-03; table holds ~16 rows unread), then the first real `/evolve-cycle` once gloop-learn is live and has ~50+ entries: check the model's breed-card guesses against your picks, tune `bandwidth`/`LABELS` in predict.js if they disagree
+- [ ] Next `/evolve-cycle` at ~50+ entries (26 on 2026-11-03): check the model's breed-card guesses against your picks, tune `bandwidth`/`LABELS` in predict.js if they disagree; revisit grain size (data favors 300–685ms, knob kept at noon)
 - [ ] Optionally schedule `/evolve-cycle` (e.g. weekly via /schedule) once one manual cycle has gone well
 - [ ] Listening pass on evolve ↔ breed sharing (does a resumed evolve keep what you picked?) and the implicit settle/linger thresholds (20s/90s)
 - [ ] Use learn mode for a while, then have Claude read `learning/feedback.jsonl` (dev) or an export and retune defaults / `SOUND_BOUNDS` from it
@@ -26,6 +26,7 @@
   - goo-filter logo drop-shadows off the animated layer; per-grain AudioBuffer reuse in engine.js
 
 ## Completed
+- [x] `local-deploy` granted read on `gloop-learn`; first real `/evolve-cycle` applied new defaults (2026-11-03)
 
 - [x] One `DIAL_RANGES` table (ranges.js) for knobs/evolve/predict/shake; compiled CPPN fast LUT fill, ~2× (2026-11-02)
 - [x] Pre-main review chain on dev/v0 (Haiku in 5 groups, /code-review, /simplify) and merge to main (2026-10-30)

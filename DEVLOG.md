@@ -1,6 +1,23 @@
 # DEVLOG
 
-## 2026-11-03 (latest) - Incorporate learnings: evolve cycle on local exports, no default change
+## 2026-11-03 (latest) - First real evolve cycle: new defaults from learn data
+
+- **Unblocked:** Nathan added inline policy `gloop-learn-read` (`dynamodb:Query` +
+  `DescribeTable`, this table only) to `local-deploy`. `learn:pull 30`: 16 entries (10-30: 4,
+  10-31: 12), all gloop-dev. With the 10 from the local export: 26 entries, 25 trained.
+- **Data, in plain words:** 8 of 16 remote entries are `sound`-button rescues. They sit at long
+  grains (1360–2840ms), slow rates and `sensitivity` 0.1, which is below `SOUND_BOUNDS`' own 0.3
+  floor ("low sensitivity gates quiet rooms out"). Every liked press and both settles are at
+  300–685ms grains with sensitivity 0.3–0.74. Volume, granularMix and delayMix never varied.
+- **Cycle:** best 0.628 (conf 0.86) vs current 0.547 (conf 0.93). It suggested grain 300ms, but
+  Nathan chose to keep the size knob at noon (1500ms). Volume and the mixes were also left alone:
+  no variance in the data, so the model was guessing there. Applied: feedback 0.65→0.48,
+  repeat 0.65→0.46, density 0.6→0.33, sensitivity 0.1→0.79, wow 0→0.26, flutter 0→0.22,
+  wobble 0→0.3. Predicted score 0.547 → 0.589 (conf 0.89).
+- **Jev:** engine.js 0.57 flagged, no reasons. Read-through: graph init reads `state`, nothing
+  assumes zero wow/flutter/wobble. **Haiku:** 0 findings ($0.0025). 110 tests, lint clean.
+
+## 2026-11-03 - Incorporate learnings: evolve cycle on local exports, no default change
 
 - **Pull:** `learn:pull` still denied (`local-deploy` lacks `dynamodb:Query`/`Scan`, and can't read
   its own IAM). `describe-table` works: ~16 rows in `gloop-learn`, unread.
