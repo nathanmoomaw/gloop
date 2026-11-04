@@ -1,6 +1,22 @@
 # DEVLOG
 
-## 2026-11-02 (latest) - Iteration: one range table, faster CPPN LUT; evolve cycle blocked on IAM
+## 2026-11-03 (latest) - Incorporate learnings: evolve cycle on local exports, no default change
+
+- **Pull:** `learn:pull` still denied (`local-deploy` lacks `dynamodb:Query`/`Scan`, and can't read
+  its own IAM). `describe-table` works: ~16 rows in `gloop-learn`, unread.
+- **Data used instead:** `~/Downloads/gloop-learn-2026-10-29.jsonl` (its "(1)" copy is identical)
+  → `learning/export-2026-10-29.jsonl`. 10 entries, all positive (heart 4, sound 3, star 3), 5
+  distinct dial sets, one listener, one day, all playing with thru off. No muted/rescue, no implicit.
+- **`evolve:cycle`:** 10 < 20 minimum → no suggestion. Current defaults score 0.791 (conf 0.735).
+  No engine defaults changed (cycle rule: don't force it).
+- **Read of the data:** the liked sets sit at `sensitivity` 0.31–0.67 (default 0.1) and `repeat`
+  0.58–0.94 (default 0.65). Worth watching once the table is readable; 5 sets is too few to act on.
+- **Fix:** `scripts/evolve-cycle.mjs` named its report by UTC date, so evening runs filed under
+  tomorrow (yesterday's 19:04 run wrote `2026-11-03.md`). Now local date. `learn:pull` stays UTC
+  (the table's `day` key is UTC).
+- **Jev:** evolve-cycle.mjs 0.26, not flagged. **Haiku:** 0 findings ($0.0008). 110 tests, lint clean.
+
+## 2026-11-02 - Iteration: one range table, faster CPPN LUT; evolve cycle blocked on IAM
 
 - **/evolve-cycle:** stopped at step 1. `npm run learn:pull 30` is denied: IAM user `local-deploy`
   has no `dynamodb:Query` on `gloop-learn` (it pulled fine on 2026-10-30). `evolve:cycle` then saw
