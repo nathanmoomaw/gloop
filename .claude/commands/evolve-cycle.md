@@ -7,7 +7,7 @@ steers evolve and breed by the learned preference model live; this turn changes 
 from. The stack evaluates and predicts; Nathan's ears (and everyone's learn entries) close the loop.
 
 1. **Pull.** `npm run learn:pull 30` (gloop-learn DynamoDB → `learning/remote/<day>.jsonl`). If it fails
-   because the table doesn't exist yet, stop: `bash infra/learn/setup.sh` hasn't been run.
+   because the table doesn't exist yet, stop: `npm run learn:setup` hasn't been run.
 2. **Predict.** `npm run evolve:cycle`. It refits the model on everything under `learning/` and
    random-searches `SOUND_BOUNDS` for defaults the model rates higher, where it has evidence
    (confidence ≥ 0.3). Read `learning/cycle/<today>.md`.

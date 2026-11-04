@@ -12,6 +12,8 @@
     "test:unit": "vitest run",
     "review:haiku": "review-haiku",
     "learn:pull": "node scripts/learn-pull.mjs",
+    "learn:deploy": "infra/learn/deploy-code.sh",
+    "learn:setup": "infra/learn/setup.sh",
     "evolve:cycle": "node scripts/evolve-cycle.mjs"
   },
   "dependencies": {

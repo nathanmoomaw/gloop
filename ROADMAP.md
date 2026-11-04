@@ -7,7 +7,7 @@ learns from strangers' rooms and devices, not one desk.
 
 - [x] Claude: tag every learn entry with `tester` (from a `?tester=<name>` link, sticky), an anonymous per-browser `sid` and a coarse `device` (ios/android/desktop); `learn:pull` + `evolve:cycle` report counts per tester
 - [x] Claude: one-line sharing notice + GPC/DNT opt-out restored
-- [ ] Nathan: redeploy the learn Lambda so rows keep the tags: `bash infra/learn/deploy-code.sh` (code only, no IAM; setup.sh needs IAM rights local-deploy lacks)
+- [ ] Nathan: redeploy the learn Lambda so rows keep the tags: `npm run learn:deploy` (code only, no IAM; setup.sh needs IAM rights local-deploy lacks)
 - [ ] Nathan: 1-day solo listen on gloop-dev with the 11-03 defaults (`?tester=nathan`): does it make sound in a quiet room without `sound`? Press ❤️/🔇 as you go
 - [ ] Nathan: merge dev/v0 → main (review chain) so testers hit gloop.obfusco.us and `host` separates them from dev work
 - [ ] Nathan: pick 3–5 testers with different rooms + devices (aim ≥1 iPhone, ≥1 Android, ≥1 laptop speakers). Nic first
