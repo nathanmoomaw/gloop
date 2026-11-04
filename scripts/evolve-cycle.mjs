@@ -181,7 +181,8 @@ function main() {
     minEntries: opts.minEntries,
   })
 
-  const date = new Date().toISOString().slice(0, 10)
+  // Local date (en-CA is YYYY-MM-DD): an evening run shouldn't file under tomorrow's UTC day.
+  const date = new Date().toLocaleDateString('en-CA')
   const cycleDir = path.join(learningDir, 'cycle')
   fs.mkdirSync(cycleDir, { recursive: true })
 
